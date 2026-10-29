@@ -6,6 +6,8 @@ Production: https://caledon-forum.supervoid.workers.dev. Sign-in remains disable
 
 Each post and reply supports **25,000 Unicode code points** of Markdown. External image URLs render automatically; other URLs receive a metadata card, including click-to-load YouTube. **Image uploads are permanently out of scope.**
 
+Profile avatars and cover photos use public HTTPS image links, validated and served through the forum proxy (JPEG, PNG, GIF, or WebP, up to 2 MB). Set or remove the cover photo in Settings > Profile. Apply migration `0003_profile_cover.sql` before running the updated app.
+
 Profiles use `/username`; posts use `/p/123` with automatically allocated, non-reused integer IDs. System usernames are reserved at registration and GitHub onboarding. The old `/u/…` and `/thread/…` routes are removed and return 404, without legacy redirects.
 
 ## Development

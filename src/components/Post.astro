@@ -18,7 +18,7 @@ const remainingHtml=longReply?await markdown(p.body,links):'';
 const permalink=`/p/${p.publicId}`;
 const time=new Intl.DateTimeFormat('en',{month:'short',day:'numeric'}).format(new Date(p.createdAt));
 ---
-<article class:list={['post',{reply}]} id={`post-${p.id}`}>
+<article class:list={['post',{reply}]} id={`post-${p.id}`} data-post-url={!full&&!p.deleted?permalink:undefined}>
 <div class="post-grid"><a href={`/${p.username}`} aria-label={`${p.name}'s profile`}><Avatar name={p.name} image={p.image} username={p.username}/></a><div>
 <div class="identity"><a href={`/${p.username}`}><strong>{p.name}</strong></a>{!!p.isCaledonMember && <Badge/>}<a class="handle" href={`/${p.username}`}>@{p.username}</a><a class="post-time" href={permalink}><time datetime={new Date(p.createdAt).toISOString()}>{time}</time>{p.updatedAt>p.createdAt?' · Edited':''}</a></div>
 {p.parentId && p.parentId!==p.rootId && <div class="post-context"><span>Replying to {p.parentName}</span><p>{p.parentBody}</p></div>}

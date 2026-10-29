@@ -12,4 +12,13 @@ document.addEventListener('click',async event=>{
   if(button.hasAttribute('data-read')){await action('read',{});location.reload();}
  }catch(e){if(status)status.textContent=(e as Error).message;else alert((e as Error).message);}finally{button.removeAttribute('disabled');}
 });
+document.addEventListener('click',event=>{
+ if(event.defaultPrevented||event.button!==0||!(event.target instanceof Element))return;
+ if(event.target.closest('a,button,input,textarea,select,label,details,summary,iframe,video,audio,[contenteditable],[role="button"],[role="link"]'))return;
+ if(window.getSelection()?.toString())return;
+ const post=event.target.closest<HTMLElement>('[data-post-url]');
+ const url=post?.dataset.postUrl;if(!url)return;
+ if(event.ctrlKey||event.metaKey||event.shiftKey)window.open(url,'_blank','noopener');
+ else location.assign(url);
+});
 document.addEventListener('error',event=>{const target=event.target;if(target instanceof HTMLImageElement&&target.src.includes('/api/media/')){const note=document.createElement('span');note.className='notice';note.textContent='Image unavailable. The original link is still available.';target.replaceWith(note);}},true);

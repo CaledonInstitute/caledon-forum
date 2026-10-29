@@ -16,7 +16,7 @@ if(/^[A-Za-z0-9_]{1,30}$/.test(page)&&page!==page.toLowerCase())return Astro.red
 const titles:Record<string,string>={login:'Welcome back',register:'Join Caledon',verify:'Verify your email','forgot-password':'Reset your password','reset-password':'Choose a new password',onboarding:'Make yourself at home',settings:'Settings',notifications:'Notifications',admin:'Administration',rules:'Community rules',privacy:'Privacy'};
 const systemPage=Object.hasOwn(titles,page);
 const title=systemPage?titles[page]:'Profile unavailable';const user=Astro.locals.user;const n=pageNumber(Astro.url);
-const person=!systemPage?await one<PublicProfile>(`SELECT u.*,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,Date.now()-86400000,page):null;
+const person=!systemPage?await one<PublicProfile>(`SELECT u.*,u.cover_image AS coverImage,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,Date.now()-86400000,page):null;
 if(!systemPage&&!person)Astro.response.status=404;
 
 if(['settings','notifications','onboarding','admin'].includes(page)&&!user)return Astro.redirect('/login');

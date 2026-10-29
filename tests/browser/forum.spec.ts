@@ -19,6 +19,34 @@ test('public thread has SSR content, metadata and crawlable pagination',async({b
  await expect(page.locator('#post-qa-notebook pre')).toContainText('notebook.add');const schemas=await page.locator('script[type="application/ld+json"]').allTextContents();expect(schemas.some(s=>JSON.parse(s)['@type']==='DiscussionForumPosting')).toBe(true);
  await expect(page.locator('#post-qa-reply-00 .reply-details')).toHaveCount(1);await page.getByRole('link',{name:'Load more'}).click();await expect(page.locator('#post-qa-reply-22')).toBeVisible();await context.close();
 });
+test('post content and empty space open the detail page',async({page})=>{
+ for(const area of ['content','space']){
+  await page.goto('/');
+  const post=page.locator('#post-qa-notebook');
+  if(area==='content')await post.locator('.post-content p').first().click();
+  else await post.click({position:{x:5,y:5}});
+  await expect(page).toHaveURL(notebookPath);
+  await expect(page.getByRole('heading',{name:'Thread',exact:true})).toBeVisible();
+  await expect(page.locator('#post-qa-notebook')).not.toHaveAttribute('data-post-url');
+ }
+});
+test('post interactions and text selection keep their behavior',async({page})=>{
+ await page.goto('/');
+ const post=page.locator('#post-qa-notebook');
+ await post.locator('summary').click();
+ await expect(post.locator('details.more')).toHaveAttribute('open','');
+ await expect(page).toHaveURL('/');
+ await post.locator('summary').click();
+ await post.locator('.post-content p').first().evaluate(element=>{
+  const range=document.createRange();range.selectNodeContents(element);
+  const selection=window.getSelection();selection?.removeAllRanges();selection?.addRange(range);
+ });
+ await post.dispatchEvent('click');
+ await expect(page).toHaveURL('/');
+ await page.evaluate(()=>window.getSelection()?.removeAllRanges());
+ await post.locator('.identity strong').click();
+ await expect(page).toHaveURL('/qa_caledon');
+});
 test('search and profile show server-rendered results',async({page})=>{
  await page.goto('/search');await page.getByLabel('Search posts and people').fill('research notebook');await page.getByRole('button',{name:'Search',exact:true}).click();await expect(page.locator('#post-qa-notebook')).toBeVisible();
  await page.goto('/qa_caledon');await expect(page.getByRole('heading',{name:'Caledon QA',exact:true})).toBeVisible();expect(await page.locator('script[type="application/ld+json"]').last().textContent()).toContain('ProfilePage');

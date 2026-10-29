@@ -24,12 +24,17 @@ export const POST: APIRoute = async ctx => {
     await rateLimit(`forum:${user.id}:${action}`,action==='preview'?15:action==='publish'?10:40);
     if (action==='membership') return Response.json({isCaledonMember:await refreshMembership(user.id,true)});
     if (action==='profile') {
-      const input = z.object({name:z.string().trim().min(1).max(80),bio:z.string().max(300),image:z.string().trim().max(2048).nullable().optional()}).parse(data);
-      if (input.image !== undefined) {
-        const image = input.image ? avatarUrl(input.image) : null;
-        if (image) await fetchAvatar(image);
-        await run('UPDATE user SET name=?,bio=?,image=?,updated_at=? WHERE id=?',input.name,input.bio,image,Date.now(),user.id);
-      } else await run('UPDATE user SET name=?,bio=?,updated_at=? WHERE id=?',input.name,input.bio,Date.now(),user.id);
+      const imageInput = z.string().trim().max(2048).nullable().optional();
+      const input = z.object({name:z.string().trim().min(1).max(80),bio:z.string().max(300),image:imageInput,coverImage:imageInput}).parse(data);
+      const fields = ['name=?','bio=?','updated_at=?'];
+      const values: (string | number | null)[] = [input.name,input.bio,Date.now()];
+      for (const [key,column,label] of [['image','image','Profile image'],['coverImage','cover_image','Cover photo']] as const) {
+        if (input[key] === undefined) continue;
+        const image = input[key] ? avatarUrl(input[key],label) : null;
+        if (image) await fetchAvatar(image,label);
+        fields.push(`${column}=?`); values.push(image);
+      }
+      await run(`UPDATE user SET ${fields.join(',')} WHERE id=?`,...values,user.id);
       return Response.json({ok:true});
     }
     if (action==='onboarding') {

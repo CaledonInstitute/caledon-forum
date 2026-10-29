@@ -8,7 +8,7 @@ export const onRequest = defineMiddleware(async (ctx,next)=>{
   if (authReady() && ctx.request.headers.has('cookie')) {
     const session = await createAuth().api.getSession({headers:ctx.request.headers});
     if (session) {
-      ctx.locals.user = await one<Viewer>('SELECT id,username,name,email_verified AS emailVerified,image,bio,role,suspended FROM user WHERE id=?',session.user.id);
+      ctx.locals.user = await one<Viewer>('SELECT id,username,name,email_verified AS emailVerified,image,cover_image AS coverImage,bio,role,suspended FROM user WHERE id=?',session.user.id);
       if (!ctx.url.pathname.startsWith('/api/auth/')) await refreshMembership(session.user.id);
     }
   }
