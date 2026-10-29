@@ -5,12 +5,18 @@ import { createAuth } from "../../../lib/auth";
 import { readLimited } from "../../../lib/security";
 import { rateLimit } from "../../../lib/rate-limit";
 import { forumAction } from "../../../lib/forum-service";
-import { one } from "../../../lib/db";
+import { one, incrementPostView } from "../../../lib/db";
 import { forumError } from "../../../lib/forum-errors";
 export const POST: APIRoute = async (ctx) => {
   try {
     if (ctx.request.headers.get("origin") !== new URL(env.SITE_URL).origin) return Response.json({ error: "Refresh this page and try again." }, { status: 403 });
     if (!ctx.request.headers.get("content-type")?.startsWith("application/json")) return Response.json({ error: "Use a JSON request." }, { status: 415 });
+    if (ctx.params.action === "view") {
+      await rateLimit(`view:${ctx.request.headers.get("cf-connecting-ip") || "local"}`, 240);
+      const data = z.object({ id: z.string().min(1).max(100) }).parse(JSON.parse(new TextDecoder().decode(await readLimited(new Response(ctx.request.body), 1024))));
+      const result = await incrementPostView(data.id);
+      return result ? Response.json({ ok: true, ...result }) : Response.json({ error: "Post not found." }, { status: 404 });
+    }
     if (ctx.params.action === "share") {
       if (ctx.locals.user?.suspended) return Response.json({ error: "Your account is suspended." }, { status: 403 });
       await rateLimit(`share:${ctx.request.headers.get("cf-connecting-ip") || "local"}`, 40);

@@ -43,10 +43,11 @@ const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_
 export const posts = (where: string, args: any[], viewer?: string, order = "p.created_at DESC,p.id DESC", page = 1) =>
   all<ForumPost>(`${selection} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`, Date.now() - 86400000, viewer || "", ...args, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
 export const post = async (id: string, viewer?: string) => (await posts("p.id=?", [id], viewer))[0] || null;
+export const incrementPostView = (id: string) => one<{ views: number }>("UPDATE posts SET views=views+1 WHERE id=? AND deleted=0 RETURNING views", id);
 export async function recordPostView(p: ForumPost, method: string) {
   if (method !== "GET" || p.deleted) return;
   try {
-    const result = await one<{ views: number }>("UPDATE posts SET views=views+1 WHERE id=? AND deleted=0 RETURNING views", p.id);
+    const result = await incrementPostView(p.id);
     if (result) p.views = result.views;
   } catch (error) {
     console.error("Failed to record post view", p.id, error);

@@ -21,7 +21,12 @@ const permalink = `/p/${p.publicId}`;
 const time = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(p.createdAt));
 ---
 
-<article class:list={["post", { reply, "post-detail": full }]} id={`post-${p.id}`} data-post-url={!full ? permalink : undefined}>
+<article
+  class:list={["post", { reply, "post-detail": full }]}
+  id={`post-${p.id}`}
+  data-post-url={!full ? permalink : undefined}
+  data-view-post={!full && !p.deleted ? p.id : undefined}
+>
   <div class="post-grid">
     <a class="post-avatar-link" href={`/${p.username}`} aria-label={`${p.name}'s profile`}>
       <Avatar name={p.name} image={p.image} username={p.username} />

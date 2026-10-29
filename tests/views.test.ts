@@ -3,6 +3,18 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { resetDatabase, seedUser, execute, row, env } from "./runtime";
 import { post, posts, recordPostView } from "../src/lib/db";
+import { POST } from "../src/pages/api/forum/[action]";
+
+const impression = (data: unknown = { id: "root" }, origin = "http://localhost:4321", user: unknown = null) =>
+  POST({
+    params: { action: "view" },
+    locals: { user },
+    request: new Request("http://localhost:4321/api/forum/view", {
+      method: "POST",
+      headers: { origin, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+  } as any);
 
 beforeEach(() => {
   resetDatabase();
@@ -72,4 +84,30 @@ it("keeps the previous count and logs failures without blocking the post", async
     prepare.mockRestore();
     log.mockRestore();
   }
+});
+
+it("records anonymous and signed-in card impressions atomically without changing post content", async () => {
+  const responses = await Promise.all(Array.from({ length: 12 }, (_, i) => impression({ id: "root" }, undefined, i % 2 ? { id: "alice" } : null)));
+  expect(responses.every((response) => response.status === 200)).toBe(true);
+  expect((await post("root"))?.views).toBe(12);
+  expect(await (await impression({ id: "reply" })).json()).toMatchObject({ ok: true, views: 1 });
+  expect(row("SELECT body,updated_at FROM posts WHERE id='root'")).toMatchObject({ body: "Root", updated_at: 1 });
+});
+
+it("rejects cross-origin, invalid, missing and deleted card impressions", async () => {
+  expect((await impression({ id: "root" }, "https://evil.test")).status).toBe(403);
+  expect((await impression({ id: "" })).status).toBe(400);
+  expect((await impression({ id: "x".repeat(101) })).status).toBe(400);
+  expect((await impression({ id: "missing" })).status).toBe(404);
+  execute("UPDATE posts SET deleted=1 WHERE id='root'");
+  expect((await impression()).status).toBe(404);
+  expect(row("SELECT views FROM posts WHERE id='root'").views).toBe(0);
+});
+
+it("rate limits card impressions", async () => {
+  for (let i = 0; i < 240; i++) expect((await impression()).status).toBe(200);
+  const response = await impression();
+  expect(response.status).toBe(429);
+  expect(response.headers.get("Retry-After")).toBe("60");
+  expect((await post("root"))?.views).toBe(240);
 });

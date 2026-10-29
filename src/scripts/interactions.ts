@@ -1,3 +1,5 @@
+import "./post-views";
+
 async function action(name: string, data: unknown) {
   const r = await fetch(`/api/forum/${name}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
   const result = (await r.json()) as any;

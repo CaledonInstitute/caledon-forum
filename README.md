@@ -50,4 +50,4 @@ Specify a language on fenced code blocks, for example `python`, `javascript`, or
 
 Shares count successful link copies recorded by the server, including anonymous copies. They do not measure link visits or unique recipients.
 
-Views count each GET of an active post or reply detail page, including refreshes, anonymous visitors, authors, and bots. Feed, profile, API, preview-image, and HEAD requests do not add views. Counts start at zero when migration `0008_post_views.sql` is applied; apply migrations before deploying the updated application.
+Views count each GET of an active post or reply detail page, including refreshes, anonymous visitors, authors, and bots. Cards in feeds, profiles, search results, and reply lists also add one view after at least 25% of the card is visible for one continuous second in an active tab. Each card counts once per page load; scrolling away and back does not add another view. Detail posts do not also send a card impression. Reading API data, preview images, and HEAD requests does not add views. Counts start at zero when migration `0008_post_views.sql` is applied; apply migrations before deploying the updated application.
