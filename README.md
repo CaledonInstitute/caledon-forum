@@ -49,3 +49,5 @@ Use Markdown or basic HTML (including tables and details). Scripts, event handle
 Specify a language on fenced code blocks, for example `python`, `javascript`, or `rust`. Unknown languages and unlabelled blocks remain plain code. Use `$E = mc^2$` for inline LaTeX and `$$` on separate lines around display equations. Preview uses the same renderer as published content. KaTeX runs without trusted HTML commands.
 
 Shares count successful link copies recorded by the server, including anonymous copies. They do not measure link visits or unique recipients.
+
+Views count each GET of an active post or reply detail page, including refreshes, anonymous visitors, authors, and bots. Feed, profile, API, preview-image, and HEAD requests do not add views. Counts start at zero when migration `0008_post_views.sql` is applied; apply migrations before deploying the updated application.

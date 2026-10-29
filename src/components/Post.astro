@@ -1,30 +1,120 @@
 ---
-import { Heart, MessageCircle, MoreHorizontal, Link as LinkIcon } from 'lucide-react';
-import Avatar from './Avatar.astro';
-import Badge from './Badge.astro';
-import LinkCard from './LinkCard.astro';
-import { previews } from '../lib/db';
-import { markdown } from '../lib/markdown';
-import { excerpt,countCharacters } from '../lib/content';
-import type { ForumPost } from '../lib/types';
-interface Props {post:ForumPost;full?:boolean;reply?:boolean;}
-const {post:p,full=false,reply=false}=Astro.props;
-const viewer=Astro.locals.user;
-const links=p.deleted?[]:await previews(p.id);
-const long=!full && countCharacters(p.body)>600;
-const html=p.deleted?'':await markdown(long?excerpt(p.body,600):p.body,links);
-const permalink=`/p/${p.publicId}`;
-const time=new Intl.DateTimeFormat('en',{month:'short',day:'numeric'}).format(new Date(p.createdAt));
+import { Heart, MessageCircle, MoreHorizontal, Eye, Link as LinkIcon } from "lucide-react";
+import Avatar from "./Avatar.astro";
+import Badge from "./Badge.astro";
+import LinkCard from "./LinkCard.astro";
+import { previews } from "../lib/db";
+import { markdown } from "../lib/markdown";
+import { excerpt, countCharacters } from "../lib/content";
+import type { ForumPost } from "../lib/types";
+interface Props {
+  post: ForumPost;
+  full?: boolean;
+  reply?: boolean;
+}
+const { post: p, full = false, reply = false } = Astro.props;
+const viewer = Astro.locals.user;
+const links = p.deleted ? [] : await previews(p.id);
+const long = !full && countCharacters(p.body) > 600;
+const html = p.deleted ? "" : await markdown(long ? excerpt(p.body, 600) : p.body, links);
+const permalink = `/p/${p.publicId}`;
+const time = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(p.createdAt));
 ---
-<article class:list={['post',{reply,'post-detail':full}]} id={`post-${p.id}`} data-post-url={!full?permalink:undefined}>
-<div class="post-grid"><a class="post-avatar-link" href={`/${p.username}`} aria-label={`${p.name}'s profile`}><Avatar name={p.name} image={p.image} username={p.username}/></a><div>
-<div class="identity"><a href={`/${p.username}`}><strong>{p.name}</strong></a>{!!p.isCaledonMember && <Badge/>}<a class="handle" href={`/${p.username}`}>@{p.username}</a><a class="post-time" href={permalink}><time datetime={new Date(p.createdAt).toISOString()}>{time}</time>{p.updatedAt>p.createdAt?' · Edited':''}</a></div>
-{p.parentId && <div class="post-context">Replying to <a href={`/p/${p.parentPublicId}`}>@{p.parentUsername}</a></div>}
-{p.deleted ? <p class="muted small">This post was deleted.</p> : <><div class="post-content" set:html={html}/>{long && <a class="read-more" href={permalink}>Read full {p.rootId?'reply':'thread'}</a>}
-{links.filter(l=>l.kind!=='image').map(preview=><LinkCard preview={preview}/>)}
-{links.filter(l=>l.kind==='image').map(preview=><a class="external-image-link" href={preview.url} target="_blank" rel="ugc nofollow noopener">Open original image</a>)}
-<div class="post-tools"><a href={`${permalink}#reply`} aria-label={`Reply to ${p.name}`}><MessageCircle size={17} strokeWidth={1.6}/>{p.directReplies || 'Reply'}</a>
-<button data-like={p.id} aria-pressed={!!p.liked} data-signed-in={!!viewer} aria-label={p.liked?'Unlike':'Like'}><Heart size={17} strokeWidth={1.6} fill={p.liked?'currentColor':'none'}/><span>{p.likes || 'Like'}</span></button>
-<button data-copy={permalink} data-share={p.id} aria-label={`Copy post link, ${p.shares} shares`}><LinkIcon size={16} strokeWidth={1.6}/><span>{p.shares}</span></button>
-<details class="more"><summary aria-label="More actions"><MoreHorizontal size={19}/></summary><div class="menu">{viewer?.id===p.authorId && <><a href={`/edit/${p.id}`}>Edit post</a><button data-delete={p.id}>Delete post</button></>}{viewer && <button data-report={p.id}>Report post</button>}{!viewer && <a href="/login">Sign in to report</a>}{viewer?.role==='admin' && <><button data-moderate={p.id} data-operation="delete">Remove as admin</button>{!p.rootId && <button data-moderate={p.id} data-operation={p.locked?'unlock':'lock'}>{p.locked?'Unlock':'Lock'} thread</button>}</>}</div></details></div><p class="error" role="status" data-post-status></p></>}
-</div></div></article>
+
+<article class:list={["post", { reply, "post-detail": full }]} id={`post-${p.id}`} data-post-url={!full ? permalink : undefined}>
+  <div class="post-grid">
+    <a class="post-avatar-link" href={`/${p.username}`} aria-label={`${p.name}'s profile`}>
+      <Avatar name={p.name} image={p.image} username={p.username} />
+    </a>
+    <div>
+      <div class="identity">
+        <a href={`/${p.username}`}>
+          <strong>{p.name}</strong>
+        </a>
+        {!!p.isCaledonMember && <Badge />}
+        <a class="handle" href={`/${p.username}`}>
+          @{p.username}
+        </a>
+        <a class="post-time" href={permalink}>
+          <time datetime={new Date(p.createdAt).toISOString()}>{time}</time>
+          {p.updatedAt > p.createdAt ? " · Edited" : ""}
+        </a>
+      </div>
+      {p.parentId && (
+        <div class="post-context">
+          Replying to <a href={`/p/${p.parentPublicId}`}>@{p.parentUsername}</a>
+        </div>
+      )}
+      {p.deleted ? (
+        <p class="muted small">This post was deleted.</p>
+      ) : (
+        <>
+          <div class="post-content" set:html={html} />
+          {long && (
+            <a class="read-more" href={permalink}>
+              Read full {p.rootId ? "reply" : "thread"}
+            </a>
+          )}
+          {links
+            .filter((l) => l.kind !== "image")
+            .map((preview) => (
+              <LinkCard preview={preview} />
+            ))}
+          {links
+            .filter((l) => l.kind === "image")
+            .map((preview) => (
+              <a class="external-image-link" href={preview.url} target="_blank" rel="ugc nofollow noopener">
+                Open original image
+              </a>
+            ))}
+          <div class="post-tools">
+            <a href={`${permalink}#reply`} aria-label={`Reply to ${p.name}`}>
+              <MessageCircle size={17} strokeWidth={1.6} />
+              {p.directReplies || "Reply"}
+            </a>
+            <button data-like={p.id} aria-pressed={!!p.liked} data-signed-in={!!viewer} aria-label={p.liked ? "Unlike" : "Like"}>
+              <Heart size={17} strokeWidth={1.6} fill={p.liked ? "currentColor" : "none"} />
+              <span>{p.likes || "Like"}</span>
+            </button>
+            <button data-copy={permalink} data-share={p.id} aria-label={`Copy post link, ${p.shares} shares`}>
+              <LinkIcon size={16} strokeWidth={1.6} />
+              <span>{p.shares}</span>
+            </button>
+            <span class="post-views" role="img" aria-label={`${p.views.toLocaleString("en-US")} ${p.views === 1 ? "view" : "views"}`}>
+              <Eye size={17} strokeWidth={1.6} aria-hidden="true" />
+              <span aria-hidden="true">{p.views.toLocaleString("en-US")}</span>
+            </span>
+            <details class="more">
+              <summary aria-label="More actions">
+                <MoreHorizontal size={19} />
+              </summary>
+              <div class="menu">
+                {viewer?.id === p.authorId && (
+                  <>
+                    <a href={`/edit/${p.id}`}>Edit post</a>
+                    <button data-delete={p.id}>Delete post</button>
+                  </>
+                )}
+                {viewer && <button data-report={p.id}>Report post</button>}
+                {!viewer && <a href="/login">Sign in to report</a>}
+                {viewer?.role === "admin" && (
+                  <>
+                    <button data-moderate={p.id} data-operation="delete">
+                      Remove as admin
+                    </button>
+                    {!p.rootId && (
+                      <button data-moderate={p.id} data-operation={p.locked ? "unlock" : "lock"}>
+                        {p.locked ? "Unlock" : "Lock"} thread
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </details>
+          </div>
+          <p class="error" role="status" data-post-status></p>
+        </>
+      )}
+    </div>
+  </div>
+</article>
