@@ -1,0 +1,69 @@
+---
+import Pagination from './Pagination.astro';
+import { excerpt } from '../lib/content';
+interface Report {
+  id: string; post_id: string; root_id: string | null; author_id: string;
+  username: string; reporter: string; body: string; reason: string;
+  created_at: number; deleted: number; locked: number; suspended: number; url: string;
+}
+interface Audit {
+  id: string; username: string; action: string; target_id: string; created_at: number;
+  target_username: string | null; post_id: string | null; url: string | null;
+}
+interface Props { reports: Report[]; audit: Audit[]; page: number; hasMore: boolean }
+const { reports, audit, page, hasMore } = Astro.props;
+const date = (value: number) => new Intl.DateTimeFormat('en', {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC',
+}).format(new Date(value)) + ' UTC';
+const preview = (body: string) => excerpt(body.replace(/https?:\/\/\S+/g, value => {
+  try { return `[${new URL(value).hostname}]`; } catch { return '[link]'; }
+}), 280);
+const actions: Record<string, string> = {
+  resolve: 'Resolved a report', delete: 'Removed a post', lock: 'Locked a thread',
+  unlock: 'Unlocked a thread', suspend: 'Suspended an account', restore: 'Restored an account',
+};
+---
+<section aria-labelledby="reports-title">
+  <header class="moderation-heading">
+    <div><h2 id="reports-title">Open reports</h2><p>Review the conversation, take action, then resolve the report.</p></div>
+    {!!reports.length && <span class="moderation-status">Needs review</span>}
+  </header>
+  {reports.map(r => <article class="moderation-report" aria-label={`Report on post by @${r.username}`}>
+    <header class="report-meta">
+      <span>Reported by <a class="text-link" href={`/${r.reporter}`}>@{r.reporter}</a></span>
+      <time datetime={new Date(r.created_at).toISOString()}>{date(r.created_at)}</time>
+    </header>
+    <div class="report-reason"><h3>Reason for report</h3><p>{r.reason}</p></div>
+    <div class="report-preview">
+      <div class="report-author"><a href={`/${r.username}`}>@{r.username}</a>{!!r.deleted && <span class="moderation-status">Removed</span>}{!!r.locked && <span class="moderation-status">Thread locked</span>}{!!r.suspended && <span class="moderation-status">Account suspended</span>}</div>
+      <p>{r.deleted ? 'This post has been removed.' : preview(r.body)}</p>
+      <a class="text-link" href={r.url}>View conversation</a>
+      {!r.deleted && <details class="report-full"><summary>Show full post text</summary><p>{r.body}</p></details>}
+    </div>
+    <div class="report-controls">
+      <button class="button" data-moderate={r.id} data-operation="resolve">Resolve report</button>
+      <details class="report-actions">
+        <summary>Moderation actions</summary>
+        <div class="report-action-groups">
+          <div><h3>Content & thread</h3><div class="admin-actions">
+            {!r.deleted && <button class="button secondary moderation-danger" data-moderate={r.post_id} data-operation="delete">Remove post</button>}
+            <button class="button secondary" data-moderate={r.root_id || r.post_id} data-operation={r.locked ? 'unlock' : 'lock'}>{r.locked ? 'Unlock thread' : 'Lock thread'}</button>
+          </div></div>
+          <div><h3>Account: @{r.username}</h3><div class="admin-actions"><button class:list={['button', 'secondary', {'moderation-danger': !r.suspended}]} data-moderate={r.author_id} data-operation={r.suspended ? 'restore' : 'suspend'}>{r.suspended ? 'Restore account' : 'Suspend account'}</button></div></div>
+          <p class="small muted">Content and account actions do not resolve the report.</p>
+        </div>
+      </details>
+    </div>
+    <p class="error" data-moderation-status role="status" aria-live="polite"></p>
+  </article>)}
+  {!reports.length && <div class="moderation-empty"><h3>{page > 1 ? 'No reports on this page.' : 'No reports to review.'}</h3><p>{page > 1 ? 'Return to the previous page to review open reports.' : 'New reports from the community will appear here.'}</p></div>}
+  <Pagination page={page} hasMore={hasMore}/>
+</section>
+<section class="moderation-history" aria-labelledby="history-title">
+  <header class="moderation-heading"><div><h2 id="history-title">Recent moderation</h2><p>The latest actions taken by administrators.</p></div></header>
+  {audit.length ? <ol class="moderation-log">{audit.map(a => <li>
+    <div><strong>{actions[a.action] || a.action}</strong><p>By <a class="text-link" href={`/${a.username}`}>@{a.username}</a>{a.target_username && <> for <a class="text-link" href={`/${a.target_username}`}>@{a.target_username}</a></>}{a.url && <> · <a class="text-link" href={a.url}>View conversation</a></>}</p></div>
+    <time datetime={new Date(a.created_at).toISOString()}>{date(a.created_at)}</time>
+    <details class="moderation-reference"><summary>Action details</summary><p>Target ID: {a.target_id}</p></details>
+  </li>)}</ol> : <div class="moderation-empty"><p>No moderation actions yet.</p></div>}
+</section>
