@@ -1,20 +1,77 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import PageHeader from '../components/PageHeader.astro';
-import Post from '../components/Post.astro';
-import Avatar from '../components/Avatar.astro';
-import Badge from '../components/Badge.astro';
-import Pagination from '../components/Pagination.astro';
-import { all,posts } from '../lib/db';
-import { PAGE_SIZE,pageNumber } from '../lib/content';
-const q=(Astro.url.searchParams.get('q')||'').trim().slice(0,200);const tab=Astro.url.searchParams.get('tab')==='people'?'people':'posts';const page=pageNumber(Astro.url);
-const pattern=`%${q.replace(/[\\%_]/g,'\\$&')}%`;
-const items=q&&tab==='posts'?await posts("p.root_id IS NULL AND p.deleted=0 AND p.body LIKE ? ESCAPE '\\'",[pattern],Astro.locals.user?.id,undefined,page):[];
-const people=q&&tab==='people'?await all<any>(`SELECT u.id,u.name,u.username,u.bio,u.image,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username IS NOT NULL AND (u.name LIKE ? ESCAPE '\\' OR u.username LIKE ? ESCAPE '\\') ORDER BY u.created_at DESC,u.id DESC LIMIT ? OFFSET ?`,Date.now()-86400000,pattern,pattern,PAGE_SIZE+1,(page-1)*PAGE_SIZE):[];
+import Layout from "../layouts/Layout.astro";
+import PageHeader from "../components/PageHeader.astro";
+import Post from "../components/Post.astro";
+import Avatar from "../components/Avatar.astro";
+import Badge from "../components/Badge.astro";
+import Pagination from "../components/Pagination.astro";
+import { all, posts } from "../lib/db";
+import { PAGE_SIZE, pageNumber } from "../lib/content";
+const q = (Astro.url.searchParams.get("q") || "").trim().slice(0, 200);
+const tab = Astro.url.searchParams.get("tab") === "people" ? "people" : "posts";
+const page = pageNumber(Astro.url);
+const pattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+const items = q && tab === "posts" ? await posts("p.root_id IS NULL AND p.deleted=0 AND p.body LIKE ? ESCAPE '\\'", [pattern], Astro.locals.user?.id, undefined, page) : [];
+const people =
+  q && tab === "people"
+    ? await all<any>(
+        `SELECT u.id,u.name,u.username,u.bio,u.image,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username IS NOT NULL AND (u.name LIKE ? ESCAPE '\\' OR u.username LIKE ? ESCAPE '\\') ORDER BY u.created_at DESC,u.id DESC LIMIT ? OFFSET ?`,
+        Date.now() - 86400000,
+        pattern,
+        pattern,
+        PAGE_SIZE + 1,
+        (page - 1) * PAGE_SIZE
+      )
+    : [];
 ---
-<Layout title="Search" noindex><PageHeader title="Search" subtitle="Find a thought. Find your people."/>
-<form class="search-form" method="get"><label class="visually-hidden" for="search">Search posts and people</label><input id="search" name="q" value={q} placeholder="Search Caledon" maxlength="200"/><input type="hidden" name="tab" value={tab}/><button class="button" type="submit">Search</button></form>
-<nav class="tabs" aria-label="Search results"><a href={`?q=${encodeURIComponent(q)}`} class:list={{active:tab==='posts'}}>Posts</a><a href={`?q=${encodeURIComponent(q)}&tab=people`} class:list={{active:tab==='people'}}>People</a></nav>
-{!q?<section class="empty"><h2>Follow your curiosity.</h2><p>Look for a phrase, an idea, or someone’s username.</p></section>:tab==='posts'?items.slice(0,PAGE_SIZE).map(post=><Post post={post}/>):people.slice(0,PAGE_SIZE).map(p=><a class="person-row" href={`/${p.username}`}><Avatar name={p.name} image={p.image} username={p.username}/><div><div class="identity"><strong>{p.name}</strong>{!!p.isCaledonMember&&<Badge/>}<span class="handle">@{p.username}</span></div><p>{p.bio}</p></div></a>)}
-{q&&!items.length&&!people.length&&<section class="empty"><h2>No results for “{q}”.</h2><p>Try a different phrase or username.</p></section>}
-<Pagination page={page} hasMore={(tab==='posts'?items:people).length>PAGE_SIZE}/></Layout>
+
+<Layout title="Search" noindex>
+  <PageHeader title="Search" subtitle="Find a thought. Find your people." />
+  <form class="search-form" method="get">
+    <label class="visually-hidden" for="search">
+      Search posts and people
+    </label>
+    <input id="search" name="q" value={q} placeholder="Search Caledon" maxlength="200" />
+    <input type="hidden" name="tab" value={tab} />
+    <button class="button" type="submit">
+      Search
+    </button>
+  </form>
+  <nav class="tabs" aria-label="Search results">
+    <a href={`?q=${encodeURIComponent(q)}`} class:list={{ active: tab === "posts" }}>
+      Posts
+    </a>
+    <a href={`?q=${encodeURIComponent(q)}&tab=people`} class:list={{ active: tab === "people" }}>
+      People
+    </a>
+  </nav>
+  {!q ? (
+    <section class="empty">
+      <h2>Follow your curiosity.</h2>
+      <p>Look for a phrase, an idea, or someone’s username.</p>
+    </section>
+  ) : tab === "posts" ? (
+    items.slice(0, PAGE_SIZE).map((post) => <Post post={post} />)
+  ) : (
+    people.slice(0, PAGE_SIZE).map((p) => (
+      <a class="person-row" href={`/${p.username}`}>
+        <Avatar name={p.name} image={p.image} username={p.username} />
+        <div>
+          <div class="identity">
+            <strong>{p.name}</strong>
+            {!!p.isCaledonMember && <Badge />}
+            <span class="handle">@{p.username}</span>
+          </div>
+          <p>{p.bio}</p>
+        </div>
+      </a>
+    ))
+  )}
+  {q && !items.length && !people.length && (
+    <section class="empty">
+      <h2>No results for “{q}”.</h2>
+      <p>Try a different phrase or username.</p>
+    </section>
+  )}
+  <Pagination page={page} hasMore={(tab === "posts" ? items : people).length > PAGE_SIZE} />
+</Layout>

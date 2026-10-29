@@ -1,4 +1,20 @@
 ---
-const {name='',username=null,image=null,large=false} = Astro.props;
+const { name = "", username = null, image = null, large = false } = Astro.props;
 ---
-<span class:list={['avatar',{large}]} aria-hidden="true">{name.trim().slice(0,1).toUpperCase() || 'C'}{image && username && <img src={`/api/avatar/${encodeURIComponent(username)}`} alt="" width={large?76:42} height={large?76:42} loading="lazy" referrerpolicy="no-referrer" style="opacity:0" onload="this.style.opacity='1'" onerror="this.style.opacity='0'"/>}</span>
+
+<span class:list={["avatar", { large }]} aria-hidden="true">
+  {name.trim().slice(0, 1).toUpperCase() || "C"}
+  {image && username && (
+    <img
+      src={`/api/avatar/${encodeURIComponent(username)}`}
+      alt=""
+      width={large ? 76 : 42}
+      height={large ? 76 : 42}
+      loading="lazy"
+      referrerpolicy="no-referrer"
+      style="opacity:0"
+      onload="this.style.opacity='1'"
+      onerror="this.style.opacity='0'"
+    />
+  )}
+</span>

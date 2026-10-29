@@ -1,9 +1,21 @@
 {
-  "name":"caledon-forum-regression-tests",
-  "main":"worker.ts",
-  "compatibility_date":"2026-10-23",
-  "compatibility_flags":["nodejs_compat","global_fetch_strictly_public"],
-  "d1_databases":[{"binding":"DB","database_name":"caledon-forum-test-only","database_id":"00000000-0000-0000-0000-000000000001"}],
-  "rules":[{"type":"Text","globs":["**/*.sql"],"fallthrough":true}],
-  "vars":{"SITE_URL":"http://localhost:8789","AUTH_ENABLED":"true","BETTER_AUTH_SECRET":"worker-test-only-not-for-production-0123456789","GITHUB_CLIENT_ID":"test","GITHUB_CLIENT_SECRET":"test","GOOGLE_CLIENT_ID":"test-google","GOOGLE_CLIENT_SECRET":"test-google-secret","RESEND_API_KEY":"test","EMAIL_FROM":"test@caledon.test","TURNSTILE_SITE_KEY":"test","TURNSTILE_SECRET_KEY":"test"}
+  "name": "caledon-forum-regression-tests",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "d1_databases": [{ "binding": "DB", "database_name": "caledon-forum-test-only", "database_id": "00000000-0000-0000-0000-000000000001" }],
+  "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
+  "vars": {
+    "SITE_URL": "http://localhost:8789",
+    "AUTH_ENABLED": "true",
+    "BETTER_AUTH_SECRET": "worker-test-only-not-for-production-0123456789",
+    "GITHUB_CLIENT_ID": "test",
+    "GITHUB_CLIENT_SECRET": "test",
+    "GOOGLE_CLIENT_ID": "test-google",
+    "GOOGLE_CLIENT_SECRET": "test-google-secret",
+    "RESEND_API_KEY": "test",
+    "EMAIL_FROM": "test@caledon.test",
+    "TURNSTILE_SITE_KEY": "test",
+    "TURNSTILE_SECRET_KEY": "test",
+  },
 }

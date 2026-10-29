@@ -1,51 +1,174 @@
 ---
-import '../styles/global.css';
-import { Home, Search, Bell, UserRound, Settings, Shield, PenLine } from 'lucide-react';
-import { env } from 'cloudflare:workers';
-import Mark from '../components/Mark.astro';
-import Avatar from '../components/Avatar.astro';
-import { one } from '../lib/db';
-interface Props { title?:string;description?:string;image?:string;noindex?:boolean;schema?:any;type?:string;profile?:boolean; }
-const {title='Caledon Forum',description='A place to ask, experiment, and learn together. Public conversations on vulnerability research, artificial intelligence, and the things we are building.',image='/api/og/site.png',noindex=false,schema,type='website'} = Astro.props;
+import "../styles/global.css";
+import { Home, Search, Bell, UserRound, Settings, Shield, PenLine } from "lucide-react";
+import { env } from "cloudflare:workers";
+import Mark from "../components/Mark.astro";
+import Avatar from "../components/Avatar.astro";
+import { one } from "../lib/db";
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  noindex?: boolean;
+  schema?: any;
+  type?: string;
+  profile?: boolean;
+}
+const {
+  title = "Caledon Forum",
+  description = "A place to ask, experiment, and learn together. Public conversations on vulnerability research, artificial intelligence, and the things we are building.",
+  image = "/api/og/site.png",
+  noindex = false,
+  schema,
+  type = "website",
+} = Astro.props;
 const viewer = Astro.locals.user;
 const origin = new URL(env.SITE_URL).origin;
-const canonical = new URL(Astro.url.pathname,origin);
-const currentPage=Math.min(100000,Math.max(1,Math.floor(Number(Astro.url.searchParams.get('page')))||1));
-if(currentPage>1)canonical.searchParams.set('page',String(currentPage));
-if(Astro.props.profile&&['replies','likes'].includes(Astro.url.searchParams.get('tab')||''))canonical.searchParams.set('tab',Astro.url.searchParams.get('tab')!);
+const canonical = new URL(Astro.url.pathname, origin);
+const currentPage = Math.min(100000, Math.max(1, Math.floor(Number(Astro.url.searchParams.get("page"))) || 1));
+if (currentPage > 1) canonical.searchParams.set("page", String(currentPage));
+if (Astro.props.profile && ["replies", "likes"].includes(Astro.url.searchParams.get("tab") || "")) canonical.searchParams.set("tab", Astro.url.searchParams.get("tab")!);
 const path = Astro.url.pathname;
-const nav = [{label:'Home',href:'/',icon:Home},{label:'Search',href:'/search',icon:Search},{label:'Notifications',href:'/notifications',icon:Bell},{label:'Profile',href:viewer?.username?`/${viewer.username}`:'/login',icon:UserRound}];
-const unread = viewer ? await one<{n:number}>('SELECT COUNT(*) AS n FROM notifications WHERE recipient_id=? AND read_at IS NULL',viewer.id) : null;
-const active=(href:string)=>href==='/'?path==='/':path===href;
-const fullTitle=title==='Caledon Forum'?title:`${title} | Caledon Forum`;
-const siteSchema={'@context':'https://schema.org','@graph':[{'@type':'Organization','@id':`${origin}/#organization`,name:'Caledon Institute',url:'https://caledoninstitute.github.io/',sameAs:['https://github.com/CaledonInstitute']},{'@type':'WebSite','@id':`${origin}/#website`,name:'Caledon Forum',url:origin,publisher:{'@id':`${origin}/#organization`}}]};
+const nav = [
+  { label: "Home", href: "/", icon: Home },
+  { label: "Search", href: "/search", icon: Search },
+  { label: "Notifications", href: "/notifications", icon: Bell },
+  { label: "Profile", href: viewer?.username ? `/${viewer.username}` : "/login", icon: UserRound },
+];
+const unread = viewer ? await one<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE recipient_id=? AND read_at IS NULL", viewer.id) : null;
+const active = (href: string) => (href === "/" ? path === "/" : path === href);
+const fullTitle = title === "Caledon Forum" ? title : `${title} | Caledon Forum`;
+const siteSchema = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${origin}/#organization`,
+      name: "Caledon Institute",
+      url: "https://caledoninstitute.github.io/",
+      sameAs: ["https://github.com/CaledonInstitute"],
+    },
+    { "@type": "WebSite", "@id": `${origin}/#website`, name: "Caledon Forum", url: origin, publisher: { "@id": `${origin}/#organization` } },
+  ],
+};
 ---
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>{fullTitle}</title><meta name="description" content={description}/><link rel="canonical" href={canonical.href}/>
-<meta name="robots" content={noindex?'noindex, follow':'index, follow, max-image-preview:large'}/><meta name="theme-color" content="#FFFFFF"/>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
-<meta property="og:title" content={fullTitle}/><meta property="og:description" content={description}/><meta property="og:type" content={type}/><meta property="og:url" content={canonical.href}/><meta property="og:site_name" content="Caledon Forum"/><meta property="og:locale" content="en_US"/>
-<meta property="og:image" content={new URL(image,origin).href}/><meta property="og:image:width" content="1200"/><meta property="og:image:height" content="630"/><meta property="og:image:alt" content={`${title} — Caledon Forum`}/>
-<meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content={fullTitle}/><meta name="twitter:description" content={description}/><meta name="twitter:image" content={new URL(image,origin).href}/><meta name="twitter:image:alt" content={`${title} — Caledon Forum`}/>
-{env.SEARCH_CONSOLE_TOKEN && <meta name="google-site-verification" content={env.SEARCH_CONSOLE_TOKEN}/>}
-<script type="application/ld+json" set:html={JSON.stringify(siteSchema).replace(/</g,'\\u003c')}/>
-{schema && <script type="application/ld+json" set:html={JSON.stringify(schema).replace(/</g,'\\u003c')}/>}
-</head><body>
-<a class="skip-link" href="#main">Skip to content</a>
-<header class="mobile-header"><a class="brand" href="/" aria-label="Caledon Forum home"><Mark small/><span>Caledon<span>Forum</span></span></a><a href="/settings" aria-label="Settings"><Settings size={19}/></a></header>
-<div class="shell"><aside class="sidebar"><a href="/" class="brand" aria-label="Caledon Forum home"><Mark/><span>Caledon<span>Forum</span></span></a>
-<nav class="nav" aria-label="Main navigation">{nav.map(item=><a href={item.href} class:list={{active:active(item.href)}} aria-current={active(item.href)?'page':undefined}><item.icon size={21} strokeWidth={1.6}/>{item.label}{item.label==='Notifications' && !!unread?.n && <span class="dot" aria-label={`${unread.n} unread notifications`}/>}</a>)}
-{viewer?.role==='admin' && <a href="/admin"><Shield size={21} strokeWidth={1.6}/>Admin</a>}
-<a href="/settings" class:list={{active:path==='/settings'}}><Settings size={21} strokeWidth={1.6}/>Settings</a>
-</nav>
-<div style="margin-top:28px"><a class="button" style="width:176px" href={viewer?'/#compose':'/login'}><PenLine size={16}/>Start a thread</a></div>
-<div class="sidebar-bottom">{viewer ? <a href={viewer.username?`/${viewer.username}`:'/onboarding'} class="sidebar-user"><Avatar name={viewer.name} image={viewer.image} username={viewer.username}/><span><strong>{viewer.name}</strong><span class="muted">@{viewer.username || 'choose_username'}</span></span></a> : <a class="text-link small" href="/login">Sign in to join in</a>}
-<p>A little curiosity is a good place to start.</p><div class="footer-links"><a href="/rules">Community rules</a><a href="/privacy">Privacy</a><a href="https://caledoninstitute.github.io/" target="_blank" rel="noopener">Institute</a></div>
-<p>© {new Date().getUTCFullYear()} Caledon Institute</p></div></aside>
-<main id="main" class="main" tabindex="-1"><slot/></main></div>
-<nav class="mobile-nav" aria-label="Mobile navigation">{nav.map(item=><a href={item.href} class:list={{active:active(item.href)}} aria-label={item.label} aria-current={active(item.href)?'page':undefined}><item.icon size={22} strokeWidth={active(item.href)?2:1.6}/></a>)}</nav>
-<script>
-  import '../scripts/interactions';
-</script>
-</body></html>
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <meta name="robots" content={noindex ? "noindex, follow" : "index, follow, max-image-preview:large"} />
+    <meta name="theme-color" content="#FFFFFF" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content={type} />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:site_name" content="Caledon Forum" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content={new URL(image, origin).href} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`${title} — Caledon Forum`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(image, origin).href} />
+    <meta name="twitter:image:alt" content={`${title} — Caledon Forum`} />
+    {env.SEARCH_CONSOLE_TOKEN && <meta name="google-site-verification" content={env.SEARCH_CONSOLE_TOKEN} />}
+    <script type="application/ld+json" set:html={JSON.stringify(siteSchema).replace(/</g, "\\u003c")} />
+    {schema && <script type="application/ld+json" set:html={JSON.stringify(schema).replace(/</g, "\\u003c")} />}
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      Skip to content
+    </a>
+    <header class="mobile-header">
+      <a class="brand" href="/" aria-label="Caledon Forum home">
+        <Mark small />
+        <span>
+          Caledon<span>Forum</span>
+        </span>
+      </a>
+      <a href="/settings" aria-label="Settings">
+        <Settings size={19} />
+      </a>
+    </header>
+    <div class="shell">
+      <aside class="sidebar">
+        <a href="/" class="brand" aria-label="Caledon Forum home">
+          <Mark />
+          <span>
+            Caledon<span>Forum</span>
+          </span>
+        </a>
+        <nav class="nav" aria-label="Main navigation">
+          {nav.map((item) => (
+            <a href={item.href} class:list={{ active: active(item.href) }} aria-current={active(item.href) ? "page" : undefined}>
+              <item.icon size={21} strokeWidth={1.6} />
+              {item.label}
+              {item.label === "Notifications" && !!unread?.n && <span class="dot" aria-label={`${unread.n} unread notifications`} />}
+            </a>
+          ))}
+          {viewer?.role === "admin" && (
+            <a href="/admin">
+              <Shield size={21} strokeWidth={1.6} />
+              Admin
+            </a>
+          )}
+          <a href="/settings" class:list={{ active: path === "/settings" }}>
+            <Settings size={21} strokeWidth={1.6} />
+            Settings
+          </a>
+        </nav>
+        <div style="margin-top:28px">
+          <a class="button" style="width:176px" href={viewer ? "/#compose" : "/login"}>
+            <PenLine size={16} />
+            Start a thread
+          </a>
+        </div>
+        <div class="sidebar-bottom">
+          {viewer ? (
+            <a href={viewer.username ? `/${viewer.username}` : "/onboarding"} class="sidebar-user">
+              <Avatar name={viewer.name} image={viewer.image} username={viewer.username} />
+              <span>
+                <strong>{viewer.name}</strong>
+                <span class="muted">@{viewer.username || "choose_username"}</span>
+              </span>
+            </a>
+          ) : (
+            <a class="text-link small" href="/login">
+              Sign in to join in
+            </a>
+          )}
+          <p>A little curiosity is a good place to start.</p>
+          <div class="footer-links">
+            <a href="/rules">Community rules</a>
+            <a href="/privacy">Privacy</a>
+            <a href="https://caledoninstitute.github.io/" target="_blank" rel="noopener">
+              Institute
+            </a>
+          </div>
+          <p>© {new Date().getUTCFullYear()} Caledon Institute</p>
+        </div>
+      </aside>
+      <main id="main" class="main" tabindex="-1">
+        <slot />
+      </main>
+    </div>
+    <nav class="mobile-nav" aria-label="Mobile navigation">
+      {nav.map((item) => (
+        <a href={item.href} class:list={{ active: active(item.href) }} aria-label={item.label} aria-current={active(item.href) ? "page" : undefined}>
+          <item.icon size={22} strokeWidth={active(item.href) ? 2 : 1.6} />
+        </a>
+      ))}
+    </nav>
+    <script>
+      import "../scripts/interactions";
+    </script>
+  </body>
+</html>

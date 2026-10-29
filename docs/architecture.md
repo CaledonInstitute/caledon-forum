@@ -57,8 +57,8 @@ Deleted post/reply details return 410 when they have no children; otherwise they
 
 ## Profile activity and formatting
 
-`0007_profile_location_shares.sql` adds optional public location text, per-post share counters, and an index for profile Likes ordered by like time. Profile Posts and Replies remain author lists; Likes lists the profile owner’s liked content publicly. Like button state still belongs to the viewer. Only the owner’s first Posts page includes the existing composer.
+`0007_profile_location_shares.sql` adds optional public location text, per-post share counters, and an index for profile Likes ordered by like time. Profile Posts and Replies remain author lists; Likes lists the profile ownerï¿½s liked content publicly. Like button state still belongs to the viewer. Only the ownerï¿½s first Posts page includes the existing composer.
 
-The browser share action is the exception to session-required mutations: same-origin JSON requests can atomically increment an available post’s share count, limited to 40 requests/minute/IP. The client calls it only after clipboard success. No visitor identity or recipient information is stored with the count.
+The browser share action is the exception to session-required mutations: same-origin JSON requests can atomically increment an available postï¿½s share count, limited to 40 requests/minute/IP. The client calls it only after clipboard success. No visitor identity or recipient information is stored with the count.
 
 Markdown parsing supports GFM and remark-math. Embedded HTML is parsed with rehype-raw, images are restricted to validated preview proxies, and rehype-sanitize removes active content before rehype-katex and rehype-highlight generate trusted markup. KaTeX trusted commands are disabled and expansion/size are bounded. Both preview and published content use this pipeline; CSS and math fonts are served locally. Declared code languages use the highlight.js common grammar set; unknown and unlabelled code remains plain text.

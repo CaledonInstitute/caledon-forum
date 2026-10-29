@@ -1,21 +1,47 @@
-import assert from 'node:assert/strict';
-import {load} from 'cheerio';
-const origin=process.argv[2]||'https://caledon-forum.supervoid.workers.dev';
-const request=async(path,options={})=>{const r=await fetch(new URL(path,origin),{signal:AbortSignal.timeout(20000),...options});return r;};
-const home=await request('/');assert.equal(home.status,200);const $=load(await home.text());
-assert.equal($('link[rel=canonical]').attr('href'),new URL('/',origin).href);
-for(const selector of ['meta[property="og:title"]','meta[property="og:description"]','meta[property="og:image"]','meta[name="twitter:card"]','meta[name="description"]'])assert.ok($(selector).attr('content'),selector);
-for(const s of $('script[type="application/ld+json"]').toArray())JSON.parse($(s).text());
-console.log('PASS production HTML, canonical, social metadata and JSON-LD');
-for(const path of ['/search','/rules','/privacy','/login','/register'])assert.equal((await request(path)).status,200,path);
-for(const path of ['/settings','/notifications','/admin']){const r=await request(path,{redirect:'manual'});assert.equal(r.status,302,path);assert.equal(new URL(r.headers.get('location'),origin).pathname,'/login');}
-for(const path of ['/p/999999999','/p/not-an-integer','/thread/missing-production-thread','/u/missing-profile'])assert.equal((await request(path,{redirect:'manual'})).status,404);
-assert.equal((await request('/search')).headers.get('x-robots-tag'),'noindex');
-console.log('PASS public/private routing and indexing directives');
-assert.ok((await (await request('/robots.txt')).text()).includes(new URL('/sitemap.xml',origin).href));
-assert.ok((await (await request('/sitemap.xml')).text()).includes(new URL('/',origin).href));
-const png=await request('/api/og/site.png');assert.equal(png.status,200);assert.ok(png.headers.get('content-type').includes('image/png'));const bytes=Buffer.from(await png.arrayBuffer());assert.equal(bytes.readUInt32BE(16),1200);assert.equal(bytes.readUInt32BE(20),630);
-const fallback=Buffer.from(await (await request('/social.png')).arrayBuffer());assert.equal(bytes.equals(fallback),false,'PNG endpoint must use the live renderer');
-console.log('PASS robots, sitemap and live 1200×630 PNG rendering');
-assert.equal((await request('/api/forum/publish',{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify({body:'Anonymous requests must not publish'})})).status,401);
-console.log('PASS anonymous writes rejected');
+import assert from "node:assert/strict";
+import { load } from "cheerio";
+const origin = process.argv[2] || "https://caledon-forum.supervoid.workers.dev";
+const request = async (path, options = {}) => {
+  const r = await fetch(new URL(path, origin), { signal: AbortSignal.timeout(20000), ...options });
+  return r;
+};
+const home = await request("/");
+assert.equal(home.status, 200);
+const $ = load(await home.text());
+assert.equal($("link[rel=canonical]").attr("href"), new URL("/", origin).href);
+for (const selector of ['meta[property="og:title"]', 'meta[property="og:description"]', 'meta[property="og:image"]', 'meta[name="twitter:card"]', 'meta[name="description"]'])
+  assert.ok($(selector).attr("content"), selector);
+for (const s of $('script[type="application/ld+json"]').toArray()) JSON.parse($(s).text());
+console.log("PASS production HTML, canonical, social metadata and JSON-LD");
+for (const path of ["/search", "/rules", "/privacy", "/login", "/register"]) assert.equal((await request(path)).status, 200, path);
+for (const path of ["/settings", "/notifications", "/admin"]) {
+  const r = await request(path, { redirect: "manual" });
+  assert.equal(r.status, 302, path);
+  assert.equal(new URL(r.headers.get("location"), origin).pathname, "/login");
+}
+for (const path of ["/p/999999999", "/p/not-an-integer", "/thread/missing-production-thread", "/u/missing-profile"])
+  assert.equal((await request(path, { redirect: "manual" })).status, 404);
+assert.equal((await request("/search")).headers.get("x-robots-tag"), "noindex");
+console.log("PASS public/private routing and indexing directives");
+assert.ok((await (await request("/robots.txt")).text()).includes(new URL("/sitemap.xml", origin).href));
+assert.ok((await (await request("/sitemap.xml")).text()).includes(new URL("/", origin).href));
+const png = await request("/api/og/site.png");
+assert.equal(png.status, 200);
+assert.ok(png.headers.get("content-type").includes("image/png"));
+const bytes = Buffer.from(await png.arrayBuffer());
+assert.equal(bytes.readUInt32BE(16), 1200);
+assert.equal(bytes.readUInt32BE(20), 630);
+const fallback = Buffer.from(await (await request("/social.png")).arrayBuffer());
+assert.equal(bytes.equals(fallback), false, "PNG endpoint must use the live renderer");
+console.log("PASS robots, sitemap and live 1200×630 PNG rendering");
+assert.equal(
+  (
+    await request("/api/forum/publish", {
+      method: "POST",
+      headers: { origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ body: "Anonymous requests must not publish" }),
+    })
+  ).status,
+  401
+);
+console.log("PASS anonymous writes rejected");

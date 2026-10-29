@@ -1,8 +1,35 @@
 ---
-import { Play } from 'lucide-react';
-import type { LinkPreview } from '../lib/types';
-interface Props {preview:LinkPreview}
-const {preview:p}=Astro.props;
+import { Play } from "lucide-react";
+import type { LinkPreview } from "../lib/types";
+interface Props {
+  preview: LinkPreview;
+}
+const { preview: p } = Astro.props;
 ---
-{p.kind==='youtube' ? <div class="link-card"><button class="video-thumbnail" data-video={p.videoId} aria-label={`Play ${p.title}`}><img src={`/api/media/${p.id}`} alt={p.title || 'YouTube video'} loading="lazy" width="600" height="338"/><span class="play"><Play size={20} fill="currentColor"/></span></button><div class="link-card-copy"><small>YouTube · {p.site}</small><strong>{p.title}</strong><a class="text-link small" href={p.url} target="_blank" rel="ugc nofollow noopener">Open on YouTube</a></div></div> :
-<a class="link-card" href={p.url} target="_blank" rel="ugc nofollow noopener">{p.image && <img src={`/api/media/${p.id}`} alt="" loading="lazy" width="600" height="220"/>}<div class="link-card-copy"><small>{new URL(p.url).hostname}</small><strong>{p.title || p.site}</strong>{p.description && <p>{p.description}</p>}</div></a>}
+
+{p.kind === "youtube" ? (
+  <div class="link-card">
+    <button class="video-thumbnail" data-video={p.videoId} aria-label={`Play ${p.title}`}>
+      <img src={`/api/media/${p.id}`} alt={p.title || "YouTube video"} loading="lazy" width="600" height="338" />
+      <span class="play">
+        <Play size={20} fill="currentColor" />
+      </span>
+    </button>
+    <div class="link-card-copy">
+      <small>YouTube · {p.site}</small>
+      <strong>{p.title}</strong>
+      <a class="text-link small" href={p.url} target="_blank" rel="ugc nofollow noopener">
+        Open on YouTube
+      </a>
+    </div>
+  </div>
+) : (
+  <a class="link-card" href={p.url} target="_blank" rel="ugc nofollow noopener">
+    {p.image && <img src={`/api/media/${p.id}`} alt="" loading="lazy" width="600" height="220" />}
+    <div class="link-card-copy">
+      <small>{new URL(p.url).hostname}</small>
+      <strong>{p.title || p.site}</strong>
+      {p.description && <p>{p.description}</p>}
+    </div>
+  </a>
+)}

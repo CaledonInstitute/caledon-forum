@@ -1,46 +1,238 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import ModerationQueue from '../components/ModerationQueue.astro';
-import ProfilePage from '../components/ProfilePage.astro';
-import PageHeader from '../components/PageHeader.astro';
-import AccountPanel from '../components/AccountPanel';
-import { env } from 'cloudflare:workers';
-import { authReady, googleReady } from '../lib/auth';
-import { all,replyLocation,one } from '../lib/db';
-import Avatar from '../components/Avatar.astro';
-import Badge from '../components/Badge.astro';
-import Pagination from '../components/Pagination.astro';
-import { PAGE_SIZE,pageNumber,excerpt } from '../lib/content';
-import type { PublicProfile } from '../lib/types';
-const page=Astro.params.username!;
-if(/^[A-Za-z0-9_]{1,30}$/.test(page)&&page!==page.toLowerCase())return Astro.redirect(`/${page.toLowerCase()}${Astro.url.search}`,301);
-const titles:Record<string,string>={login:'Welcome back',register:'Join Caledon',verify:'Verify your email','forgot-password':'Reset your password','reset-password':'Choose a new password',onboarding:'Make yourself at home',settings:'Settings',notifications:'Notifications',admin:'Administration',rules:'Community rules',privacy:'Privacy'};
-const systemPage=Object.hasOwn(titles,page);
-const title=systemPage?titles[page]:'Profile unavailable';const user=Astro.locals.user;const n=pageNumber(Astro.url);
-const person=!systemPage?await one<PublicProfile>(`SELECT u.*,u.cover_image AS coverImage,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,Date.now()-86400000,page):null;
-if(!systemPage&&!person)Astro.response.status=404;
+import Layout from "../layouts/Layout.astro";
+import ModerationQueue from "../components/ModerationQueue.astro";
+import ProfilePage from "../components/ProfilePage.astro";
+import PageHeader from "../components/PageHeader.astro";
+import AccountPanel from "../components/AccountPanel";
+import { env } from "cloudflare:workers";
+import { authReady, googleReady } from "../lib/auth";
+import { all, replyLocation, one } from "../lib/db";
+import Avatar from "../components/Avatar.astro";
+import Badge from "../components/Badge.astro";
+import Pagination from "../components/Pagination.astro";
+import { PAGE_SIZE, pageNumber, excerpt } from "../lib/content";
+import type { PublicProfile } from "../lib/types";
+const page = Astro.params.username!;
+if (/^[A-Za-z0-9_]{1,30}$/.test(page) && page !== page.toLowerCase()) return Astro.redirect(`/${page.toLowerCase()}${Astro.url.search}`, 301);
+const titles: Record<string, string> = {
+  login: "Welcome back",
+  register: "Join Caledon",
+  verify: "Verify your email",
+  "forgot-password": "Reset your password",
+  "reset-password": "Choose a new password",
+  onboarding: "Make yourself at home",
+  settings: "Settings",
+  notifications: "Notifications",
+  admin: "Administration",
+  rules: "Community rules",
+  privacy: "Privacy",
+};
+const systemPage = Object.hasOwn(titles, page);
+const title = systemPage ? titles[page] : "Profile unavailable";
+const user = Astro.locals.user;
+const n = pageNumber(Astro.url);
+const person = !systemPage
+  ? await one<PublicProfile>(
+      `SELECT u.*,u.cover_image AS coverImage,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,
+      Date.now() - 86400000,
+      page
+    )
+  : null;
+if (!systemPage && !person) Astro.response.status = 404;
 
-if(['settings','notifications','onboarding','admin'].includes(page)&&!user)return Astro.redirect('/login');
-if(page==='onboarding'&&user?.username)return Astro.redirect(user.emailVerified?'/':'/settings');
-if(page==='admin'&&user?.role!=='admin')Astro.response.status=403;
-const settingsCategory=Astro.url.searchParams.get('category');
-const category=settingsCategory==='github'||settingsCategory==='security'||settingsCategory==='api'?settingsCategory:'profile';
-const settingsEmail=page==='settings'&&user?await one<{email:string}>('SELECT email FROM user WHERE id=?',user.id):null;
-const currentEmail=settingsEmail?.email.endsWith('@unverified.caledon.invalid')?null:settingsEmail?.email;
-const accounts=page==='settings'&&user?await all<{provider_id:string}>('SELECT provider_id FROM account WHERE user_id=?',user.id):[];
-const notifications=page==='notifications'&&user?await all<any>(`SELECT n.kind,n.post_id,MAX(n.created_at) AS created_at,MIN(COALESCE(n.read_at,0)) AS read_at,COUNT(*) AS count,MIN(n.actor_id) AS actor_id,p.body FROM notifications n JOIN posts p ON p.id=n.post_id WHERE n.recipient_id=? AND p.deleted=0 GROUP BY n.kind,n.post_id ORDER BY created_at DESC LIMIT ? OFFSET ?`,user.id,PAGE_SIZE+1,(n-1)*PAGE_SIZE):[];
-const notificationRows=await Promise.all(notifications.slice(0,PAGE_SIZE).map(async r=>({...r,url:await replyLocation(r.post_id),actor:await one<any>(`SELECT u.name,u.username,u.image,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.id=?`,Date.now()-86400000,r.actor_id)})));
-const reports=page==='admin'&&user?.role==='admin'?await all<any>(`SELECT r.*,p.body,p.author_id,p.root_id,p.deleted,COALESCE(root.locked,p.locked) AS locked,u.username,u.suspended,reporter.username AS reporter FROM reports r JOIN posts p ON p.id=r.post_id JOIN user u ON u.id=p.author_id JOIN user reporter ON reporter.id=r.reporter_id LEFT JOIN posts root ON root.id=p.root_id WHERE r.status='open' ORDER BY r.created_at LIMIT ? OFFSET ?`,PAGE_SIZE+1,(n-1)*PAGE_SIZE):[];
-const audit=page==='admin'&&user?.role==='admin'?await all<any>(`SELECT a.*,u.username,COALESCE(target.username,author.username) AS target_username,p.id AS post_id FROM moderation_actions a JOIN user u ON u.id=a.admin_id LEFT JOIN reports r ON a.action='resolve' AND r.id=a.target_id LEFT JOIN posts p ON p.id=CASE WHEN a.action='resolve' THEN r.post_id WHEN a.action IN ('delete','lock','unlock') THEN a.target_id END LEFT JOIN user author ON author.id=p.author_id LEFT JOIN user target ON a.action IN ('suspend','restore') AND target.id=a.target_id ORDER BY a.created_at DESC LIMIT 20`):[];
-const reportRows=await Promise.all(reports.slice(0,PAGE_SIZE).map(async r=>({...r,url:await replyLocation(r.post_id)})));
-const auditRows=await Promise.all(audit.map(async a=>({...a,url:a.post_id?await replyLocation(a.post_id):null})));
+if (["settings", "notifications", "onboarding", "admin"].includes(page) && !user) return Astro.redirect("/login");
+if (page === "onboarding" && user?.username) return Astro.redirect(user.emailVerified ? "/" : "/settings");
+if (page === "admin" && user?.role !== "admin") Astro.response.status = 403;
+const settingsCategory = Astro.url.searchParams.get("category");
+const category = settingsCategory === "github" || settingsCategory === "security" || settingsCategory === "api" ? settingsCategory : "profile";
+const settingsEmail = page === "settings" && user ? await one<{ email: string }>("SELECT email FROM user WHERE id=?", user.id) : null;
+const currentEmail = settingsEmail?.email.endsWith("@unverified.caledon.invalid") ? null : settingsEmail?.email;
+const accounts = page === "settings" && user ? await all<{ provider_id: string }>("SELECT provider_id FROM account WHERE user_id=?", user.id) : [];
+const notifications =
+  page === "notifications" && user
+    ? await all<any>(
+        `SELECT n.kind,n.post_id,MAX(n.created_at) AS created_at,MIN(COALESCE(n.read_at,0)) AS read_at,COUNT(*) AS count,MIN(n.actor_id) AS actor_id,p.body FROM notifications n JOIN posts p ON p.id=n.post_id WHERE n.recipient_id=? AND p.deleted=0 GROUP BY n.kind,n.post_id ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        user.id,
+        PAGE_SIZE + 1,
+        (n - 1) * PAGE_SIZE
+      )
+    : [];
+const notificationRows = await Promise.all(
+  notifications
+    .slice(0, PAGE_SIZE)
+    .map(async (r) => ({
+      ...r,
+      url: await replyLocation(r.post_id),
+      actor: await one<any>(
+        `SELECT u.name,u.username,u.image,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.id=?`,
+        Date.now() - 86400000,
+        r.actor_id
+      ),
+    }))
+);
+const reports =
+  page === "admin" && user?.role === "admin"
+    ? await all<any>(
+        `SELECT r.*,p.body,p.author_id,p.root_id,p.deleted,COALESCE(root.locked,p.locked) AS locked,u.username,u.suspended,reporter.username AS reporter FROM reports r JOIN posts p ON p.id=r.post_id JOIN user u ON u.id=p.author_id JOIN user reporter ON reporter.id=r.reporter_id LEFT JOIN posts root ON root.id=p.root_id WHERE r.status='open' ORDER BY r.created_at LIMIT ? OFFSET ?`,
+        PAGE_SIZE + 1,
+        (n - 1) * PAGE_SIZE
+      )
+    : [];
+const audit =
+  page === "admin" && user?.role === "admin"
+    ? await all<any>(
+        `SELECT a.*,u.username,COALESCE(target.username,author.username) AS target_username,p.id AS post_id FROM moderation_actions a JOIN user u ON u.id=a.admin_id LEFT JOIN reports r ON a.action='resolve' AND r.id=a.target_id LEFT JOIN posts p ON p.id=CASE WHEN a.action='resolve' THEN r.post_id WHEN a.action IN ('delete','lock','unlock') THEN a.target_id END LEFT JOIN user author ON author.id=p.author_id LEFT JOIN user target ON a.action IN ('suspend','restore') AND target.id=a.target_id ORDER BY a.created_at DESC LIMIT 20`
+      )
+    : [];
+const reportRows = await Promise.all(reports.slice(0, PAGE_SIZE).map(async (r) => ({ ...r, url: await replyLocation(r.post_id) })));
+const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_id ? await replyLocation(a.post_id) : null })));
 ---
-{systemPage?<Layout title={title} noindex={!['rules','privacy'].includes(page)}><PageHeader title={title} subtitle={page==='onboarding'?'Choose the username you’ll use in conversations.':undefined}>{page==='notifications'&&<button class="text-button" data-read>Mark all as read</button>}</PageHeader>
-{page==='settings'&&<nav class="settings-categories" aria-label="Settings categories">{[{id:'profile',label:'Profile',href:'/settings'},{id:'github',label:'GitHub & membership',href:'/settings?category=github'},{id:'security',label:'Email & security',href:'/settings?category=security'},{id:'api',label:'API',href:'/settings?category=api'}].map(item=><a href={item.href} aria-current={category===item.id?'page':undefined}>{item.label}</a>)}</nav>}
-{['login','register','verify','forgot-password','reset-password','onboarding','settings'].includes(page)&&<AccountPanel client:load mode={page} category={category} currentEmail={currentEmail} enabled={authReady()} googleEnabled={googleReady()} hasGoogle={accounts.some(a=>a.provider_id==='google')} siteKey={env.TURNSTILE_SITE_KEY} user={user} hasGithub={accounts.some(a=>a.provider_id==='github')} hasPassword={accounts.some(a=>a.provider_id==='credential')}/>}
-{page==='notifications'&&<>{notificationRows.length?notificationRows.map(r=><a class:list={['notification',{unread:!r.read_at}]} href={r.url}><Avatar name={r.actor?.name} image={r.actor?.image} username={r.actor?.username}/><div><div class="identity"><strong>{r.actor?.name}</strong>{!!r.actor?.isCaledonMember&&<Badge/>}{r.count>1&&<span>and {r.count-1} {r.count===2?'other':'others'}</span>}</div><span>{r.kind==='reply'?'replied to your post':'liked your post'}</span><p>{excerpt(r.body,120)}</p><time datetime={new Date(r.created_at).toISOString()}>{new Date(r.created_at).toLocaleDateString('en',{month:'short',day:'numeric'})}</time></div></a>):<section class="empty"><h2>You’re all caught up.</h2><p>Replies and likes will appear here when the conversation gets going.</p></section>}<Pagination page={n} hasMore={notifications.length>PAGE_SIZE}/></>}
-{page==='admin'&&(user?.role!=='admin'?<section class="empty"><h2>Administrator access required.</h2></section>:<ModerationQueue reports={reportRows} audit={auditRows} page={n} hasMore={reports.length>PAGE_SIZE}/>)}
-{page==='rules'&&<article class="legal"><p>This is a place to ask, experiment, and learn together. Curiosity works best when people feel welcome to participate.</p><h2>Be thoughtful with each other</h2><p>Discuss ideas without harassment, threats, discrimination, impersonation, or publishing someone else’s private information.</p><h2>Share research responsibly</h2><p>Keep security discussions educational and respect authorization and coordinated disclosure. Do not share stolen data, credentials, malware campaigns, or instructions targeting people without permission.</p><h2>Keep conversations useful</h2><p>Give context, credit sources, and avoid spam or deceptive links. External images and links must also follow these rules.</p><h2>Report problems</h2><p>Use Report post in the post menu. Administrators can remove content, lock discussions, and suspend accounts. A membership bluecheck does not exempt anyone from these rules.</p></article>}
-{page==='privacy'&&<article class="legal"><p>Caledon Forum is a public forum. Posts, replies, profiles, likes, and membership bluechecks are visible to everyone and may appear in search engines.</p><h2>Your account</h2><p>We store your username, display name, email, profile information, and the interactions needed to operate the forum. Passwords are hashed. Email is used for verification and password recovery, not marketing or discussion notifications.</p><h2>GitHub and bluechecks</h2><p>Connecting GitHub shares account identity, verified email information, and read access to organization membership. Active CaledonInstitute membership is shown publicly as a bluecheck, even when membership is private on GitHub. Access tokens are encrypted on the server.</p><h2>Google sign-in and API keys</h2><p>Connecting Google shares your basic profile and email address to sign you in. Google accounts are linked explicitly from Settings. API keys grant access to your account’s forum activity; only a hash of each key is stored. You can regenerate or revoke your key in Settings.</p><h2>External links and services</h2><p>Linked pages are fetched to generate previews. Images are fetched through a forum proxy. Clicking a YouTube player loads YouTube’s privacy-enhanced player and connects your browser to YouTube. Profile images, including GitHub avatars, are fetched through a forum proxy.</p><p>Cloudflare hosts the forum and database and provides Turnstile bot protection. Resend delivers account emails. These services process the information necessary to provide those functions.</p><h2>Sessions and moderation</h2><p>Essential session cookies keep you signed in. Security controls process request addresses and rate-limit information. Reports and administrator actions are stored for moderation. No advertising trackers are included.</p><h2>Your content</h2><p>You can edit or delete your posts and replies. Deleted content may leave a placeholder to preserve conversation context. Copies previously indexed or shared by other services are outside the forum’s control.</p></article>}
-{!titles[page]&&<section class="empty"><h2>There’s nothing here.</h2><p>Try the home feed to find a conversation.</p><a class="button secondary" href="/">Back to feed</a></section>}
-</Layout>:<ProfilePage person={person}/>}
+
+{systemPage ? (
+  <Layout title={title} noindex={!["rules", "privacy"].includes(page)}>
+    <PageHeader title={title} subtitle={page === "onboarding" ? "Choose the username you’ll use in conversations." : undefined}>
+      {page === "notifications" && (
+        <button class="text-button" data-read>
+          Mark all as read
+        </button>
+      )}
+    </PageHeader>
+    {page === "settings" && (
+      <nav class="settings-categories" aria-label="Settings categories">
+        {[
+          { id: "profile", label: "Profile", href: "/settings" },
+          { id: "github", label: "GitHub & membership", href: "/settings?category=github" },
+          { id: "security", label: "Email & security", href: "/settings?category=security" },
+          { id: "api", label: "API", href: "/settings?category=api" },
+        ].map((item) => (
+          <a href={item.href} aria-current={category === item.id ? "page" : undefined}>
+            {item.label}
+          </a>
+        ))}
+      </nav>
+    )}
+    {["login", "register", "verify", "forgot-password", "reset-password", "onboarding", "settings"].includes(page) && (
+      <AccountPanel
+        client:load
+        mode={page}
+        category={category}
+        currentEmail={currentEmail}
+        enabled={authReady()}
+        googleEnabled={googleReady()}
+        hasGoogle={accounts.some((a) => a.provider_id === "google")}
+        siteKey={env.TURNSTILE_SITE_KEY}
+        user={user}
+        hasGithub={accounts.some((a) => a.provider_id === "github")}
+        hasPassword={accounts.some((a) => a.provider_id === "credential")}
+      />
+    )}
+    {page === "notifications" && (
+      <>
+        {notificationRows.length ? (
+          notificationRows.map((r) => (
+            <a class:list={["notification", { unread: !r.read_at }]} href={r.url}>
+              <Avatar name={r.actor?.name} image={r.actor?.image} username={r.actor?.username} />
+              <div>
+                <div class="identity">
+                  <strong>{r.actor?.name}</strong>
+                  {!!r.actor?.isCaledonMember && <Badge />}
+                  {r.count > 1 && (
+                    <span>
+                      and {r.count - 1} {r.count === 2 ? "other" : "others"}
+                    </span>
+                  )}
+                </div>
+                <span>{r.kind === "reply" ? "replied to your post" : "liked your post"}</span>
+                <p>{excerpt(r.body, 120)}</p>
+                <time datetime={new Date(r.created_at).toISOString()}>{new Date(r.created_at).toLocaleDateString("en", { month: "short", day: "numeric" })}</time>
+              </div>
+            </a>
+          ))
+        ) : (
+          <section class="empty">
+            <h2>You’re all caught up.</h2>
+            <p>Replies and likes will appear here when the conversation gets going.</p>
+          </section>
+        )}
+        <Pagination page={n} hasMore={notifications.length > PAGE_SIZE} />
+      </>
+    )}
+    {page === "admin" &&
+      (user?.role !== "admin" ? (
+        <section class="empty">
+          <h2>Administrator access required.</h2>
+        </section>
+      ) : (
+        <ModerationQueue reports={reportRows} audit={auditRows} page={n} hasMore={reports.length > PAGE_SIZE} />
+      ))}
+    {page === "rules" && (
+      <article class="legal">
+        <p>This is a place to ask, experiment, and learn together. Curiosity works best when people feel welcome to participate.</p>
+        <h2>Be thoughtful with each other</h2>
+        <p>Discuss ideas without harassment, threats, discrimination, impersonation, or publishing someone else’s private information.</p>
+        <h2>Share research responsibly</h2>
+        <p>
+          Keep security discussions educational and respect authorization and coordinated disclosure. Do not share stolen data, credentials, malware campaigns, or instructions
+          targeting people without permission.
+        </p>
+        <h2>Keep conversations useful</h2>
+        <p>Give context, credit sources, and avoid spam or deceptive links. External images and links must also follow these rules.</p>
+        <h2>Report problems</h2>
+        <p>
+          Use Report post in the post menu. Administrators can remove content, lock discussions, and suspend accounts. A membership bluecheck does not exempt anyone from these
+          rules.
+        </p>
+      </article>
+    )}
+    {page === "privacy" && (
+      <article class="legal">
+        <p>Caledon Forum is a public forum. Posts, replies, profiles, likes, and membership bluechecks are visible to everyone and may appear in search engines.</p>
+        <h2>Your account</h2>
+        <p>
+          We store your username, display name, email, profile information, and the interactions needed to operate the forum. Passwords are hashed. Email is used for verification
+          and password recovery, not marketing or discussion notifications.
+        </p>
+        <h2>GitHub and bluechecks</h2>
+        <p>
+          Connecting GitHub shares account identity, verified email information, and read access to organization membership. Active CaledonInstitute membership is shown publicly as
+          a bluecheck, even when membership is private on GitHub. Access tokens are encrypted on the server.
+        </p>
+        <h2>Google sign-in and API keys</h2>
+        <p>
+          Connecting Google shares your basic profile and email address to sign you in. Google accounts are linked explicitly from Settings. API keys grant access to your account’s
+          forum activity; only a hash of each key is stored. You can regenerate or revoke your key in Settings.
+        </p>
+        <h2>External links and services</h2>
+        <p>
+          Linked pages are fetched to generate previews. Images are fetched through a forum proxy. Clicking a YouTube player loads YouTube’s privacy-enhanced player and connects
+          your browser to YouTube. Profile images, including GitHub avatars, are fetched through a forum proxy.
+        </p>
+        <p>
+          Cloudflare hosts the forum and database and provides Turnstile bot protection. Resend delivers account emails. These services process the information necessary to provide
+          those functions.
+        </p>
+        <h2>Sessions and moderation</h2>
+        <p>
+          Essential session cookies keep you signed in. Security controls process request addresses and rate-limit information. Reports and administrator actions are stored for
+          moderation. No advertising trackers are included.
+        </p>
+        <h2>Your content</h2>
+        <p>
+          You can edit or delete your posts and replies. Deleted content may leave a placeholder to preserve conversation context. Copies previously indexed or shared by other
+          services are outside the forum’s control.
+        </p>
+      </article>
+    )}
+    {!titles[page] && (
+      <section class="empty">
+        <h2>There’s nothing here.</h2>
+        <p>Try the home feed to find a conversation.</p>
+        <a class="button secondary" href="/">
+          Back to feed
+        </a>
+      </section>
+    )}
+  </Layout>
+) : (
+  <ProfilePage person={person} />
+)}

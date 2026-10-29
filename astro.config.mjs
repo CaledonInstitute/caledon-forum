@@ -1,15 +1,15 @@
 // @ts-check
-import { defineConfig } from 'astro/config';
+import { defineConfig } from "astro/config";
 
-import cloudflare from '@astrojs/cloudflare';
-import react from '@astrojs/react';
+import cloudflare from "@astrojs/cloudflare";
+import react from "@astrojs/react";
 
 // https://astro.build/config
 export default defineConfig({
-  output: 'server',
-  adapter: cloudflare({ imageService: 'passthrough' }),
+  output: "server",
+  adapter: cloudflare({ imageService: "passthrough" }),
   session: false,
   integrations: [react()],
   devToolbar: { enabled: false },
-  vite: { assetsInclude: ['**/*.wasm', '**/*.ttf'] }
+  vite: { assetsInclude: ["**/*.wasm", "**/*.ttf"] },
 });

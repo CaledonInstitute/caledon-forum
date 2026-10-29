@@ -1,10 +1,16 @@
 ---
 const tooltipId = `member-badge-${crypto.randomUUID()}`;
-const label = 'Official Member of Caledon Institute.';
+const label = "Official Member of Caledon Institute.";
 ---
+
 <span class="badge" data-member-badge role="button" tabindex="0" aria-label={label} aria-describedby={tooltipId} aria-expanded="false">
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 1 3 2 3.6.4.8 3.5L22 10l-1 3.5.1 3.6-3.3 1.6-2.4 2.7-3.4-1-3.4 1-2.4-2.7-3.3-1.6.1-3.6L2 10l2.6-3.1.8-3.5L9 3Z"/><path d="m7.5 11.8 3 3 6-6" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  <span class="badge-tooltip" id={tooltipId} role="tooltip">{label}</span>
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="m12 1 3 2 3.6.4.8 3.5L22 10l-1 3.5.1 3.6-3.3 1.6-2.4 2.7-3.4-1-3.4 1-2.4-2.7-3.3-1.6.1-3.6L2 10l2.6-3.1.8-3.5L9 3Z" />
+    <path d="m7.5 11.8 3 3 6-6" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+  <span class="badge-tooltip" id={tooltipId} role="tooltip">
+    {label}
+  </span>
 </span>
 
 <style>
@@ -39,32 +45,36 @@ const label = 'Official Member of Caledon Institute.';
   }
   .badge:hover .badge-tooltip,
   .badge:focus-visible .badge-tooltip,
-  .badge[aria-expanded='true'] .badge-tooltip {
+  .badge[aria-expanded="true"] .badge-tooltip {
     display: block;
   }
 </style>
 
 <script>
   function closeBadges(except?: Element) {
-    document.querySelectorAll('[data-member-badge][aria-expanded="true"]').forEach(badge => {
-      if (badge !== except) badge.setAttribute('aria-expanded', 'false');
+    document.querySelectorAll('[data-member-badge][aria-expanded="true"]').forEach((badge) => {
+      if (badge !== except) badge.setAttribute("aria-expanded", "false");
     });
   }
 
-  document.addEventListener('click', event => {
-    const badge = event.target instanceof Element ? event.target.closest('[data-member-badge]') : null;
-    closeBadges(badge ?? undefined);
-    if (!badge) return;
-    // Badges also appear inside linked search results and notifications.
-    event.preventDefault();
-    event.stopPropagation();
-    badge.setAttribute('aria-expanded', String(badge.getAttribute('aria-expanded') !== 'true'));
-  }, true);
+  document.addEventListener(
+    "click",
+    (event) => {
+      const badge = event.target instanceof Element ? event.target.closest("[data-member-badge]") : null;
+      closeBadges(badge ?? undefined);
+      if (!badge) return;
+      // Badges also appear inside linked search results and notifications.
+      event.preventDefault();
+      event.stopPropagation();
+      badge.setAttribute("aria-expanded", String(badge.getAttribute("aria-expanded") !== "true"));
+    },
+    true
+  );
 
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') closeBadges();
-    const badge = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('[data-member-badge]') : null;
-    if (badge && (event.key === 'Enter' || event.key === ' ')) {
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeBadges();
+    const badge = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-member-badge]") : null;
+    if (badge && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
       event.stopPropagation();
       badge.click();
