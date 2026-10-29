@@ -484,6 +484,66 @@ small,
 .composer textarea:focus {
   outline: none;
 }
+.mention-editor {
+  position: relative;
+}
+.mention-picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: min(100%, 440px);
+  z-index: 10;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
+  overflow: hidden;
+}
+.mention-picker-heading {
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+.mention-picker-heading span {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.mention-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.mention-option[aria-selected="true"] {
+  background: var(--surface);
+  box-shadow: inset 3px 0 var(--blue);
+}
+.mention-handle {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.mention-status {
+  padding: 12px 14px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.post-content a.mention {
+  color: var(--blue);
+  font-weight: 600;
+  text-decoration: none;
+}
+.post-content a.mention:hover {
+  text-decoration: underline;
+}
 .composer:focus-within {
   box-shadow: inset 2px 0 black;
 }
@@ -514,6 +574,48 @@ small,
 .composer-hint {
   font-size: 11px;
   color: var(--muted);
+}
+.publish-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #000;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 12%);
+  font-size: 13px;
+}
+.publish-toast > svg {
+  flex-shrink: 0;
+}
+.publish-toast p {
+  margin: 0 0 5px;
+  line-height: 1.5;
+}
+.publish-toast a {
+  color: var(--blue);
+  text-decoration: underline;
+}
+.publish-toast button {
+  display: flex;
+  padding: 3px;
+  border: 0;
+  background: none;
+  margin-left: 8px;
+}
+@media (max-width: 680px) {
+  .publish-toast {
+    right: 16px;
+    bottom: calc(88px + env(safe-area-inset-bottom));
+  }
 }
 .composer-foot .counter {
   font-size: 11px;
@@ -735,11 +837,31 @@ small,
   color: var(--muted);
 }
 .notification {
+  position: relative;
+  isolation: isolate;
   padding: 24px 28px;
   border-bottom: 1px solid var(--line);
   display: flex;
   gap: 15px;
   font-size: 14px;
+}
+.notification-profile {
+  position: relative;
+  z-index: 2;
+  align-self: flex-start;
+}
+.notification-post {
+  display: block;
+}
+.notification-post::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.notification-post:focus-visible::after {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
 }
 .notification.unread {
   background: #fafafa;
@@ -751,6 +873,93 @@ small,
 }
 .notification time {
   font-size: 11px;
+  color: var(--muted);
+}
+.quote-card {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  margin: 14px 0;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.quote-identity {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.quote-card .avatar {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  font-size: 12px;
+}
+.quote-author {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  font-size: 13px;
+}
+.quote-profile {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+.quote-profile:hover strong {
+  text-decoration: underline;
+}
+.quote-handle,
+.quote-context,
+.quote-source time {
+  color: var(--muted);
+  font-size: 12px;
+}
+.quote-badge {
+  color: var(--blue);
+}
+.quote-source {
+  display: block;
+}
+.quote-source::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 10px;
+}
+.quote-source:hover::after {
+  background: rgb(0 0 0 / 2%);
+}
+.quote-source:focus-visible::after {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.quote-context {
+  display: block;
+  margin-top: 10px;
+}
+.quote-card p {
+  margin: 10px 0;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+.quote-unavailable {
+  background: var(--surface);
+  color: var(--muted);
+}
+.quote-unavailable p {
+  margin: 0;
+  font-size: 13px;
+}
+.quote-status {
+  font-size: 12px;
   color: var(--muted);
 }
 .link-card {

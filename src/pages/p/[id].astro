@@ -57,7 +57,7 @@ const schema = !missing
   image={missing ? undefined : `/api/og/${p!.publicId}.png?v=${p!.updatedAt}`}
   schema={schema}
 >
-  <PageHeader title={p?.rootId ? "Reply" : "Thread"} subtitle={missing ? "" : `${p!.directReplies} ${p!.directReplies === 1 ? "reply" : "replies"}`}>
+  <PageHeader title={p?.rootId ? "Reply" : "Thread"} replyFor={p?.id} subtitle={missing ? "" : `${p!.directReplies} ${p!.directReplies === 1 ? "reply" : "replies"}`}>
     <a class="text-button" href={p?.parentPublicId ? `/p/${p.parentPublicId}` : "/"}>
       {p?.parentId ? "Back to parent" : "Back to feed"}
     </a>

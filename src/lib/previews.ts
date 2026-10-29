@@ -4,6 +4,7 @@ import { extractUrls } from "./markdown";
 import { publicUrl, safeFetch, readLimited, rasterType } from "./security";
 import { youtubeId } from "./content";
 import type { LinkPreview } from "./types";
+import { localPostId } from "./quotes";
 const query = "SELECT id,url,kind,title,description,site,image,video_id AS videoId,checked_at AS checkedAt FROM link_previews WHERE url=?";
 const clean = (s: string, max = 300) =>
   s
@@ -13,6 +14,7 @@ const clean = (s: string, max = 300) =>
     .slice(0, max);
 export async function inspectLink(value: string): Promise<LinkPreview | null> {
   try {
+    if (localPostId(value)) return null;
     const url = publicUrl(value).href;
     const cached = await one<LinkPreview>(query, url);
     if (cached && cached.checkedAt > Date.now() - 86400000) return cached;

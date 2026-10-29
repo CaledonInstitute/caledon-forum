@@ -3,6 +3,8 @@ import { Heart, MessageCircle, MoreHorizontal, Eye, Link as LinkIcon } from "luc
 import Avatar from "./Avatar.astro";
 import Badge from "./Badge.astro";
 import LinkCard from "./LinkCard.astro";
+import QuoteCard from "./QuoteCard";
+import { quotedPost, localPostId } from "../lib/quotes";
 import { previews } from "../lib/db";
 import { markdown } from "../lib/markdown";
 import { excerpt, countCharacters } from "../lib/content";
@@ -14,11 +16,15 @@ interface Props {
 }
 const { post: p, full = false, reply = false } = Astro.props;
 const viewer = Astro.locals.user;
-const links = p.deleted ? [] : await previews(p.id);
+const links = p.deleted ? [] : (await previews(p.id)).filter((link) => !localPostId(link.url));
+const quote = p.deleted ? null : await quotedPost(p.body);
 const long = !full && countCharacters(p.body) > 600;
-const html = p.deleted ? "" : await markdown(long ? excerpt(p.body, 600) : p.body, links);
+const html = p.deleted ? "" : await markdown(long ? excerpt(p.body, 600) : p.body, links, quote?.sourceUrl);
 const permalink = `/p/${p.publicId}`;
-const time = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(p.createdAt));
+const createdAt = new Date(p.createdAt);
+const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "Asia/Jakarta" }).format(createdAt);
+const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" }).format(createdAt);
+const time = `${date} ${clock}`;
 ---
 
 <article
@@ -41,7 +47,9 @@ const time = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).f
           @{p.username}
         </a>
         <a class="post-time" href={permalink}>
-          <time datetime={new Date(p.createdAt).toISOString()}>{time}</time>
+          <time datetime={createdAt.toISOString()} title={`${time} GMT+7`}>
+            {time}
+          </time>
           {p.updatedAt > p.createdAt ? " · Edited" : ""}
         </a>
       </div>
@@ -55,6 +63,7 @@ const time = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).f
       ) : (
         <>
           <div class="post-content" set:html={html} />
+          {quote && <QuoteCard quote={quote} />}
           {long && (
             <a class="read-more" href={permalink}>
               Read full {p.rootId ? "reply" : "thread"}
@@ -75,7 +84,7 @@ const time = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).f
           <div class="post-tools">
             <a href={`${permalink}#reply`} aria-label={`Reply to ${p.name}`}>
               <MessageCircle size={17} strokeWidth={1.6} />
-              {p.directReplies || "Reply"}
+              <span data-reply-count={p.id}>{p.directReplies || "Reply"}</span>
             </a>
             <button data-like={p.id} aria-pressed={!!p.liked} data-signed-in={!!viewer} aria-label={p.liked ? "Unlike" : "Like"}>
               <Heart size={17} strokeWidth={1.6} fill={p.liked ? "currentColor" : "none"} />

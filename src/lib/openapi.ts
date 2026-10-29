@@ -179,7 +179,7 @@ export const openapi = {
       PostPage: paginated(ref("Post")),
       Notification: object({
         id: text,
-        kind: { type: "string", enum: ["reply", "like"] },
+        kind: { type: "string", enum: ["reply", "like", "mention"] },
         postId: address,
         createdAt: integer,
         readAt: nullableInteger,

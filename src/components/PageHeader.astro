@@ -1,11 +1,11 @@
 ---
-const { title, subtitle } = Astro.props;
+const { title, subtitle, replyFor } = Astro.props;
 ---
 
 <header class="page-header">
   <div>
     <h1>{title}</h1>
-    {subtitle && <p>{subtitle}</p>}
+    {subtitle && <p data-reply-summary={replyFor}>{subtitle}</p>}
   </div>
   <slot />
 </header>

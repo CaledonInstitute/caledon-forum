@@ -29,7 +29,7 @@ export const POST: APIRoute = async (ctx) => {
     if (user.suspended) return Response.json({ error: "Your account is suspended." }, { status: 403 });
     const data = JSON.parse(new TextDecoder().decode(await readLimited(new Response(ctx.request.body), 512000)));
     const action = ctx.params.action!;
-    await rateLimit(`forum:${user.id}:${action}`, action === "preview" ? 15 : action === "publish" ? 10 : 40);
+    await rateLimit(`forum:${user.id}:${action}`, action === "mentions" || action === "quote" ? 120 : action === "preview" ? 15 : action === "publish" ? 10 : 40);
     if (action === "email") {
       const input = z.object({ email: z.email(), token: z.string().min(1) }).parse(data);
       return await createAuth().handler(

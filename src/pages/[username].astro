@@ -58,17 +58,15 @@ const notifications =
       )
     : [];
 const notificationRows = await Promise.all(
-  notifications
-    .slice(0, PAGE_SIZE)
-    .map(async (r) => ({
-      ...r,
-      url: await replyLocation(r.post_id),
-      actor: await one<any>(
-        `SELECT u.name,u.username,u.image,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.id=?`,
-        Date.now() - 86400000,
-        r.actor_id
-      ),
-    }))
+  notifications.slice(0, PAGE_SIZE).map(async (r) => ({
+    ...r,
+    url: await replyLocation(r.post_id),
+    actor: await one<any>(
+      `SELECT u.name,u.username,u.image,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.id=?`,
+      Date.now() - 86400000,
+      r.actor_id
+    ),
+  }))
 );
 const reports =
   page === "admin" && user?.role === "admin"
@@ -130,11 +128,23 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
       <>
         {notificationRows.length ? (
           notificationRows.map((r) => (
-            <a class:list={["notification", { unread: !r.read_at }]} href={r.url}>
-              <Avatar name={r.actor?.name} image={r.actor?.image} username={r.actor?.username} />
+            <article class:list={["notification", { unread: !r.read_at }]}>
+              {r.actor?.username ? (
+                <a class="notification-profile" href={`/${r.actor.username}`} aria-label={`${r.actor.name}'s profile`}>
+                  <Avatar name={r.actor.name} image={r.actor.image} username={r.actor.username} />
+                </a>
+              ) : (
+                <Avatar name={r.actor?.name} image={r.actor?.image} username={r.actor?.username} />
+              )}
               <div>
                 <div class="identity">
-                  <strong>{r.actor?.name}</strong>
+                  {r.actor?.username ? (
+                    <a class="notification-profile" href={`/${r.actor.username}`}>
+                      <strong>{r.actor.name}</strong>
+                    </a>
+                  ) : (
+                    <strong>{r.actor?.name}</strong>
+                  )}
                   {!!r.actor?.isCaledonMember && <Badge />}
                   {r.count > 1 && (
                     <span>
@@ -142,16 +152,18 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
                     </span>
                   )}
                 </div>
-                <span>{r.kind === "reply" ? "replied to your post" : "liked your post"}</span>
-                <p>{excerpt(r.body, 120)}</p>
-                <time datetime={new Date(r.created_at).toISOString()}>{new Date(r.created_at).toLocaleDateString("en", { month: "short", day: "numeric" })}</time>
+                <a class="notification-post" href={r.url}>
+                  <span>{r.kind === "mention" ? "mentioned you in a post" : r.kind === "reply" ? "replied to your post" : "liked your post"}</span>
+                  <p>{excerpt(r.body, 120)}</p>
+                  <time datetime={new Date(r.created_at).toISOString()}>{new Date(r.created_at).toLocaleDateString("en", { month: "short", day: "numeric" })}</time>
+                </a>
               </div>
-            </a>
+            </article>
           ))
         ) : (
           <section class="empty">
             <h2>You’re all caught up.</h2>
-            <p>Replies and likes will appear here when the conversation gets going.</p>
+            <p>Replies, mentions, and likes will appear here when the conversation gets going.</p>
           </section>
         )}
         <Pagination page={n} hasMore={notifications.length > PAGE_SIZE} />

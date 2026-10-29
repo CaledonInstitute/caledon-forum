@@ -59,3 +59,7 @@ export interface LinkPreview {
   videoId: string | null;
   checkedAt: number;
 }
+export type QuotedPost = { sourceUrl: string; url: string } & (
+  | { unavailable: true }
+  | { unavailable: false; name: string; username: string; image: string | null; isCaledonMember: boolean; text: string; createdAt: number; parentUsername?: string }
+);

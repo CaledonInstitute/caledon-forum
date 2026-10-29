@@ -1,7 +1,11 @@
 // Detail posts are counted by the server; only cards carry data-view-post.
-if ("IntersectionObserver" in window) {
-  const counted = new Set<string>();
+const counted = new Set<string>();
+const observed = new WeakSet<HTMLElement>();
+function observePosts() {
+  if (!("IntersectionObserver" in window)) return;
   document.querySelectorAll<HTMLElement>("[data-view-post]").forEach((post) => {
+    if (observed.has(post)) return;
+    observed.add(post);
     const id = post.dataset.viewPost!;
     let visible = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -53,3 +57,5 @@ if ("IntersectionObserver" in window) {
     observer.observe(post);
   });
 }
+observePosts();
+document.addEventListener("forum:posts-updated", observePosts);

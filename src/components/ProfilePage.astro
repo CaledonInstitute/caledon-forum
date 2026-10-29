@@ -93,14 +93,16 @@ const schema = person
         </a>
       </nav>
       {person.id === Astro.locals.user?.id && tab === "posts" && page === 1 && <ComposeGate />}
-      {items.length ? (
-        items.slice(0, PAGE_SIZE).map((post) => <Post post={post} />)
-      ) : (
-        <section class="empty">
-          <h2>No {tab} yet.</h2>
-          <p>{tab === "likes" ? "Posts and replies liked by this user will appear here." : "Conversations will appear here as they happen."}</p>
-        </section>
-      )}
+      <section data-post-list aria-label="Posts">
+        {items.length ? (
+          items.slice(0, PAGE_SIZE).map((post) => <Post post={post} />)
+        ) : (
+          <section class="empty" data-post-empty>
+            <h2>No {tab} yet.</h2>
+            <p>{tab === "likes" ? "Posts and replies liked by this user will appear here." : "Conversations will appear here as they happen."}</p>
+          </section>
+        )}
+      </section>
       <Pagination page={page} hasMore={items.length > PAGE_SIZE} />
     </div>
   ) : (

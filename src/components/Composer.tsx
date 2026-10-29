@@ -1,7 +1,11 @@
 import UserAvatar from "./UserAvatar";
-import { useRef, useState } from "react";
+import MentionEditor from "./MentionEditor";
+import PublishToast from "./PublishToast";
+import QuoteCard from "./QuoteCard";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { showPublishedPost } from "../lib/published-post";
 import { countCharacters, MAX_CHARACTERS } from "../lib/content";
-import type { LinkPreview } from "../lib/types";
+import type { LinkPreview, QuotedPost } from "../lib/types";
 export default function Composer({
   parentId,
   initial = "",
@@ -24,6 +28,38 @@ export default function Composer({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  const [notice, setNotice] = useState<{ message: string; url: string; persistent?: boolean } | null>(null);
+  const closeNotice = useCallback(() => setNotice(null), []);
+  const [quote, setQuote] = useState<QuotedPost | null>(null);
+  const [quoteStatus, setQuoteStatus] = useState("");
+  useEffect(() => {
+    setQuote(null);
+    setQuoteStatus("");
+    if (!/\/p\/[0-9]+/.test(body)) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setQuoteStatus("Loading quoted post…");
+      try {
+        const response = await fetch("/api/forum/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body }),
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error();
+        const result = (await response.json()) as { quote: QuotedPost | null };
+        if (controller.signal.aborted) return;
+        setQuote(result.quote);
+        setQuoteStatus("");
+      } catch {
+        if (!controller.signal.aborted) setQuoteStatus("Could not load the quote. Use Preview to try again.");
+      }
+    }, 400);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [body]);
   const count = countCharacters(body);
   async function request(action: string, data: unknown) {
     const response = await fetch(`/api/forum/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -39,9 +75,12 @@ export default function Composer({
         const r = await request("preview", { body });
         setHtml(r.html);
         setLinks(r.links);
+        setQuote(r.quote);
+        setQuoteStatus("");
       } else {
         setHtml("");
         setLinks([]);
+        setQuote(null);
       }
       setTab("preview");
     } catch (e) {
@@ -57,11 +96,23 @@ export default function Composer({
     setError("");
     try {
       const r = await request(editId ? "edit" : "publish", { body, parentId, id: editId });
+      if (editId) {
+        location.assign(r.url || "/");
+        return;
+      }
       setBody("");
       setHtml("");
       setLinks([]);
+      setQuote(null);
+      setQuoteStatus("");
       setTab("write");
-      location.assign(r.url || "/");
+      const message = parentId ? "Reply posted." : "Post published.";
+      setNotice({ message, url: r.url });
+      try {
+        await showPublishedPost(r.url, parentId);
+      } catch {
+        setNotice({ message: `${message} Could not update this page. Open your ${parentId ? "reply" : "post"} to view it.`, url: r.url, persistent: true });
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -84,13 +135,7 @@ export default function Composer({
         </div>
       </div>
       {tab === "write" ? (
-        <textarea
-          disabled={busy}
-          aria-label={parentId ? "Your reply" : "Your post"}
-          placeholder={parentId ? "Share a thought, ask a question…" : "An idea, a discovery, a question…"}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-        />
+        <MentionEditor value={body} onChange={setBody} disabled={busy} reply={!!parentId} />
       ) : (
         <div className="preview">
           <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />
@@ -109,6 +154,12 @@ export default function Composer({
             ))}
         </div>
       )}
+      {quote && <QuoteCard quote={quote} />}
+      {quoteStatus && (
+        <p className="quote-status" role="status">
+          {quoteStatus}
+        </p>
+      )}
       <details className="composer-guide">
         <summary>Formatting help</summary>
         <pre>
@@ -118,7 +169,10 @@ export default function Composer({
             }
           </code>
         </pre>
-        <p>Use a language after the opening code fence for syntax highlighting. Basic HTML is supported; scripts and embedded content are removed.</p>
+        <p>
+          Type @username to mention someone. Paste a Caledon post or reply link to quote it. Use a language after the opening code fence for syntax highlighting. Basic HTML is
+          supported; scripts and embedded content are removed.
+        </p>
       </details>
       <p className="error" role="alert">
         {error}
@@ -132,6 +186,7 @@ export default function Composer({
           {busy ? "Working…" : editId ? "Save changes" : parentId ? "Reply" : "Post"}
         </button>
       </div>
+      {notice && <PublishToast key={notice.url} {...notice} onClose={closeNotice} />}
     </section>
   );
 }

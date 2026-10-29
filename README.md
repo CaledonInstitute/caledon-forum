@@ -8,6 +8,9 @@ A public forum for Caledon Institute, built with Astro, React, and Cloudflare Wo
 - GitHub, optional Google, or username/password login, with verified-member badges.
 - Account API keys, a versioned REST API, and public Swagger docs at `/api/docs`.
 - Likes, notifications, search, reports, and admin moderation.
+- @username mentions with keyboard-accessible suggestions, profile links, and notifications.
+- New posts and replies appear on the current page without navigation, with a short confirmation toast.
+- Paste a Caledon post or reply link to attach a quote card, including a live draft preview.
 - Server-rendered pages, Open Graph, Twitter Cards, and structured data.
 
 Profiles live at `/username`; posts at `/p/<id>`. New post IDs have exactly 19 random digits; existing post URLs are preserved.
@@ -45,6 +48,10 @@ Issues and pull requests are welcome. Keep changes focused and include relevant 
 ## Post formatting
 
 Use Markdown or basic HTML (including tables and details). Scripts, event handlers, unsafe links, and embeds are removed. Images use the existing validated proxy.
+
+Paste a link to a post or reply on this forum to quote it. The first internal post link becomes a card with the original author, GMT+7 timestamp, and a short excerpt. The card opens the source; its avatar and author name open the profile. Quotes use the current source content and show an unavailable message after deletion. Quotes do not expand recursively, and links inside code or math stay literal.
+
+Type `@` in a post or reply to find a username. Use the arrow keys and Enter to select a person, or Escape to close suggestions. Mentions link to profiles and notify existing users; mentioning yourself does not send a notification. Replies already notify their parent author once. Code, math, email addresses, and existing links are excluded. Apply `0009_mentions.sql` before deploying this feature.
 
 Specify a language on fenced code blocks, for example `python`, `javascript`, or `rust`. Unknown languages and unlabelled blocks remain plain code. Use `$E = mc^2$` for inline LaTeX and `$$` on separate lines around display equations. Preview uses the same renderer as published content. KaTeX runs without trusted HTML commands.
 

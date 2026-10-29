@@ -7,6 +7,7 @@ import randomAddressesSql from "../migrations/0005_random_post_addresses.sql";
 import profileExtrasSql from "../migrations/0007_profile_location_shares.sql";
 import directRepliesSql from "../migrations/0006_direct_replies_index.sql";
 import viewsSql from "../migrations/0008_post_views.sql";
+import mentionsSql from "../migrations/0009_mentions.sql";
 import { markdown } from "../src/lib/markdown";
 import { createAuth } from "../src/lib/auth";
 import { POST as forum } from "../src/pages/api/forum/[action]";
@@ -71,6 +72,8 @@ export default {
       await env.DB.exec(directRepliesSql.replace(/^--.*$/gm, "").trim());
       const postColumns = await env.DB.prepare("PRAGMA table_info(posts)").all<{ name: string }>();
       if (!postColumns.results.some((c) => c.name === "views")) await env.DB.exec(viewsSql.trim());
+      const notificationTable = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE name='notifications'").first<{ sql: string }>();
+      if (!notificationTable?.sql.includes("'mention'")) await env.DB.exec(mentionsSql.replace(/\s+/g, " ").trim());
       await env.DB.batch(
         [
           "api_keys",

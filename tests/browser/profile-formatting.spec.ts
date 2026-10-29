@@ -59,10 +59,12 @@ test("profile composer previews and publishes HTML, highlighted code and LaTeX w
   await expect(preview.locator(".katex-display")).toBeVisible();
   await page.screenshot({ path: "artifacts/profile-composer-formatting.png", fullPage: true });
   await page.getByRole("button", { name: "Post", exact: true }).click();
-  await expect(page).toHaveURL(/\/p\/[1-9][0-9]*$/);
-  const ownPost = page.locator(".conversation > article");
+  await expect(page.locator(".publish-toast [role=status]")).toHaveText("Post published.");
+  await expect(page).toHaveURL("/qa_caledon");
+  const ownPost = page.locator("[data-post-list] > article").first();
+  await expect(ownPost.locator(".post-content")).toContainText("Formatting browser fixture");
   const id = (await ownPost.getAttribute("id"))!.slice(5),
-    path = new URL(page.url()).pathname;
+    path = (await ownPost.locator(".post-time").getAttribute("href"))!;
   try {
     await expect(ownPost.locator(".hljs")).toBeVisible();
     await expect(ownPost.locator(".katex-display")).toBeVisible();

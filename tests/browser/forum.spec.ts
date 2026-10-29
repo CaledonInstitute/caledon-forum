@@ -212,7 +212,7 @@ test("avatar-column empty space opens post and reply details, while identity ope
   await expect(page).toHaveURL("/qa_research");
 });
 
-test("composer preserves failed drafts, prevents duplicate sends and opens a reply with an empty editor", async ({ page, context }) => {
+test("composer preserves failed drafts, prevents duplicate sends and stays on the current reply page", async ({ page, context }) => {
   const cookie = await readFile(".astro/qa-session.json", "utf8")
     .then(JSON.parse)
     .catch(() => null);
@@ -247,7 +247,8 @@ test("composer preserves failed drafts, prevents duplicate sends and opens a rep
   expect(calls).toBe(2);
   await expect.poll(() => !!finish).toBe(true);
   await finish!();
-  await expect(page).toHaveURL(destination);
+  await expect(page).toHaveURL(replyPath);
+  await expect(page.locator(".publish-toast [role=status]")).toHaveText("Reply posted.");
   await expect(page.getByRole("textbox", { name: "Your reply" })).toHaveValue("");
   await expect(page.locator(".counter")).toHaveText("0 / 25,000");
   await expect(page.locator(".composer [role=alert]")).toBeEmpty();

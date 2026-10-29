@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { db, one, run, replyLocation, publishBatch } from "./db";
+import { db, all, one, run, replyLocation, publishBatch } from "./db";
+import { extractMentions } from "./mentions";
+import { quotedPost } from "./quotes";
 import { validateBody } from "./content";
 import { markdown } from "./markdown";
 import { inspectBody, attachPreviews } from "./previews";
@@ -8,6 +10,17 @@ import { isValidUsername } from "./usernames";
 import { avatarUrl, fetchAvatar } from "./avatar";
 import type { Viewer } from "./types";
 const id = z.string().min(1).max(100);
+function mentionNotifications(body: string, postId: string, actorId: string, now: number, exclude = "") {
+  return db()
+    .prepare(
+      `INSERT OR IGNORE INTO notifications(id,recipient_id,actor_id,post_id,kind,created_at)
+    SELECT lower(hex(randomblob(16))),id,?,?,'mention',? FROM user
+    WHERE username IN (SELECT value FROM json_each(?)) AND id!=? AND id!=? AND suspended=0
+    AND NOT EXISTS(SELECT 1 FROM notifications n WHERE n.recipient_id=user.id AND n.post_id=? AND n.actor_id=? AND n.kind='reply')
+    AND EXISTS(SELECT 1 FROM posts WHERE id=? AND deleted=0)`
+    )
+    .bind(actorId, postId, now, JSON.stringify(extractMentions(body)), actorId, exclude, postId, actorId, postId);
+}
 export async function forumAction(user: Viewer, action: string, data: any): Promise<Response> {
   if (user.suspended) return Response.json({ error: "Your account is suspended." }, { status: 403 });
   if (action === "membership") return Response.json({ isCaledonMember: await refreshMembership(user.id, true) });
@@ -53,10 +66,32 @@ export async function forumAction(user: Viewer, action: string, data: any): Prom
   }
   if (!user.username) return Response.json({ error: "Choose your username first." }, { status: 403 });
   if (!user.emailVerified) return Response.json({ error: "Verify your email before interacting." }, { status: 403 });
+  if (action === "mentions") {
+    const { query } = z
+      .object({
+        query: z
+          .string()
+          .max(30)
+          .regex(/^[a-zA-Z0-9_]*$/),
+      })
+      .parse(data);
+    const prefix = query.toLowerCase();
+    return Response.json({
+      users: await all(
+        `SELECT name,username,image FROM user WHERE username IS NOT NULL AND suspended=0
+      AND substr(username,1,length(?))=? ORDER BY CASE WHEN username=? THEN 0 ELSE 1 END,username LIMIT 6`,
+        prefix,
+        prefix,
+        prefix
+      ),
+    });
+  }
+  if (action === "quote") return Response.json({ quote: await quotedPost(validateBody(data.body)) });
   if (action === "preview") {
     const body = validateBody(data.body);
     const links = await inspectBody(body);
-    return Response.json({ html: await markdown(body, links), links });
+    const quote = await quotedPost(body);
+    return Response.json({ html: await markdown(body, links, quote?.sourceUrl), links, quote });
   }
   if (action === "publish") {
     const body = validateBody(data.body);
@@ -88,6 +123,7 @@ export async function forumAction(user: Viewer, action: string, data: any): Prom
           .prepare("INSERT OR IGNORE INTO notifications(id,recipient_id,actor_id,post_id,kind,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM posts WHERE id=?)")
           .bind(crypto.randomUUID(), parent.author_id, user.id, postId, "reply", now, postId)
       );
+    statements.push(mentionNotifications(body, postId, user.id, now, parent?.author_id));
     const results = await publishBatch(statements);
     if (!results[0].meta.changes) throw new Error("This thread is locked.");
     return Response.json({ ok: true, id: postId, url: await replyLocation(postId) });
@@ -104,7 +140,14 @@ export async function forumAction(user: Viewer, action: string, data: any): Prom
     } else {
       const body = validateBody(data.body);
       const links = await inspectBody(body);
-      await run("UPDATE posts SET body=?,updated_at=? WHERE id=? AND author_id=? AND deleted=0", body, Date.now(), postId, user.id);
+      const now = Date.now();
+      await db().batch([
+        db().prepare("UPDATE posts SET body=?,updated_at=? WHERE id=? AND author_id=? AND deleted=0").bind(body, now, postId, user.id),
+        db()
+          .prepare("DELETE FROM notifications WHERE post_id=? AND kind='mention' AND recipient_id NOT IN (SELECT id FROM user WHERE username IN (SELECT value FROM json_each(?)))")
+          .bind(postId, JSON.stringify(extractMentions(body))),
+        mentionNotifications(body, postId, user.id, now),
+      ]);
       await attachPreviews(postId, links);
     }
     return Response.json({ ok: true, url: await replyLocation(postId) });

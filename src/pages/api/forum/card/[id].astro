@@ -1,0 +1,13 @@
+---
+import Post from "../../../../components/Post.astro";
+import { publicPost, post } from "../../../../lib/db";
+export const partial = true;
+Astro.response.headers.set("Cache-Control", "private, no-store");
+Astro.response.headers.set("X-Robots-Tag", "noindex");
+const item = await publicPost(Astro.params.id!, Astro.locals.user?.id);
+const parent = item?.parentId ? await post(item.parentId, Astro.locals.user?.id) : null;
+if (!item || item.deleted) Astro.response.status = 404;
+---
+
+{item && !item.deleted && <Post post={item} reply={!!item.parentId} />}
+{parent && <template data-parent-id={parent.id} data-direct-replies={parent.directReplies} />}
