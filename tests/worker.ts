@@ -4,7 +4,9 @@ import addressesSql from '../migrations/0002_public_post_addresses.sql';
 import coverSql from '../migrations/0003_profile_cover.sql';
 import keysSql from '../migrations/0004_api_keys.sql';
 import randomAddressesSql from '../migrations/0005_random_post_addresses.sql';
+import profileExtrasSql from '../migrations/0007_profile_location_shares.sql';
 import directRepliesSql from '../migrations/0006_direct_replies_index.sql';
+import { markdown } from '../src/lib/markdown';
 import { createAuth } from '../src/lib/auth';
 import { POST as forum } from '../src/pages/api/forum/[action]';
 import { issueKey } from '../src/lib/api-keys';
@@ -34,6 +36,7 @@ export default {async fetch(request:Request){
   const columns=await env.DB.prepare('PRAGMA table_info(user)').all<{name:string}>();if(!columns.results.some(c=>c.name==='cover_image'))await env.DB.exec(coverSql.replace(/^--.*$/gm,'').trim());
   const keysTable=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='api_keys'").first();if(!keysTable)await env.DB.exec(keysSql.replace(/\s+/g,' ').trim());
   const addressColumns=await env.DB.prepare('PRAGMA table_info(post_addresses)').all<{name:string;type:string}>();if(addressColumns.results.find(c=>c.name==='id')?.type!=='TEXT')await env.DB.exec(randomAddressesSql.replace(/^--.*$/gm,'').replace(/\s+/g,' ').trim());
+  if(!columns.results.some(c=>c.name==='location'))await env.DB.exec(profileExtrasSql.replace(/\s+/g,' ').trim());
   await env.DB.exec(directRepliesSql.replace(/^--.*$/gm,'').trim());
   await env.DB.batch(['api_keys','notifications','post_links','likes','reports','moderation_actions','post_addresses','posts','memberships','session','account','verification','user','rate_limits','link_previews'].map(t=>env.DB.prepare(`DELETE FROM ${t}`)));
   const auth=createAuth();
@@ -49,6 +52,10 @@ export default {async fetch(request:Request){
   const mutate=async(action:string,data:any)=>forum({params:{action},locals:{user},request:new Request(`http://localhost:8789/api/forum/${action}`,{method:'POST',headers:{'Content-Type':'application/json',origin:'http://localhost:8789'},body:JSON.stringify(data)})} as any);
   response=await mutate('publish',{body:'😀'.repeat(25000)});const post=await response.json() as any;check(response.ok,'25,000-character post in Workers');
   check(/^\/p\/[1-9][0-9]{18}$/.test(post.url),'New public post address has exactly 19 random digits');
+  const formatted=await markdown('<strong>HTML works</strong>\n\n```python\nprint(42)\n```\n\n$E=mc^2$\n\n$$\n\\frac{1}{3}\n$$');
+  check(formatted.includes('<strong>HTML works</strong>')&&formatted.includes('hljs')&&formatted.includes('katex-display'),'Worker renders HTML, highlighted code and LaTeX');
+  response=await mutate('profile',{name:'Researcher',bio:'',location:'Jakarta'});check(response.ok,'Worker saves profile location');
+  response=await mutate('share',{id:post.id});check(response.ok&&(await response.json() as any).shares===1,'Worker increments share count');
   const id=post.id;response=await mutate('publish',{body:'x'.repeat(25000),parentId:id});check(response.ok,'25,000-character reply in Workers');
   response=await mutate('publish',{body:'x'.repeat(25001)});check(response.status===400,'Worker rejects oversized posts');
   response=await call('request-password-reset',{email:'researcher@caledon.test',redirectTo:'/reset-password'});check(response.ok,'Password reset email dispatched');

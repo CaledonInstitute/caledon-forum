@@ -5,17 +5,21 @@ import Avatar from './Avatar.astro';
 import Badge from './Badge.astro';
 import Post from './Post.astro';
 import Pagination from './Pagination.astro';
-import { posts } from '../lib/db';
+import { MapPin } from 'lucide-react';
+import ComposeGate from './ComposeGate.astro';
+import { profilePosts } from '../lib/db';
 import { PAGE_SIZE,pageNumber } from '../lib/content';
 import type { PublicProfile } from '../lib/types';
 interface Props {person:PublicProfile|null}
 const {person}=Astro.props;
-const tab=Astro.url.searchParams.get('tab')==='replies'?'replies':'posts';const page=pageNumber(Astro.url);
-const items=person?await posts(`p.author_id=? AND p.deleted=0 AND p.root_id IS ${tab==='replies'?'NOT ':''}NULL`,[person.id],Astro.locals.user?.id,undefined,page):[];
+const requestedTab=Astro.url.searchParams.get('tab');
+const tab=requestedTab==='replies'||requestedTab==='likes'?requestedTab:'posts';const page=pageNumber(Astro.url);
+const items=person?await profilePosts(person.id,tab,Astro.locals.user?.id,page):[];
 const schema=person?{'@context':'https://schema.org','@type':'ProfilePage',dateCreated:new Date(person.created_at).toISOString(),mainEntity:{'@type':'Person','@id':new URL(`/${person.username}`,env.SITE_URL).href,name:person.name,alternateName:person.username,description:person.bio,url:new URL(`/${person.username}`,env.SITE_URL).href}}:undefined;
 ---
 <Layout title={person?`${person.name} (@${person.username})`:'Profile unavailable'} description={person?.bio || 'Public conversations on Caledon Forum.'} noindex={!person} schema={schema} profile>
-{person?<>{person.coverImage&&<div class="profile-cover" aria-hidden="true"><img src={`/api/cover/${encodeURIComponent(person.username)}`} alt="" width="1200" height="400" referrerpolicy="no-referrer" style="opacity:0" onload="this.style.opacity='1'" onerror="this.style.opacity='0'"/></div>}<header class="profile-header"><div class="profile-heading"><Avatar name={person.name} image={person.image} username={person.username} large/>{person.id===Astro.locals.user?.id && <a class="button secondary" href="/settings">Edit profile</a>}</div><h1>{person.name}{!!person.isCaledonMember&&<Badge/>}</h1><span class="muted small">@{person.username}</span>{person.bio&&<p>{person.bio}</p>}<p class="muted small">Joined {new Intl.DateTimeFormat('en',{month:'long',year:'numeric'}).format(new Date(person.created_at))}</p></header>
-<nav class="tabs" aria-label="Profile activity"><a href={`/${person.username}`} class:list={{active:tab==='posts'}}>Posts</a><a href={`/${person.username}?tab=replies`} class:list={{active:tab==='replies'}}>Replies</a></nav>
-{items.length?items.slice(0,PAGE_SIZE).map(post=><Post post={post}/>):<section class="empty"><h2>No {tab} yet.</h2><p>Conversations will appear here as they happen.</p></section>}<Pagination page={page} hasMore={items.length>PAGE_SIZE}/></>:<section class="empty"><h1>Profile unavailable.</h1><p>Check the username or return to the feed.</p><a class="button secondary" href="/">Back to feed</a></section>}
+{person?<div data-own-likes={tab==='likes'&&person.id===Astro.locals.user?.id?'true':undefined}>{person.coverImage&&<div class="profile-cover" aria-hidden="true"><img src={`/api/cover/${encodeURIComponent(person.username)}`} alt="" width="1200" height="400" referrerpolicy="no-referrer" style="opacity:0" onload="this.style.opacity='1'" onerror="this.style.opacity='0'"/></div>}<header class="profile-header"><div class="profile-heading"><Avatar name={person.name} image={person.image} username={person.username} large/>{person.id===Astro.locals.user?.id && <a class="button secondary" href="/settings">Edit profile</a>}</div><h1>{person.name}{!!person.isCaledonMember&&<Badge/>}</h1><span class="muted small">@{person.username}</span>{person.bio&&<p>{person.bio}</p>}{person.location&&<p class="profile-location muted small"><MapPin size={15}/>{person.location}</p>}<p class="muted small">Joined {new Intl.DateTimeFormat('en',{month:'long',year:'numeric'}).format(new Date(person.created_at))}</p></header>
+<nav class="tabs" aria-label="Profile activity"><a href={`/${person.username}`} class:list={{active:tab==='posts'}}>Posts</a><a href={`/${person.username}?tab=replies`} class:list={{active:tab==='replies'}}>Replies</a><a href={`/${person.username}?tab=likes`} class:list={{active:tab==='likes'}}>Likes</a></nav>
+{person.id===Astro.locals.user?.id&&tab==='posts'&&page===1&&<ComposeGate/>}
+{items.length?items.slice(0,PAGE_SIZE).map(post=><Post post={post}/>):<section class="empty"><h2>No {tab} yet.</h2><p>{tab==='likes'?'Posts and replies liked by this user will appear here.':'Conversations will appear here as they happen.'}</p></section>}<Pagination page={page} hasMore={items.length>PAGE_SIZE}/></div>:<section class="empty"><h1>Profile unavailable.</h1><p>Check the username or return to the feed.</p><a class="button secondary" href="/">Back to feed</a></section>}
 </Layout>

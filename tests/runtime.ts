@@ -14,4 +14,4 @@ export function resetDatabase(){sqlite?.close();sqlite=new DatabaseSync(':memory
 export function execute(sql:string,...args:any[]){return sqlite.prepare(sql).run(...args);}
 export function row(sql:string,...args:any[]){return sqlite.prepare(sql).get(...args) as any;}
 export function randomSequence(values:number[]){let i=0;sqlite.function('random',()=>BigInt(values[i++]??1));}
-export function seedUser(id='alice',verified=true,role='user'){execute('INSERT INTO user(id,name,email,email_verified,created_at,updated_at,username,role) VALUES(?,?,?,?,?,?,?,?)',id,id,`${id}@mail.test`,verified?1:0,Date.now(),Date.now(),id,role);return {id,name:id,username:id,emailVerified:verified,image:null,coverImage:null,bio:'',role,suspended:false};}
+export function seedUser(id='alice',verified=true,role='user'){execute('INSERT INTO user(id,name,email,email_verified,created_at,updated_at,username,role) VALUES(?,?,?,?,?,?,?,?)',id,id,`${id}@mail.test`,verified?1:0,Date.now(),Date.now(),id,role);return {id,name:id,username:id,emailVerified:verified,image:null,coverImage:null,bio:'',location:'',role,suspended:false};}

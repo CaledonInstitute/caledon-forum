@@ -11,7 +11,7 @@ export const ALL: APIRoute = async ctx => {
   let response: Response;
   try {
     if (env.AUTH_ENABLED!=='true') throw Response.json({error:'API access is unavailable.'},{status:503});
-    const user=ctx.locals.user?await one<Viewer>('SELECT id,username,name,email_verified AS emailVerified,image,cover_image AS coverImage,bio,role,suspended FROM user WHERE id=?',ctx.locals.user.id):null;
+    const user=ctx.locals.user?await one<Viewer>('SELECT id,username,name,email_verified AS emailVerified,image,cover_image AS coverImage,bio,location,role,suspended FROM user WHERE id=?',ctx.locals.user.id):null;
     requireApiAccount(user);
     const method=ctx.request.method;
     if (!['GET','POST','DELETE'].includes(method)) throw Response.json({error:'Method not allowed.'},{status:405,headers:{Allow:'GET, POST, DELETE'}});

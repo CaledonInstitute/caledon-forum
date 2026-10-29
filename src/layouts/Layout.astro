@@ -12,7 +12,7 @@ const origin = new URL(env.SITE_URL).origin;
 const canonical = new URL(Astro.url.pathname,origin);
 const currentPage=Math.min(100000,Math.max(1,Math.floor(Number(Astro.url.searchParams.get('page')))||1));
 if(currentPage>1)canonical.searchParams.set('page',String(currentPage));
-if(Astro.props.profile&&Astro.url.searchParams.get('tab')==='replies')canonical.searchParams.set('tab','replies');
+if(Astro.props.profile&&['replies','likes'].includes(Astro.url.searchParams.get('tab')||''))canonical.searchParams.set('tab',Astro.url.searchParams.get('tab')!);
 const path = Astro.url.pathname;
 const nav = [{label:'Home',href:'/',icon:Home},{label:'Search',href:'/search',icon:Search},{label:'Notifications',href:'/notifications',icon:Bell},{label:'Profile',href:viewer?.username?`/${viewer.username}`:'/login',icon:UserRound}];
 const unread = viewer ? await one<{n:number}>('SELECT COUNT(*) AS n FROM notifications WHERE recipient_id=? AND read_at IS NULL',viewer.id) : null;

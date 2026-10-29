@@ -124,3 +124,15 @@ it('documents every API capability with Bearer security and typed responses',()=
   expect(openapi.paths['/posts'].post.responses).toHaveProperty('201');
   for(const route of Object.values(openapi.paths))for(const [method,operation] of Object.entries(route))if(method!=='parameters')expect(operation).toHaveProperty('responses.401');
 });
+
+it('exposes profile location, share totals and owner-specific Likes through the API',async()=>{
+ expect((await call('me','PATCH',{location:'  Bandung, Indonesia  '})).status).toBe(200);
+ expect(await (await call('me')).json()).toMatchObject({location:'Bandung, Indonesia'});
+ expect(await (await call('profiles/alice')).json()).toMatchObject({location:'Bandung, Indonesia'});
+ const created=await (await call('posts','POST',{body:'Liked content'},bobToken)).json() as any;
+ await call(`posts/${created.id}/like`,'PUT');
+ const liked=await (await call('profiles/alice/posts?tab=likes','GET',undefined,bobToken)).json() as any;
+ expect(liked.items).toHaveLength(1);expect(liked.items[0]).toMatchObject({id:created.id,shares:0,liked:false});
+ expect(await (await call('profiles/bob/posts?tab=likes')).json()).toMatchObject({items:[]});
+ await call(`posts/${created.id}/like`,'DELETE');expect(await (await call('profiles/alice/posts?tab=likes')).json()).toMatchObject({items:[]});
+});

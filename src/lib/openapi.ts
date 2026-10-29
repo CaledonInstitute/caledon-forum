@@ -13,7 +13,7 @@ const errors=Object.fromEntries([400,401,403,404,409,413,415,429,500,503].map(st
 function operation(summary:string,tag:string,schema:unknown,extra:Record<string,unknown>={},status='200') {
   return {summary,tags:[tag],responses:{[status]:result(schema),...errors},...extra};
 }
-const profileFields={name:{type:'string',minLength:1,maxLength:80},bio:{type:'string',maxLength:300},image:{type:['string','null'],maxLength:2048,description:'Public HTTPS raster image URL, empty string or null to remove.'},coverImage:{type:['string','null'],maxLength:2048,description:'Public HTTPS raster image URL, empty string or null to remove.'}};
+const profileFields={location:{type:'string',maxLength:100,description:'Public location text. Empty string removes it.'},name:{type:'string',minLength:1,maxLength:80},bio:{type:'string',maxLength:300},image:{type:['string','null'],maxLength:2048,description:'Public HTTPS raster image URL, empty string or null to remove.'},coverImage:{type:['string','null'],maxLength:2048,description:'Public HTTPS raster image URL, empty string or null to remove.'}};
 export const openapi={
   openapi:'3.1.0',
   info:{title:'Caledon Forum API',version:'1.0.0',description:'Manage forum activity using one API key per account. Generate the key in Settings → API. Keys remain valid until regenerated or revoked. Requires an active account with a username and verified email. Limit: 60 requests/minute/account, plus shared website action limits (10 publishes or 40 other mutations/minute). Posts and replies allow 25,000 Unicode code points each. Username is permanent. Login settings, key management and moderation are available only through the website. Cross-origin browser access is not supported.'},
@@ -25,14 +25,14 @@ export const openapi={
       patch:operation('Update your profile','Account',ref('Ok'),{requestBody:body(object(profileFields,[]))}),
     },
     '/profiles/{username}':{parameters:[username],get:operation('Read a public profile','Profiles',ref('Profile'))},
-    '/profiles/{username}/posts':{parameters:[username],get:operation('List profile posts or replies','Profiles',ref('PostPage'),{parameters:[page,{name:'tab',in:'query',schema:{type:'string',enum:['posts','replies'],default:'posts'}}]})},
+    '/profiles/{username}/posts':{parameters:[username],get:operation('List profile posts, replies or liked content','Profiles',ref('PostPage'),{parameters:[page,{name:'tab',in:'query',schema:{type:'string',enum:['posts','replies','likes'],default:'posts'}}]})},
     '/posts':{
       get:operation('Read the feed','Posts',ref('PostPage'),{parameters:[page]}),
-      post:operation('Publish a post or reply','Posts',ref('CreatedPost'),{requestBody:body(object({body:{...text,minLength:1,description:'Markdown, up to 25,000 Unicode code points. Whitespace-only content is rejected.'},parentId:{oneOf:[address,{type:'integer',minimum:1,maximum:Number.MAX_SAFE_INTEGER,description:'Legacy numeric input only; use strings for all new IDs.'}],description:'Public ID of the post to reply to; omit for a new thread.'}},['body']))},'201'),
+      post:operation('Publish a post or reply','Posts',ref('CreatedPost'),{requestBody:body(object({body:{...text,minLength:1,description:'Markdown and sanitized HTML with language-tagged fenced code and LaTeX ($inline$ or $$ display $$), up to 25,000 Unicode code points. Whitespace-only content is rejected.'},parentId:{oneOf:[address,{type:'integer',minimum:1,maximum:Number.MAX_SAFE_INTEGER,description:'Legacy numeric input only; use strings for all new IDs.'}],description:'Public ID of the post to reply to; omit for a new thread.'}},['body']))},'201'),
     },
     '/posts/{id}':{
       parameters:[postId],get:operation('Read a post or reply','Posts',ref('Post')),
-      patch:operation('Edit your post or reply','Posts',ref('Mutation'),{requestBody:body(object({body:{...text,minLength:1,description:'Markdown, up to 25,000 Unicode code points.'}}))}),
+      patch:operation('Edit your post or reply','Posts',ref('Mutation'),{requestBody:body(object({body:{...text,minLength:1,description:'Markdown and sanitized HTML with language-tagged fenced code and LaTeX ($inline$ or $$ display $$), up to 25,000 Unicode code points.'}}))}),
       delete:operation('Delete your post or reply','Posts',ref('Mutation')),
     },
     '/posts/{id}/replies':{parameters:[postId],get:operation('List conversation replies, oldest first','Posts',ref('PostPage'),{description:'For a reply ID, returns replies in its root conversation. Deleted entries remain as empty placeholders.',parameters:[page]})},
@@ -46,9 +46,9 @@ export const openapi={
     schemas:{
       Error:object({error:text}),Ok:object({ok:{type:'boolean',const:true}}),
       Mutation:object({ok:{type:'boolean',const:true},url:text}),CreatedPost:object({id:address,url:text}),Like:object({ok:{type:'boolean',const:true},liked:bool,likes:integer}),
-      Account:object({id:text,username:nullableText,name:text,emailVerified:bool,image:nullableText,coverImage:nullableText,bio:text,role:text,suspended:bool}),
-      Profile:object({username:text,name:text,image:nullableText,coverImage:nullableText,bio:text,createdAt:integer,isCaledonMember:bool}),
-      Post:object({id:address,rootId:nullableAddress,parentId:nullableAddress,body:text,createdAt:integer,updatedAt:integer,deleted:bool,locked:bool,author:object({username:text,name:text,image:nullableText,isCaledonMember:bool}),likes:integer,replies:integer,liked:bool,url:text}),
+      Account:object({id:text,username:nullableText,name:text,emailVerified:bool,image:nullableText,coverImage:nullableText,bio:text,location:text,role:text,suspended:bool}),
+      Profile:object({username:text,name:text,image:nullableText,coverImage:nullableText,bio:text,location:text,createdAt:integer,isCaledonMember:bool}),
+      Post:object({id:address,rootId:nullableAddress,parentId:nullableAddress,body:text,createdAt:integer,updatedAt:integer,deleted:bool,locked:bool,author:object({username:text,name:text,image:nullableText,isCaledonMember:bool}),shares:integer,likes:integer,replies:integer,liked:bool,url:text}),
       PostPage:paginated(ref('Post')),
       Notification:object({id:text,kind:{type:'string',enum:['reply','like']},postId:address,createdAt:integer,readAt:nullableInteger,actorUsername:nullableText,url:text}),
       NotificationPage:paginated(ref('Notification')),

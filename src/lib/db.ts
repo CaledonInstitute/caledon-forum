@@ -13,7 +13,7 @@ export async function publishBatch(statements:D1PreparedStatement[]) {
     }
   }
 }
-const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_id AS rootId,p.parent_id AS parentId,p.body,p.created_at AS createdAt,p.updated_at AS updatedAt,p.deleted,p.locked,u.name,u.username,u.image,
+const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_id AS rootId,p.parent_id AS parentId,p.body,p.created_at AS createdAt,p.updated_at AS updatedAt,p.shares,p.deleted,p.locked,u.name,u.username,u.image,
  CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account a WHERE a.user_id=u.id AND a.provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember,
  (SELECT COUNT(*) FROM likes l WHERE l.post_id=p.id) AS likes,
  (SELECT COUNT(*) FROM posts r WHERE r.root_id=p.id AND r.deleted=0) AS replies,
@@ -35,4 +35,11 @@ export const previews = (id: string) => all<LinkPreview>(`SELECT lp.id,lp.url,lp
 export async function replyLocation(id: string) {
   const p = await one<{id:string}>('SELECT id FROM post_addresses WHERE post_id=?', id);
   return p ? `/p/${p.id}` : '/';
+}
+
+export type ProfileTab = 'posts' | 'replies' | 'likes';
+export function profilePosts(authorId:string, tab:ProfileTab, viewer?:string, page=1) {
+  return tab==='likes'
+    ? posts('p.deleted=0 AND EXISTS(SELECT 1 FROM likes l WHERE l.post_id=p.id AND l.user_id=?)',[authorId,authorId],viewer,'(SELECT l.created_at FROM likes l WHERE l.post_id=p.id AND l.user_id=?) DESC,p.id DESC',page)
+    : posts(`p.author_id=? AND p.deleted=0 AND p.root_id IS ${tab==='replies'?'NOT ':''}NULL`,[authorId],viewer,undefined,page);
 }

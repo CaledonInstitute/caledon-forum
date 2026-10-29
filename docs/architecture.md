@@ -5,7 +5,7 @@ Astro server rendering owns public HTML, metadata, structured data and crawlable
 ## Product invariants
 
 - Never add uploads, a media write endpoint, or a media storage bucket. Images are references to validated external HTTPS URLs.
-- Main posts and individual replies each allow 25,000 Unicode code points of Markdown. Entire conversations have no cumulative character budget.
+- Main posts and individual replies each allow 25,000 Unicode code points of Markdown and sanitized HTML, with highlighted code and LaTeX. Entire conversations have no cumulative character budget.
 - Username is permanent; a GitHub organization badge grants no moderation privileges.
 - Never auto-link existing accounts by email. GitHub linking requires an authenticated session.
 - Provider tokens stay encrypted in D1. Browser auth routes cannot retrieve tokens.
@@ -54,3 +54,11 @@ The PNG endpoint renders 1200Ã—630 images, caches by post revision in the Worker
 Public content and metadata are in initial server HTML. Selected posts/replies render their full bodies; reply-list previews link to their individual details. Canonicals use SITE_URL and normalized page/profile-tab parameters. UTM parameters do not change canonicals. Thread JSON-LD describes only comments on the current page. Sitemap lastmod includes reply changes. Private/search/auth/API responses carry noindex; robots.txt allows crawlers to read these directives. Do not add disallow rules that hide noindex pages from crawlers.
 
 Deleted post/reply details return 410 when they have no children; otherwise they retain a placeholder and links to their children. Other missing pages return 404. Private HTML and authenticated responses are never cached publicly. CSP permits only the required Turnstile, GitHub avatar and click-loaded YouTube origins.
+
+## Profile activity and formatting
+
+`0007_profile_location_shares.sql` adds optional public location text, per-post share counters, and an index for profile Likes ordered by like time. Profile Posts and Replies remain author lists; Likes lists the profile owner’s liked content publicly. Like button state still belongs to the viewer. Only the owner’s first Posts page includes the existing composer.
+
+The browser share action is the exception to session-required mutations: same-origin JSON requests can atomically increment an available post’s share count, limited to 40 requests/minute/IP. The client calls it only after clipboard success. No visitor identity or recipient information is stored with the count.
+
+Markdown parsing supports GFM and remark-math. Embedded HTML is parsed with rehype-raw, images are restricted to validated preview proxies, and rehype-sanitize removes active content before rehype-katex and rehype-highlight generate trusted markup. KaTeX trusted commands are disabled and expansion/size are bounded. Both preview and published content use this pipeline; CSS and math fonts are served locally. Declared code languages use the highlight.js common grammar set; unknown and unlabelled code remains plain text.

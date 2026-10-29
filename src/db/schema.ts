@@ -3,7 +3,7 @@ export const user = sqliteTable('user', {
   id: text('id').primaryKey(), name: text('name').notNull(), email: text('email').notNull().unique(),
   emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false), image: text('image'), coverImage: text('cover_image'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(), updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-  username: text('username').unique(), displayUsername: text('display_username'), bio: text('bio').notNull().default(''),
+  username: text('username').unique(), displayUsername: text('display_username'), bio: text('bio').notNull().default(''), location: text('location').notNull().default(''),
   role: text('role').notNull().default('user'), suspended: integer('suspended', { mode: 'boolean' }).notNull().default(false),
 });
 export const session = sqliteTable('session', {

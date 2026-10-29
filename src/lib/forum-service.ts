@@ -13,9 +13,10 @@ export async function forumAction(user: Viewer, action: string, data: any): Prom
     if (action==='membership') return Response.json({isCaledonMember:await refreshMembership(user.id,true)});
     if (action==='profile') {
       const imageInput = z.string().trim().max(2048).nullable().optional();
-      const input = z.object({name:z.string().trim().min(1).max(80),bio:z.string().max(300),image:imageInput,coverImage:imageInput}).parse(data);
+      const input = z.object({name:z.string().trim().min(1).max(80),bio:z.string().max(300),location:z.string().trim().max(100).optional(),image:imageInput,coverImage:imageInput}).parse(data);
       const fields = ['name=?','bio=?','updated_at=?'];
       const values: (string | number | null)[] = [input.name,input.bio,Date.now()];
+      if (input.location !== undefined) { fields.push('location=?'); values.push(input.location); }
       for (const [key,column,label] of [['image','image','Profile image'],['coverImage','cover_image','Cover photo']] as const) {
         if (input[key] === undefined) continue;
         const image = input[key] ? avatarUrl(input[key],label) : null;

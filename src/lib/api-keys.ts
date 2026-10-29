@@ -26,7 +26,7 @@ export async function authenticateKey(request: Request): Promise<Viewer> {
   const token=request.headers.get('authorization')?.match(/^Bearer (cfk_[a-f0-9]{64})$/i)?.[1];
   if (!token) throw Response.json({error:'A valid Bearer API key is required.'},{status:401,headers:{'WWW-Authenticate':'Bearer'}});
   const hash=await hashKey(token);
-  const user=await one<Viewer>(`SELECT u.id,u.username,u.name,u.email_verified AS emailVerified,u.image,u.cover_image AS coverImage,u.bio,u.role,u.suspended FROM api_keys k JOIN user u ON u.id=k.user_id WHERE k.key_hash=?`,hash);
+  const user=await one<Viewer>(`SELECT u.id,u.username,u.name,u.email_verified AS emailVerified,u.image,u.cover_image AS coverImage,u.bio,u.location,u.role,u.suspended FROM api_keys k JOIN user u ON u.id=k.user_id WHERE k.key_hash=?`,hash);
   if (!user) throw Response.json({error:'Invalid or revoked API key.'},{status:401,headers:{'WWW-Authenticate':'Bearer'}});
   requireApiAccount(user);
   await run('UPDATE api_keys SET last_used_at=? WHERE key_hash=?',Date.now(),hash);

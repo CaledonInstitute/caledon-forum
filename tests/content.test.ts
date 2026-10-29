@@ -8,7 +8,7 @@ describe('25,000 Unicode code points',()=>{
  it('uses link metadata for URL-only thread titles',()=>expect(threadTitle('https://youtube.com/watch?v=dQw4w9WgXcQ','An interesting talk')).toBe('An interesting talk'));
 });
 describe('Markdown',()=>{
- it('removes HTML, scripts and unsafe links',async()=>{const html=await markdown('<script>alert(1)</script>\n\n[bad](javascript:alert)\n\n**hello**');expect(html).not.toContain('<script');expect(html).not.toContain('javascript:');expect(html).toContain('<strong>hello</strong>');});
+ it('removes scripts and unsafe links',async()=>{const html=await markdown('<script>alert(1)</script>\n\n[bad](javascript:alert)\n\n**hello**');expect(html).not.toContain('<script');expect(html).not.toContain('javascript:');expect(html).toContain('<strong>hello</strong>');});
  it('does not discover links in code',()=>expect(extractUrls('`https://a.com`\n\n```\nhttps://b.com\n```\n\nhttps://c.com')).toEqual(['https://c.com']));
  it('only renders validated images, with proxy URLs',async()=>{const p:any={id:'image',url:'https://images.host.test/a.png',kind:'image'};const html=await markdown(p.url,[p]);expect(html).toContain('/api/media/image');expect(html).toContain('loading="lazy"');expect(await markdown('![bad](https://bad.com/a.svg)')).not.toContain('<img');});
  it('keeps explicitly labelled image links as links',async()=>{const p:any={id:'image',url:'https://images.host.test/a.png',kind:'image'};expect(await markdown(`[open](${p.url})`,[p])).not.toContain('<img');});
@@ -48,4 +48,39 @@ describe('remote fetch policy',()=>{
  it('limits streaming responses',async()=>await expect(readLimited(new Response('123456'),5)).rejects.toThrow('large'));
  it('rejects SVG and false raster signatures',()=>{expect(rasterType(new TextEncoder().encode('<svg/>'),'image/svg+xml')).toBe(false);expect(rasterType(new TextEncoder().encode('<script>'),'image/png')).toBe(false);});
  it('normalizes YouTube URL variants',()=>{for(const url of ['https://youtu.be/dQw4w9WgXcQ','https://www.youtube.com/watch?v=dQw4w9WgXcQ','https://youtube.com/shorts/dQw4w9WgXcQ'])expect(youtubeId(url)).toBe('dQw4w9WgXcQ');expect(youtubeId('https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ')).toBeNull();});
+});
+
+describe('HTML, syntax highlighting and LaTeX',()=>{
+ it('preserves safe HTML formatting while removing active content',async()=>{
+  const html=await markdown('<details open><summary>Details</summary><p><strong>Hello</strong><br>world</p></details>\n\n<table><tr><td>Cell</td></tr></table><iframe src="https://evil.com"></iframe><script>alert(1)</script><a href="javascript:alert(1)" onclick="alert(1)">bad</a><p style="color:red" onmouseover="alert(1)">text</p>');
+  expect(html).toContain('<details open>');expect(html).toContain('<summary>Details</summary>');expect(html).toContain('<td>Cell</td>');
+  for(const unsafe of ['<script','<iframe','onclick','onmouseover','javascript:','style='])expect(html).not.toContain(unsafe);
+ });
+ it('discovers HTML links and proxies only validated HTML images',async()=>{
+  const url='https://images.host.test/a.png';const preview:any={id:'html-image',url,kind:'image'};
+  const body=`<a href="https://github.com">Source</a><img src="${url}" onerror="alert(1)">`;
+  expect(extractUrls(body)).toEqual(['https://github.com',url]);
+  const html=await markdown(body,[preview]);expect(html).toContain('/api/media/html-image');expect(html).not.toContain('onerror');
+  expect(await markdown(body)).not.toContain('<img');
+  expect(extractUrls('```html\n<a href="https://evil.com">example</a>\n```')).toEqual([]);
+ });
+ it('highlights declared languages and aliases, leaving unknown and unlabelled code readable',async()=>{
+  for(const language of ['python','javascript','js','rust']){
+   const html=await markdown('```'+language+'\n'+(language==='python'?'def hello(): return 42':'const answer = 42;')+'\n```');
+   expect(html).toContain('hljs');expect(html).toContain(`data-language="${language}"`);
+  }
+  for(const language of ['','unknown-language']){
+   const html=await markdown('```'+language+'\n<script>alert(1)</script>\n```');expect(html).toMatch(/(?:&lt;|&#x3C;)script>/);expect(html).not.toContain('<script>');expect(html).not.toContain('hljs-');
+  }
+ });
+ it('renders inline and display math, including accessible MathML',async()=>{
+  const html=await markdown('Energy $E = mc^2$\n\n$$\n\\frac{1}{3}\n$$');
+  expect(html).toContain('class="katex"');expect(html).toContain('katex-display');expect(html).toContain('<math');expect(html).toContain('<mfrac>');
+ });
+ it('bounds malformed math and refuses trusted HTML commands',async()=>{
+  for(const input of ['$\\badcommand{x}$','$\\href{javascript:alert(1)}{click}$','$\\htmlClass{evil}{x}$']){
+   const html=await markdown(input);expect(html).not.toContain('href="javascript:');expect(html).not.toContain('class="evil"');expect(html).not.toContain('<script');
+  }
+  expect(await markdown('`$x$`\n\n```latex\n$x$\n```')).not.toContain('class="katex"');
+ });
 });

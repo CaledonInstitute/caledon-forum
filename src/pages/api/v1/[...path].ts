@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { authenticateKey } from '../../../lib/api-keys';
-import { all, one, posts, publicPost, replyLocation } from '../../../lib/db';
+import { all, one, posts, profilePosts, publicPost, replyLocation } from '../../../lib/db';
 import { PAGE_SIZE, pageNumber } from '../../../lib/content';
 import { forumAction } from '../../../lib/forum-service';
 import { forumError } from '../../../lib/forum-errors';
@@ -11,10 +11,10 @@ import type { ForumPost } from '../../../lib/types';
 
 async function serializePost(p: ForumPost) {
   const relation=await one<{rootId:string|null;parentId:string|null}>('SELECT r.id AS rootId,a.id AS parentId FROM posts p LEFT JOIN post_addresses r ON r.post_id=p.root_id LEFT JOIN post_addresses a ON a.post_id=p.parent_id WHERE p.id=?',p.id);
-  return {id:p.publicId,rootId:relation?.rootId??null,parentId:relation?.parentId??null,body:p.deleted?'':p.body,createdAt:p.createdAt,updatedAt:p.updatedAt,deleted:!!p.deleted,locked:!!p.locked,author:{username:p.username,name:p.name,image:p.image,isCaledonMember:!!p.isCaledonMember},likes:p.likes,replies:p.replies,liked:!!p.liked,url:await replyLocation(p.id)};
+  return {id:p.publicId,rootId:relation?.rootId??null,parentId:relation?.parentId??null,body:p.deleted?'':p.body,createdAt:p.createdAt,updatedAt:p.updatedAt,deleted:!!p.deleted,locked:!!p.locked,author:{username:p.username,name:p.name,image:p.image,isCaledonMember:!!p.isCaledonMember},shares:p.shares,likes:p.likes,replies:p.replies,liked:!!p.liked,url:await replyLocation(p.id)};
 }
 async function profile(username: string) {
-  const p=await one(`SELECT u.username,u.name,u.image,u.cover_image AS coverImage,u.bio,u.created_at AS createdAt,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,Date.now()-86400000,username);
+  const p=await one(`SELECT u.username,u.name,u.image,u.cover_image AS coverImage,u.bio,u.location,u.created_at AS createdAt,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,Date.now()-86400000,username);
   if (!p) throw Response.json({error:'Profile not found.'},{status:404});
   return {...p,isCaledonMember:!!p.isCaledonMember};
 }
@@ -41,7 +41,7 @@ export const ALL: APIRoute = async ctx => {
       if (path.length===1 && path[0]==='me') {
         if (method==='GET') return Response.json(user);
         if (method==='PATCH') {
-          const input=z.object({name:z.string().trim().min(1).max(80).optional(),bio:z.string().max(300).optional(),image:z.string().max(2048).nullable().optional(),coverImage:z.string().max(2048).nullable().optional()}).strict().parse(await jsonBody(ctx.request));
+          const input=z.object({name:z.string().trim().min(1).max(80).optional(),bio:z.string().max(300).optional(),location:z.string().trim().max(100).optional(),image:z.string().max(2048).nullable().optional(),coverImage:z.string().max(2048).nullable().optional()}).strict().parse(await jsonBody(ctx.request));
           return act('profile',{name:user.name,bio:user.bio,...input});
         }
       }
@@ -49,8 +49,10 @@ export const ALL: APIRoute = async ctx => {
         if (path.length===2 && method==='GET') return Response.json(await profile(path[1]));
         if (path.length===3 && path[2]==='posts' && method==='GET') {
           await profile(path[1]);
-          const tab=z.enum(['posts','replies']).parse(url.searchParams.get('tab')||'posts');
-          return list(`u.username=? COLLATE NOCASE AND p.deleted=0 AND p.root_id IS ${tab==='replies'?'NOT ':''}NULL`,[path[1]]);
+          const owner=await one<{id:string}>('SELECT id FROM user WHERE username=? COLLATE NOCASE',path[1]);
+          const tab=z.enum(['posts','replies','likes']).parse(url.searchParams.get('tab')||'posts');
+          const result=await profilePosts(owner!.id,tab,user.id,page);
+          return Response.json({items:await Promise.all(result.slice(0,PAGE_SIZE).map(serializePost)),page,hasMore:result.length>PAGE_SIZE});
         }
       }
       if (path[0]==='posts') {

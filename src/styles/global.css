@@ -1,3 +1,5 @@
+@import 'katex/dist/katex.min.css';
+@import 'highlight.js/styles/github.css';
 @import '@fontsource/manrope/400.css';
 @import '@fontsource/manrope/500.css';
 @import '@fontsource/manrope/600.css';
@@ -36,3 +38,10 @@
 .post-context a{color:var(--blue)}.post-context a:hover{text-decoration:underline}
 .conversation .post-detail{padding-top:27px}.post-detail .post-content{font-size:16px}.post-avatar-link:hover,.identity>a:hover{text-decoration:underline}
 @media(max-width:680px){.post-avatar-link{width:36px;height:36px}.reply-list:not(:empty){margin-left:16px}.conversation .post-detail{padding-top:23px}.post-detail .post-content{font-size:15px}}
+
+.profile-location{display:flex;align-items:flex-start;gap:7px;overflow-wrap:anywhere}.profile-location svg{margin-top:3px}
+.post-content pre[data-language]::before{content:attr(data-language);display:block;color:var(--muted);font-family:Manrope,sans-serif;font-size:11px;margin-bottom:10px}
+.post-content pre code.hljs{padding:0;background:transparent;font-size:inherit}
+.post-content .katex-display{overflow-x:auto;overflow-y:hidden;padding:8px 0;max-width:100%}.post-content .katex{font-size:1.1em}
+.post-content details{margin:14px 0}.post-content summary{cursor:pointer;font-weight:600}.composer-guide{margin:10px 0;color:var(--muted);font-size:12px}.composer-guide summary{cursor:pointer}.composer-guide pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface);padding:12px;border-radius:6px;line-height:1.7}.composer-guide code{font-size:12px}
+@media(max-width:680px){.composer-foot{flex-wrap:wrap}.composer-hint{flex-basis:100%}}

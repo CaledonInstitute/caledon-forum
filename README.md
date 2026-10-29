@@ -2,7 +2,8 @@
 
 A public forum for Caledon Institute, built with Astro, React, and Cloudflare Workers.
 
-- Markdown posts and replies up to 25,000 characters each.
+- Markdown and sanitized HTML posts and replies up to 25,000 characters each, with language-specific code highlighting and LaTeX math.
+- Public profile locations and Likes tabs, profile composers, and link-copy share counts.
 - External images, link previews, and click-to-play YouTube. No image uploads.
 - GitHub, optional Google, or username/password login, with verified-member badges.
 - Account API keys, a versioned REST API, and public Swagger docs at `/api/docs`.
@@ -40,3 +41,11 @@ See [setup and deployment](docs/setup.md) for service configuration and browser 
 ## Contributing
 
 Issues and pull requests are welcome. Keep changes focused and include relevant checks.
+
+## Post formatting
+
+Use Markdown or basic HTML (including tables and details). Scripts, event handlers, unsafe links, and embeds are removed. Images use the existing validated proxy.
+
+Specify a language on fenced code blocks, for example `python`, `javascript`, or `rust`. Unknown languages and unlabelled blocks remain plain code. Use `$E = mc^2$` for inline LaTeX and `$$` on separate lines around display equations. Preview uses the same renderer as published content. KaTeX runs without trusted HTML commands.
+
+Shares count successful link copies recorded by the server, including anonymous copies. They do not measure link visits or unique recipients.

@@ -1,11 +1,19 @@
 async function action(name:string,data:unknown){const r=await fetch(`/api/forum/${name}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const result=await r.json() as any;if(!r.ok)throw new Error(result.error||'Please try again.');return result;}
 document.addEventListener('click',async event=>{
- const button=(event.target as Element).closest<HTMLElement>('[data-like],[data-copy],[data-delete],[data-report],[data-video],[data-moderate],[data-read]');if(!button)return;
+ const button=(event.target as Element).closest<HTMLElement>('[data-like],[data-copy],[data-delete],[data-report],[data-video],[data-moderate],[data-read]');if(!button||button.hasAttribute('disabled'))return;
  const status=button.closest('article')?.querySelector<HTMLElement>('[data-post-status],[data-moderation-status]');if(status)status.textContent='';
  try{
   if(button.dataset.video){const iframe=document.createElement('iframe');iframe.src=`https://www.youtube-nocookie.com/embed/${button.dataset.video}`;iframe.title=button.getAttribute('aria-label')||'YouTube video';iframe.className='video-frame';iframe.allow='encrypted-media; picture-in-picture; fullscreen';iframe.allowFullscreen=true;iframe.referrerPolicy='strict-origin-when-cross-origin';button.replaceWith(iframe);return;}
-  if(button.dataset.copy){await navigator.clipboard.writeText(new URL(button.dataset.copy,location.origin).href);if(status)status.textContent='Link copied.';return;}
-  if(button.dataset.like){if(button.dataset.signedIn!=='true'){location.assign('/login');return;}button.setAttribute('disabled','');const r=await action('like',{id:button.dataset.like,liked:button.getAttribute('aria-pressed')!=='true'});button.setAttribute('aria-pressed',String(r.liked));const span=button.querySelector('span');if(span)span.textContent=String(r.likes||'Like');const svg=button.querySelector('svg');svg?.setAttribute('fill',r.liked?'currentColor':'none');}
+  if(button.dataset.copy){
+    button.setAttribute('disabled','');
+    await navigator.clipboard.writeText(new URL(button.dataset.copy,location.origin).href);
+    if(status)status.textContent='Link copied.';
+    try { const r=await action('share',{id:button.dataset.share});
+      document.querySelectorAll<HTMLElement>('[data-share]').forEach(control=>{if(control.dataset.share===button.dataset.share){const span=control.querySelector('span');if(span)span.textContent=String(r.shares);control.setAttribute('aria-label',`Copy post link, ${r.shares} shares`);}});
+    } catch { if(status)status.textContent='Link copied, but the share count could not be updated.'; }
+    return;
+  }
+  if(button.dataset.like){if(button.dataset.signedIn!=='true'){location.assign('/login');return;}button.setAttribute('disabled','');const r=await action('like',{id:button.dataset.like,liked:button.getAttribute('aria-pressed')!=='true'});button.setAttribute('aria-pressed',String(r.liked));const span=button.querySelector('span');if(span)span.textContent=String(r.likes||'Like');const svg=button.querySelector('svg');svg?.setAttribute('fill',r.liked?'currentColor':'none');if(!r.liked&&button.closest('[data-own-likes="true"]'))location.reload();}
   if(button.dataset.delete&&confirm('Delete this post? Replies will remain visible.')){await action('delete',{id:button.dataset.delete});location.reload();}
   if(button.dataset.report){const reason=prompt('Why are you reporting this post? (5–1,000 characters)');if(reason){await action('report',{id:button.dataset.report,reason});if(status)status.textContent='Report sent. An administrator will review it.';}}
   if(button.dataset.moderate){
