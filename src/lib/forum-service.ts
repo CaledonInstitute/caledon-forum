@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { db, one, run, replyLocation } from './db';
+import { db, one, run, replyLocation, publishBatch } from './db';
 import { validateBody } from './content';
 import { markdown } from './markdown';
 import { inspectBody, attachPreviews } from './previews';
@@ -50,7 +50,7 @@ export async function forumAction(user: Viewer, action: string, data: any): Prom
         : db().prepare('INSERT INTO posts(id,author_id,body,created_at,updated_at) VALUES(?,?,?,?,?)').bind(postId,user.id,body,now,now);
       const statements=[statement,...links.map((p,i)=>db().prepare('INSERT OR IGNORE INTO post_links(post_id,preview_id,position) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM posts WHERE id=?)').bind(postId,p.id,i,postId))];
       if (parent && parent.author_id!==user.id) statements.push(db().prepare('INSERT OR IGNORE INTO notifications(id,recipient_id,actor_id,post_id,kind,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM posts WHERE id=?)').bind(crypto.randomUUID(),parent.author_id,user.id,postId,'reply',now,postId));
-      const results=await db().batch(statements);if(!results[0].meta.changes)throw new Error('This thread is locked.');
+      const results=await publishBatch(statements);if(!results[0].meta.changes)throw new Error('This thread is locked.');
       return Response.json({ok:true,id:postId,url:await replyLocation(postId)});
     }
     if (action==='edit' || action==='delete') {

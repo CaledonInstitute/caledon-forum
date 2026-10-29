@@ -10,7 +10,7 @@ import { readLimited } from '../../../lib/security';
 import type { ForumPost } from '../../../lib/types';
 
 async function serializePost(p: ForumPost) {
-  const relation=await one<{rootId:number|null;parentId:number|null}>('SELECT r.id AS rootId,a.id AS parentId FROM posts p LEFT JOIN post_addresses r ON r.post_id=p.root_id LEFT JOIN post_addresses a ON a.post_id=p.parent_id WHERE p.id=?',p.id);
+  const relation=await one<{rootId:string|null;parentId:string|null}>('SELECT r.id AS rootId,a.id AS parentId FROM posts p LEFT JOIN post_addresses r ON r.post_id=p.root_id LEFT JOIN post_addresses a ON a.post_id=p.parent_id WHERE p.id=?',p.id);
   return {id:p.publicId,rootId:relation?.rootId??null,parentId:relation?.parentId??null,body:p.deleted?'':p.body,createdAt:p.createdAt,updatedAt:p.updatedAt,deleted:!!p.deleted,locked:!!p.locked,author:{username:p.username,name:p.name,image:p.image,isCaledonMember:!!p.isCaledonMember},likes:p.likes,replies:p.replies,liked:!!p.liked,url:await replyLocation(p.id)};
 }
 async function profile(username: string) {
@@ -57,13 +57,13 @@ export const ALL: APIRoute = async ctx => {
         if (path.length===1) {
           if (method==='GET') return list('p.root_id IS NULL AND (p.deleted=0 OR EXISTS(SELECT 1 FROM posts r WHERE r.root_id=p.id AND r.deleted=0))',[]);
           if (method==='POST') {
-            const input=z.object({body:z.string(),parentId:z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional()}).strict().parse(await jsonBody(ctx.request));
+            const input=z.object({body:z.string(),parentId:z.union([z.string().regex(/^[1-9][0-9]{0,18}$/),z.number().int().positive().max(Number.MAX_SAFE_INTEGER).transform(String)]).optional()}).strict().parse(await jsonBody(ctx.request));
             const parent=input.parentId?await publicPost(String(input.parentId),user.id):null;
             if (input.parentId && (!parent || parent.deleted)) throw Response.json({error:'Parent post not found.'},{status:404});
             const result=await act('publish',{body:input.body,parentId:parent?.id});
             if (!result.ok) return result;
             const created=await result.json() as {id:string;url:string};
-            const address=await one<{id:number}>('SELECT id FROM post_addresses WHERE post_id=?',created.id);
+            const address=await one<{id:string}>('SELECT id FROM post_addresses WHERE post_id=?',created.id);
             return Response.json({id:address!.id,url:created.url},{status:201});
           }
         }
@@ -85,7 +85,7 @@ export const ALL: APIRoute = async ctx => {
         }
       }
       if (path.length===1 && path[0]==='notifications' && method==='GET') {
-        const rows=await all<{id:string;kind:string;postId:number;post_id:string;createdAt:number;readAt:number|null;actorUsername:string}>(`SELECT n.id,n.kind,a.id AS postId,n.post_id,n.created_at AS createdAt,n.read_at AS readAt,u.username AS actorUsername FROM notifications n JOIN posts p ON p.id=n.post_id JOIN post_addresses a ON a.post_id=p.id JOIN user u ON u.id=n.actor_id WHERE n.recipient_id=? AND p.deleted=0 ORDER BY n.created_at DESC,n.id DESC LIMIT ? OFFSET ?`,user.id,PAGE_SIZE+1,(page-1)*PAGE_SIZE);
+        const rows=await all<{id:string;kind:string;postId:string;post_id:string;createdAt:number;readAt:number|null;actorUsername:string}>(`SELECT n.id,n.kind,a.id AS postId,n.post_id,n.created_at AS createdAt,n.read_at AS readAt,u.username AS actorUsername FROM notifications n JOIN posts p ON p.id=n.post_id JOIN post_addresses a ON a.post_id=p.id JOIN user u ON u.id=n.actor_id WHERE n.recipient_id=? AND p.deleted=0 ORDER BY n.created_at DESC,n.id DESC LIMIT ? OFFSET ?`,user.id,PAGE_SIZE+1,(page-1)*PAGE_SIZE);
         return Response.json({items:await Promise.all(rows.slice(0,PAGE_SIZE).map(async({post_id,...n})=>({...n,url:await replyLocation(post_id)}))),page,hasMore:rows.length>PAGE_SIZE});
       }
       if (path.length===2 && path[0]==='notifications' && path[1]==='read' && method==='POST') return act('read',{});

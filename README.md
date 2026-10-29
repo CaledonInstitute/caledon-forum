@@ -9,7 +9,7 @@ A public forum for Caledon Institute, built with Astro, React, and Cloudflare Wo
 - Likes, notifications, search, reports, and admin moderation.
 - Server-rendered pages, Open Graph, Twitter Cards, and structured data.
 
-Profiles live at `/username`; posts at `/p/123`.
+Profiles live at `/username`; posts at `/p/<id>`. New post IDs have exactly 19 random digits; existing post URLs are preserved.
 
 ## Development
 

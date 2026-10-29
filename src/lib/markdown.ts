@@ -13,16 +13,20 @@ export function extractUrls(body: string): string[] {
 }
 export async function markdown(body: string, previews: LinkPreview[] = []): Promise<string> {
   const images = new Map(previews.filter(p => p.kind === 'image').map(p => [p.url,p]));
+  const imageFor = (value:string) => {
+    try { const url=new URL(value);url.hash='';return images.get(url.href); }
+    catch { return undefined; }
+  };
   const processor = unified().use(remarkParse).use(remarkGfm).use(() => (tree: any) => {
     visit(tree, (node: any, index: number|undefined, parent: any) => {
       if (!parent || index === undefined) return;
       if (node.type === 'image') {
-        const image = images.get(node.url);
+        const image = imageFor(node.url);
         if (image) node.url = `/api/media/${image.id}`;
         else parent.children[index] = {type:'text',value:node.alt || 'Image unavailable'};
       }
-      if (node.type === 'link' && parent.type === 'paragraph' && parent.children.length === 1 && node.children?.[0]?.value === node.url) {
-        const image = images.get(node.url);
+      if (node.type === 'link' && parent.type === 'paragraph' && node.children?.length===1 && node.children[0]?.value === node.url) {
+        const image = imageFor(node.url);
         if (image) parent.children[index] = { type:'image',url:`/api/media/${image.id}`,alt:'External image',title:null };
       }
     });

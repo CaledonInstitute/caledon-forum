@@ -18,17 +18,29 @@ export async function readLimited(response: Response, max: number): Promise<Uint
 // global_fetch_strictly_public also blocks private DNS resolutions and DNS rebinding in Workers.
 export async function safeFetch(value: string, accept = 'text/html,application/json,image/*', fetcher: typeof fetch = fetch) {
   let url = publicUrl(value); const signal = AbortSignal.timeout(5000);
-  for (let redirects = 0; redirects <= 3; redirects++) {
-    const response = await fetcher(url, { redirect: 'manual', signal, headers: { Accept: accept, 'User-Agent': 'CaledonForum/1.0 (+link preview)' } });
+  let redirects=0,discordFallback=false,compatibilityRetry=false;
+  for (;;) {
+    const response = await fetcher(url, { redirect: 'manual', signal, headers: { Accept: accept, 'User-Agent': compatibilityRetry?'Mozilla/5.0':'CaledonForum/1.0 (+link preview)' } });
+    // Discord's resize proxy can reject Workers while the same signed attachment
+    // remains available from its original CDN. Preserve the full signed query.
+    if (response.status===403 && !discordFallback && url.hostname==='media.discordapp.net' && /^\/attachments\/[0-9]+\/[0-9]+\//.test(url.pathname)) {
+      await response.body?.cancel();
+      const original=new URL(url);original.hostname='cdn.discordapp.com';
+      url=publicUrl(original.href);discordFallback=true;continue;
+    }
+    // Some public hosts reject non-browser clients. Retry the same public URL
+    // once with a compatible User-Agent, keeping its path/query and Accept intact.
+    if (response.status===403 && !compatibilityRetry) {
+      await response.body?.cancel();compatibilityRetry=true;continue;
+    }
     if ([301,302,303,307,308].includes(response.status)) {
       await response.body?.cancel();
       if (redirects === 3 || !response.headers.get('location')) throw new Error('Too many redirects.');
-      url = publicUrl(new URL(response.headers.get('location')!,url).href); continue;
+      url = publicUrl(new URL(response.headers.get('location')!,url).href); redirects++;continue;
     }
     if (!response.ok) { await response.body?.cancel(); throw new Error('The linked page is unavailable.'); }
     return response;
   }
-  throw new Error('Could not fetch this URL.');
 }
 export function rasterType(bytes: Uint8Array, mime: string): boolean {
   const text = new TextDecoder('latin1').decode(bytes.slice(0,16));

@@ -8,7 +8,9 @@ Each post and reply supports **25,000 Unicode code points** of Markdown. Externa
 
 Profile avatars and cover photos use public HTTPS image links, validated and served through the forum proxy (JPEG, PNG, GIF, or WebP, up to 2 MB). Set or remove the cover photo in Settings > Profile. Apply migration `0003_profile_cover.sql` before running the updated app.
 
-Profiles use `/username`; posts use `/p/123` with automatically allocated, non-reused integer IDs. System usernames are reserved at registration and GitHub onboarding. The old `/u/…` and `/thread/…` routes are removed and return 404, without legacy redirects.
+Public links that return 403 receive one retry to the same URL with a browser-compatible User-Agent. Discord attachment links additionally fall back from the media resize proxy to Discord's original CDN. This applies to posts, previews, profile images, and covers. The original CDN can return the image at its original size, so the same 2 MB profile/cover and 10 MB post-image limits still apply. Persistent 403 responses remain failures. Discord attachment signatures expire; use a permanent public image URL for long-lived images. Signatures and query parameters must be kept intact. Image URLs pasted next to captions also render; explicitly labelled Markdown links remain clickable links.
+
+Profiles use `/username`; posts use `/p/<id>`. After migration `0005_random_post_addresses.sql`, new posts and replies receive random IDs with exactly 19 digits. Existing IDs and URLs remain unchanged. System usernames are reserved at registration and GitHub onboarding. The old `/u/…` and `/thread/…` routes are removed and return 404, without legacy redirects.
 
 ## Development
 
@@ -58,7 +60,7 @@ Both values must be set to show Google sign-in. Missing Google configuration doe
 
 ### Account API
 
-Apply migration `0004_api_keys.sql` before deploying this version. This adds the `api_keys` table; existing accounts and sessions remain intact. Local migrations have no effect on production:
+Apply all pending migrations before deploying this version. `0004_api_keys.sql` adds the `api_keys` table; `0005_random_post_addresses.sql` preserves existing post IDs and enables random 19-digit IDs for new posts/replies. Existing accounts and sessions remain intact. Local migrations have no effect on production:
 
 ```powershell
 npx wrangler d1 migrations apply caledon-forum-db --local
@@ -70,7 +72,7 @@ An active account with a username and verified email can generate one key in **S
 
 Public Swagger UI: `/api/docs`. Downloadable OpenAPI 3.1: `/api/openapi.json`. In Swagger's **Authorize** dialog, paste the full `cfk_...` key without the `Bearer` prefix. Authorization is held in memory and cleared on reload. Documentation assets are served locally; there is no external validator.
 
-Scripts send `Authorization: Bearer YOUR_API_KEY` to `/api/v1`. Cookies cannot replace an API key. The API supports feed/profile reads, profile updates, posts/replies, likes, reports, and notifications; login settings, key management, and administrator moderation stay on the website. IDs in API post routes and `parentId` inputs are the same public numeric IDs used by `/p/123`, including individual reply IDs returned by the API. List responses use `{items, page, hasMore}` with 20 entries per page. Timestamps are Unix milliseconds.
+Scripts send `Authorization: Bearer YOUR_API_KEY` to `/api/v1`. Cookies cannot replace an API key. The API supports feed/profile reads, profile updates, posts/replies, likes, reports, and notifications; login settings, key management, and administrator moderation stay on the website. IDs in API post routes and `parentId` inputs are the same public decimal IDs used by `/p/<id>`, including individual reply IDs returned by the API. All post IDs in responses (`id`, `rootId`, `parentId`, and notification `postId`) are strings, including legacy short IDs. Always send `parentId` as a string; safe legacy numeric inputs remain accepted, but 19-digit JSON numbers are rejected to prevent precision loss. List responses use `{items, page, hasMore}` with 20 entries per page. Timestamps are Unix milliseconds.
 
 The total limit is 60 requests per minute per account, plus shared website action limits (10 publishes and 40 other mutations per action per minute). Exceeding a limit returns `429` with `Retry-After` in seconds. Clients should wait before retrying; publishing is not idempotent, so do not blindly retry after an uncertain network response. Cross-origin browser access is not enabled. Never include keys in URLs, checked-in scripts, or logs.
 

@@ -13,4 +13,5 @@ export const env:any={SITE_URL:'http://localhost:4321',AUTH_ENABLED:'false',BETT
 export function resetDatabase(){sqlite?.close();sqlite=new DatabaseSync(':memory:');for(const name of readdirSync(new URL('../migrations/',import.meta.url)).filter(n=>n.endsWith('.sql')).sort())sqlite.exec(readFileSync(new URL(`../migrations/${name}`,import.meta.url),'utf8'));}
 export function execute(sql:string,...args:any[]){return sqlite.prepare(sql).run(...args);}
 export function row(sql:string,...args:any[]){return sqlite.prepare(sql).get(...args) as any;}
+export function randomSequence(values:number[]){let i=0;sqlite.function('random',()=>BigInt(values[i++]??1));}
 export function seedUser(id='alice',verified=true,role='user'){execute('INSERT INTO user(id,name,email,email_verified,created_at,updated_at,username,role) VALUES(?,?,?,?,?,?,?,?)',id,id,`${id}@mail.test`,verified?1:0,Date.now(),Date.now(),id,role);return {id,name:id,username:id,emailVerified:verified,image:null,coverImage:null,bio:'',role,suspended:false};}

@@ -14,10 +14,10 @@ async function call(path:string,method='GET',data?:unknown,key:string|null=token
 async function manage(method='GET',data?:unknown,user:any=alice,origin='http://localhost:4321') {
   return keys({locals:{user},request:new Request('http://localhost:4321/api/account/key',{method,headers:{origin,'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)})} as any);
 }
-async function publish(body='Hello',key=token,parentId?:number) {
+async function publish(body='Hello',key=token,parentId?:string) {
   const response=await call('posts','POST',{body,...(parentId?{parentId}:{})},key);
   expect(response.status).toBe(201);
-  return await response.json() as {id:number;url:string};
+  return await response.json() as {id:string;url:string};
 }
 it('stores only a hash; settings returns metadata without the secret',async()=>{
   expect(token).toMatch(/^cfk_[a-f0-9]{64}$/);
@@ -63,6 +63,7 @@ it('protects key management with browser session, origin and fresh account state
 });
 it('shares post rules, public IDs, reply permalinks and ownership with the website',async()=>{
   const root=await publish('😀'.repeat(25000));expect(root.url).toBe(`/p/${root.id}`);
+  expect(root.id).toMatch(/^[1-9][0-9]{18}$/);
   const reply=await publish('Reply',bobToken,root.id);
   const post=await (await call(`posts/${reply.id}`)).json() as any;
   expect(post).toMatchObject({id:reply.id,parentId:root.id,rootId:root.id,body:'Reply'});expect(post.url).toContain(`#post-`);
@@ -75,6 +76,16 @@ it('shares post rules, public IDs, reply permalinks and ownership with the websi
   expect((await call('posts','POST',{body:'blocked',parentId:root.id})).status).toBe(400);
   expect((await call(`posts/${root.id}`,'DELETE')).status).toBe(200);
   expect(await (await call(`posts/${root.id}`)).json()).toMatchObject({body:'',deleted:true});
+});
+it('round-trips 19-digit IDs without rounding and accepts legacy numeric parent inputs',async()=>{
+  const p=await publish();execute('UPDATE post_addresses SET id=? WHERE id=?','9999999999999999999',p.id);
+  expect(await (await call('posts/9999999999999999999')).json()).toMatchObject({id:'9999999999999999999',url:'/p/9999999999999999999'});
+  const reply=await publish('Reply',bobToken,'9999999999999999999');
+  expect(await (await call(`posts/${reply.id}`)).json()).toMatchObject({rootId:'9999999999999999999',parentId:'9999999999999999999'});
+  expect((await call('posts','POST',{body:'Unsafe number',parentId:Number('9999999999999999999')})).status).toBe(400);
+  execute('UPDATE post_addresses SET id=? WHERE id=?','7','9999999999999999999');
+  expect((await call('posts','POST',{body:'Legacy reply',parentId:7})).status).toBe(201);
+  expect(await (await call('posts/7')).json()).toMatchObject({id:'7',url:'/p/7'});
 });
 it('supports idempotent likes, private notifications, reports and read markers',async()=>{
   const p=await publish();

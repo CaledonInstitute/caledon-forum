@@ -12,6 +12,18 @@ describe('Markdown',()=>{
  it('does not discover links in code',()=>expect(extractUrls('`https://a.com`\n\n```\nhttps://b.com\n```\n\nhttps://c.com')).toEqual(['https://c.com']));
  it('only renders validated images, with proxy URLs',async()=>{const p:any={id:'image',url:'https://images.host.test/a.png',kind:'image'};const html=await markdown(p.url,[p]);expect(html).toContain('/api/media/image');expect(html).toContain('loading="lazy"');expect(await markdown('![bad](https://bad.com/a.svg)')).not.toContain('<img');});
  it('keeps explicitly labelled image links as links',async()=>{const p:any={id:'image',url:'https://images.host.test/a.png',kind:'image'};expect(await markdown(`[open](${p.url})`,[p])).not.toContain('<img');});
+ it('renders validated Discord image links beside captions and other links',async()=>{
+  const url='https://media.discordapp.net/attachments/123/456/photo.jpg?ex=ffffffff&is=abcdef&hm=test&=&format=webp&width=576&height=1024';
+  const p:any={id:'discord-image',url,kind:'image'};
+  for(const body of [`Caption\n${url}`,`Caption [${url}](${url})`,`Caption\n${url}\nhttps://github.com`]){
+   const html=await markdown(body,[p]);expect(html).toContain('<img');expect(html).toContain('/api/media/discord-image');expect(html).toContain('Caption');
+  }
+  expect(await markdown(`Caption [open image](${url})`,[p])).not.toContain('<img');
+ });
+ it('matches validated images after URL normalization and fragment removal',async()=>{
+  const p:any={id:'normalized-image',url:'https://images.host.test/a.png',kind:'image'};
+  expect(await markdown('![Image](https://images.host.test/a.png#preview)',[p])).toContain('/api/media/normalized-image');
+ });
  it('adds UGC link attributes',async()=>expect(await markdown('[source](https://github.com)')).toContain('ugc nofollow noopener'));
 });
 describe('remote fetch policy',()=>{
@@ -19,6 +31,20 @@ describe('remote fetch policy',()=>{
  it('allows HTTPS query strings',()=>expect(publicUrl('https://images.unsplash.com/a.png?w=800').search).toBe('?w=800'));
  it('rechecks redirected addresses',async()=>{const f=async()=>new Response(null,{status:302,headers:{location:'https://127.0.0.1'}});await expect(safeFetch('https://github.com','text/html',f as any)).rejects.toThrow();});
  it('limits redirects',async()=>{let calls=0;const f=async()=>{calls++;return new Response(null,{status:302,headers:{location:'https://github.com/a'}});};await expect(safeFetch('https://github.com','text/html',f as any)).rejects.toThrow('redirects');expect(calls).toBe(4);});
+ it('retries any public URL once on 403 with a browser-compatible User-Agent',async()=>{
+  const url='https://images.unsplash.com/photo.jpg?signature=keep-this&size=800';const calls:{url:string;headers:Headers}[]=[];
+  const fetcher=async(input:RequestInfo|URL,init?:RequestInit)=>{calls.push({url:String(input),headers:new Headers(init?.headers)});return calls.length===1?new Response('Forbidden',{status:403}):new Response('image',{headers:{'Content-Type':'image/jpeg'}});};
+  expect((await safeFetch(url,'image/jpeg',fetcher)).status).toBe(200);expect(calls.map(c=>c.url)).toEqual([url,url]);
+  expect(calls[0].headers.get('User-Agent')).toContain('CaledonForum');expect(calls[1].headers.get('User-Agent')).toBe('Mozilla/5.0');expect(calls[1].headers.get('Accept')).toBe('image/jpeg');
+  expect(calls[1].headers.has('Cookie')).toBe(false);expect(calls[1].headers.has('Authorization')).toBe(false);
+ });
+ it('bounds generic 403 retries and does not retry other error statuses',async()=>{
+  for(const status of [403,404,429,500]){let calls=0;const fetcher=async()=>{calls++;return new Response('Unavailable',{status});};await expect(safeFetch('https://images.unsplash.com/a.jpg','image/jpeg',fetcher)).rejects.toThrow('unavailable');expect(calls).toBe(status===403?2:1);}
+ });
+ it('validates redirects returned by the generic 403 retry',async()=>{
+  let calls=0;const fetcher=async()=>{calls++;return calls===1?new Response('Forbidden',{status:403}):new Response(null,{status:302,headers:{Location:'https://127.0.0.1/private'}});};
+  await expect(safeFetch('https://images.unsplash.com/a.jpg','image/jpeg',fetcher)).rejects.toThrow('not public');expect(calls).toBe(2);
+ });
  it('limits streaming responses',async()=>await expect(readLimited(new Response('123456'),5)).rejects.toThrow('large'));
  it('rejects SVG and false raster signatures',()=>{expect(rasterType(new TextEncoder().encode('<svg/>'),'image/svg+xml')).toBe(false);expect(rasterType(new TextEncoder().encode('<script>'),'image/png')).toBe(false);});
  it('normalizes YouTube URL variants',()=>{for(const url of ['https://youtu.be/dQw4w9WgXcQ','https://www.youtube.com/watch?v=dQw4w9WgXcQ','https://youtube.com/shorts/dQw4w9WgXcQ'])expect(youtubeId(url)).toBe('dQw4w9WgXcQ');expect(youtubeId('https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ')).toBeNull();});

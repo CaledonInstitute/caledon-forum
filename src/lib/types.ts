@@ -6,7 +6,7 @@ export interface PublicProfile {
   id:string;name:string;username:string;image:string|null;coverImage:string|null;bio:string;created_at:number;isCaledonMember:number;
 }
 export interface ForumPost {
-  id: string; publicId: number; authorId: string; rootId: string | null; parentId: string | null;
+  id: string; publicId: string; authorId: string; rootId: string | null; parentId: string | null;
   body: string; createdAt: number; updatedAt: number; deleted: number; locked: number;
   name: string; username: string; image: string | null; isCaledonMember: boolean;
   likes: number; replies: number; liked: number; parentName?: string; parentBody?: string;
