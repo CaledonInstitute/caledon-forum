@@ -1,0 +1,5 @@
+---
+const {name='',image=null,large=false} = Astro.props;
+const safeImage = typeof image==='string' && /^https:\/\/avatars\.githubusercontent\.com\//.test(image) ? image : null;
+---
+<span class:list={['avatar',{large}]}>{safeImage ? <img src={safeImage} alt="" width={large?76:42} height={large?76:42} loading="lazy" referrerpolicy="no-referrer"/> : name.trim().slice(0,1).toUpperCase() || 'C'}</span>

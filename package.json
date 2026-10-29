@@ -6,20 +6,58 @@
     "node": ">=22.23.4"
   },
   "scripts": {
-    "dev": "astro dev",
+    "predev": "node scripts/prepare-renderer.mjs",
+    "prebuild": "node scripts/prepare-renderer.mjs",
+    "check": "node scripts/prepare-renderer.mjs && astro check",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:worker": "node scripts/test-worker.mjs",
+    "test:smoke": "node scripts/smoke.mjs",
+    "dev": "astro dev --background",
     "build": "astro build",
-    "preview": "astro build && astro preview",
+    "preview": "npm run build && astro preview",
     "astro": "astro",
-    "generate-types": "wrangler types",
-    "deploy": "astro build && wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "generate-types": "wrangler types --strict-vars=false",
+    "deploy": "npm run build && wrangler deploy",
+    "cf-typegen": "wrangler types --strict-vars=false"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.3",
-    "astro": "^7.4.4"
+    "@astrojs/react": "^7.1.2",
+    "@better-auth/drizzle-adapter": "^1.7.14",
+    "@fontsource/manrope": "^5.3.0",
+    "@resvg/resvg-wasm": "^2.6.2",
+    "astro": "^7.4.4",
+    "better-auth": "^1.7.14",
+    "cheerio": "^1.2.0",
+    "drizzle-orm": "^0.45.4",
+    "harfbuzzjs": "0.10.0",
+    "ipaddr.js": "^2.5.0",
+    "lucide-react": "^1.64.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "satori": "0.63.2",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.2.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@cloudflare/workers-types": "^5.20261029.1",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5",
     "wrangler": "^4.155.0"
+  },
+  "overrides": {
+    "fflate": "0.7.5"
   }
 }

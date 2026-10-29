@@ -1,0 +1,10 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Composer from '../../components/Composer';
+import { post } from '../../lib/db';
+if(!Astro.locals.user)return Astro.redirect('/login');
+const p=await post(Astro.params.id!,Astro.locals.user.id);
+if(!p || p.authorId!==Astro.locals.user.id || p.deleted || Astro.locals.user.suspended){Astro.response.status=403;}
+---
+<Layout title="Edit post" noindex><PageHeader title="Edit post" subtitle="Your changes will be marked as edited."/>{p&&p.authorId===Astro.locals.user.id&&!p.deleted&&!Astro.locals.user.suspended?<Composer client:load initial={p.body} editId={p.id} parentId={p.rootId||undefined} name={Astro.locals.user.name}/>:<section class="empty"><h2>You cannot edit this post.</h2><a href="/" class="button secondary">Back to feed</a></section>}</Layout>

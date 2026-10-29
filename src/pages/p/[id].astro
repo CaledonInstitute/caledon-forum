@@ -1,0 +1,25 @@
+---
+import { env } from 'cloudflare:workers';
+import Layout from '../../layouts/Layout.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Post from '../../components/Post.astro';
+import ComposeGate from '../../components/ComposeGate.astro';
+import Pagination from '../../components/Pagination.astro';
+import { publicPost,posts,previews,replyLocation } from '../../lib/db';
+import { PAGE_SIZE,pageNumber,threadTitle,excerpt } from '../../lib/content';
+const p=await publicPost(Astro.params.id!,Astro.locals.user?.id);
+if(p?.rootId)return Astro.redirect(await replyLocation(p.id),301);
+if(p && Astro.params.id!==String(p.publicId))return Astro.redirect(`/p/${p.publicId}${Astro.url.search}`,301);
+const missing=!p || (!!p.deleted && !p.replies);
+if(missing)Astro.response.status=p?410:404;
+const page=pageNumber(Astro.url);
+const replies=p?await posts('p.root_id=?',[p.id],Astro.locals.user?.id,'p.created_at ASC,p.id ASC',page):[];
+const links=p && !p.deleted?await previews(p.id):[];
+const title=missing?'Thread unavailable':p!.deleted?'Conversation':threadTitle(p!.body,links.find(l=>l.kind!=='image')?.title,p!.name);
+const origin=env.SITE_URL;
+const schema=!missing?{'@context':'https://schema.org','@type':'DiscussionForumPosting','@id':new URL(`/p/${p!.publicId}`,origin).href,headline:title,text:p!.deleted?'This post was deleted.':p!.body,datePublished:new Date(p!.createdAt).toISOString(),dateModified:new Date(p!.updatedAt).toISOString(),author:{'@type':'Person',name:p!.name,url:new URL(`/${p!.username}`,origin).href},url:new URL(`/p/${p!.publicId}`,origin).href,interactionStatistic:[{'@type':'InteractionCounter',interactionType:'https://schema.org/LikeAction',userInteractionCount:p!.likes},{'@type':'InteractionCounter',interactionType:'https://schema.org/CommentAction',userInteractionCount:p!.replies}],comment:replies.slice(0,PAGE_SIZE).filter(r=>!r.deleted).map(r=>({'@type':'Comment',text:r.body,datePublished:new Date(r.createdAt).toISOString(),dateModified:new Date(r.updatedAt).toISOString(),author:{'@type':'Person',name:r.name,url:new URL(`/${r.username}`,origin).href},url:new URL(`${Astro.url.pathname}${page>1?`?page=${page}`:''}#post-${r.id}`,origin).href}))}:undefined;
+---
+<Layout title={title} description={missing?'This thread is no longer available.':excerpt(p!.body)||'A conversation on Caledon Forum.'} noindex={missing} type="article" image={missing?undefined:`/api/og/${p!.publicId}.png?v=${p!.updatedAt}`} schema={schema}>
+<PageHeader title="Thread" subtitle={missing?'':`${p!.replies} ${p!.replies===1?'reply':'replies'}`}><a class="text-button" href="/">Back to feed</a></PageHeader>
+{missing?<section class="empty"><h2>This thread is unavailable.</h2><p>It may have been deleted, or the link may be incorrect.</p><a class="button secondary" href="/">Explore the feed</a></section>:<><Post post={p!} full/><ComposeGate parentId={p!.id} locked={!!p!.locked}/>{replies.slice(0,PAGE_SIZE).map(post=><Post post={post} reply full/>)}<Pagination page={page} hasMore={replies.length>PAGE_SIZE}/></>}
+</Layout>

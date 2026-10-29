@@ -1,11 +1,16 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import PageHeader from '../components/PageHeader.astro';
+import Post from '../components/Post.astro';
+import ComposeGate from '../components/ComposeGate.astro';
+import Pagination from '../components/Pagination.astro';
+import { MessageCircle, ArrowUpRight } from 'lucide-react';
+import { posts } from '../lib/db';
+import { PAGE_SIZE,pageNumber } from '../lib/content';
+const page=pageNumber(Astro.url);
+const items=await posts('p.root_id IS NULL AND (p.deleted=0 OR EXISTS(SELECT 1 FROM posts r WHERE r.root_id=p.id AND r.deleted=0))',[],Astro.locals.user?.id,undefined,page);
 ---
-
-<Layout>
-	<Welcome />
-</Layout>
+<Layout><PageHeader title="Home" subtitle="A place to learn together"><span class="header-symbol"><MessageCircle size={21} strokeWidth={1.4}/></span></PageHeader>
+<ComposeGate/>
+{items.length?items.slice(0,PAGE_SIZE).map(post=><Post post={post}/>):<><section class="empty"><div class="empty-mark"><MessageCircle size={23} strokeWidth={1.3}/></div><h2>Good conversations start with a little curiosity.</h2><p>Share what you’re building, ask a question, or follow a thought somewhere new. This is a space to learn together.</p><a class="button" href={Astro.locals.user?'#compose':'/register'}>{Astro.locals.user?'Start the first thread':'Join the conversation'}</a></section><div class="empty-foot"><span>Vulnerability research. AI. And the questions between.</span><a href="https://caledoninstitute.github.io/" target="_blank" rel="noopener" aria-label="Visit Caledon Institute"><ArrowUpRight size={16}/></a></div></>}
+<Pagination page={page} hasMore={items.length>PAGE_SIZE}/></Layout>

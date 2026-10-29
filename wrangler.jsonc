@@ -1,8 +1,10 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"compatibility_date": "2026-10-23",
-	"compatibility_flags": ["global_fetch_strictly_public"],
+	"compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
 	"name": "caledon-forum",
+	"d1_databases": [{ "binding": "DB", "database_name": "caledon-forum-db", "database_id": "87a1cef5-b570-4d18-b671-2628aac7d4be", "migrations_dir": "migrations" }],
+	"vars": { "SITE_URL": "https://caledon-forum.supervoid.workers.dev", "AUTH_ENABLED": "false", "TURNSTILE_SITE_KEY": "", "EMAIL_FROM": "" },
 	"main": "@astrojs/cloudflare/entrypoints/server",
 	"assets": {
 		"directory": "./dist",

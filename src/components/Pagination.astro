@@ -1,0 +1,5 @@
+---
+const {page,hasMore} = Astro.props;
+const link=(n:number)=>{const u=new URL(Astro.url);u.searchParams.set('page',String(n));if(n===1)u.searchParams.delete('page');return u.pathname+u.search;};
+---
+{(page>1 || hasMore) && <nav class="pagination" aria-label="Pagination"><span>{page>1 && <a href={link(page-1)} rel="prev">Previous page</a>}</span>{hasMore && <a href={link(page+1)} rel="next">Load more</a>}</nav>}

@@ -25,6 +25,9 @@ pnpm-debug.log*
 
 # wrangler files
 .wrangler
+artifacts/
+test-results/
+playwright-report/
 .dev.vars*
 !.dev.vars.example
 !.env.example
