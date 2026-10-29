@@ -7,8 +7,8 @@ import { previews } from '../lib/db';
 import { markdown } from '../lib/markdown';
 import { excerpt,countCharacters } from '../lib/content';
 import type { ForumPost } from '../lib/types';
-interface Props {post:ForumPost;full?:boolean;reply?:boolean;connected?:boolean;}
-const {post:p,full=false,reply=false,connected=false}=Astro.props;
+interface Props {post:ForumPost;full?:boolean;reply?:boolean;}
+const {post:p,full=false,reply=false}=Astro.props;
 const viewer=Astro.locals.user;
 const links=p.deleted?[]:await previews(p.id);
 const long=!full && countCharacters(p.body)>600;
@@ -16,7 +16,7 @@ const html=p.deleted?'':await markdown(long?excerpt(p.body,600):p.body,links);
 const permalink=`/p/${p.publicId}`;
 const time=new Intl.DateTimeFormat('en',{month:'short',day:'numeric'}).format(new Date(p.createdAt));
 ---
-<article class:list={['post',{reply,connected,'post-detail':full}]} id={`post-${p.id}`} data-post-url={!full?permalink:undefined}>
+<article class:list={['post',{reply,'post-detail':full}]} id={`post-${p.id}`} data-post-url={!full?permalink:undefined}>
 <div class="post-grid"><a class="post-avatar-link" href={`/${p.username}`} aria-label={`${p.name}'s profile`}><Avatar name={p.name} image={p.image} username={p.username}/></a><div>
 <div class="identity"><a href={`/${p.username}`}><strong>{p.name}</strong></a>{!!p.isCaledonMember && <Badge/>}<a class="handle" href={`/${p.username}`}>@{p.username}</a><a class="post-time" href={permalink}><time datetime={new Date(p.createdAt).toISOString()}>{time}</time>{p.updatedAt>p.createdAt?' · Edited':''}</a></div>
 {p.parentId && <div class="post-context">Replying to <a href={`/p/${p.parentPublicId}`}>@{p.parentUsername}</a></div>}

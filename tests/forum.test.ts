@@ -4,7 +4,7 @@ import { POST } from '../src/pages/api/forum/[action]';
 import { refreshMembership } from '../src/lib/membership';
 import { symmetricEncrypt } from 'better-auth/crypto';
 import { inspectLink,inspectBody } from '../src/lib/previews';
-import { posts,replyLocation,ancestors } from '../src/lib/db';
+import { posts,replyLocation,post } from '../src/lib/db';
 let alice:any,bob:any;
 async function act(action:string,data:any,user:any=alice,origin='http://localhost:4321'){
  const response=await POST({params:{action},locals:{user},request:new Request(`http://localhost:4321/api/forum/${action}`,{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify(data)})} as any);return {status:response.status,data:await response.json() as any};
@@ -14,24 +14,24 @@ describe('forum data and authorization',()=>{
  it('publishes 25k main posts and 25k replies without a conversation-wide cap',async()=>{const main=await act('publish',{body:'a'.repeat(25000)});expect(main.status).toBe(200);const id=main.data.id;expect(main.data.url).toMatch(/^\/p\/[1-9][0-9]*$/);for(let i=0;i<2;i++)expect((await act('publish',{body:'😀'.repeat(25000),parentId:id},bob)).status).toBe(200);expect(row('SELECT COUNT(*) n FROM posts').n).toBe(3);expect((await act('publish',{body:'a'.repeat(25001)})).status).toBe(400);});
  it('rejects anonymous, unverified, suspended and cross-origin writes',async()=>{expect((await act('publish',{body:'hello'},null)).status).toBe(401);expect((await act('publish',{body:'hello'},{...alice,emailVerified:false})).status).toBe(403);expect((await act('publish',{body:'hello'},{...alice,suspended:true})).status).toBe(403);expect((await act('publish',{body:'hello'},alice,'https://evil.com')).status).toBe(403);});
  it('keeps feed chronological and excludes replies',async()=>{await act('publish',{body:'First'});const first=row('SELECT id FROM posts').id;execute('UPDATE posts SET created_at=1 WHERE id=?',first);await act('publish',{body:'Second'});await act('publish',{body:'Reply',parentId:first},bob);const feed=await posts('p.root_id IS NULL',[]);expect(feed.map(p=>p.body)).toEqual(['Second','First']);});
- it('separates direct replies from branches and orders the complete ancestor chain',async()=>{
+ it('separates direct replies from branches and preserves parent links at each level',async()=>{
   const root=(await act('publish',{body:'Root'})).data.id;
   const a=(await act('publish',{body:'Branch A',parentId:root},bob)).data.id;
   const b=(await act('publish',{body:'Branch B',parentId:root},bob)).data.id;
   const child=(await act('publish',{body:'A child',parentId:a})).data.id;
   const leaf=(await act('publish',{body:'A leaf',parentId:child},bob)).data.id;
-  expect((await ancestors(leaf)).map(p=>p.id)).toEqual([root,a,child]);
-  expect(await ancestors(root)).toEqual([]);
+  expect(await post(leaf)).toMatchObject({rootId:root,parentId:child});
+  expect(await post(child)).toMatchObject({rootId:root,parentId:a});
   expect((await posts('p.parent_id=?',[root])).map(p=>p.id).sort()).toEqual([a,b].sort());
   expect((await posts('p.parent_id=?',[a])).map(p=>p.id)).toEqual([child]);
   expect((await posts('p.id=?',[root]))[0]).toMatchObject({replies:4,directReplies:2});
   expect((await posts('p.id=?',[a]))[0]).toMatchObject({replies:0,directReplies:1,parentUsername:'alice'});
   await act('delete',{id:a},bob);
-  expect((await ancestors(leaf)).map(p=>[p.id,!!p.deleted])).toEqual([[root,false],[a,true],[child,false]]);
+  expect(await post(a)).toMatchObject({deleted:1,parentId:root});
   expect((await posts('p.id=?',[a]))[0]).toMatchObject({hasChildren:1,directReplies:1});
   const admin=seedUser('moderator',true,'admin');
   await act('moderate',{id:root,operation:'lock'},admin);
-  expect((await ancestors(leaf))[0].locked).toBe(1);
+  expect((await post(root))?.locked).toBe(1);
   expect((await act('publish',{body:'Blocked',parentId:leaf})).status).toBe(400);
  });
  it('handles idempotent likes, grouped notification records and unlike',async()=>{await act('publish',{body:'Hello'});const id=row('SELECT id FROM posts').id;await act('like',{id,liked:true},bob);await act('like',{id,liked:true},bob);expect(row('SELECT COUNT(*) n FROM likes').n).toBe(1);expect(row('SELECT COUNT(*) n FROM notifications').n).toBe(1);await act('like',{id,liked:false},bob);expect(row('SELECT COUNT(*) n FROM notifications').n).toBe(0);});

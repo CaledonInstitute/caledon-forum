@@ -32,22 +32,6 @@ export async function publicPost(value:string, viewer?:string) {
   return /^[1-9][0-9]{0,18}$/.test(canonical) ? (await posts('pa.id=?',[canonical],viewer))[0] || null : null;
 }
 export const previews = (id: string) => all<LinkPreview>(`SELECT lp.id,lp.url,lp.kind,lp.title,lp.description,lp.site,lp.image,lp.video_id AS videoId,lp.checked_at AS checkedAt FROM link_previews lp JOIN post_links pl ON pl.preview_id=lp.id WHERE pl.post_id=? ORDER BY pl.position`, id);
-export async function ancestors(id: string, viewer?: string) {
-  const rows = await all<ForumPost>(`WITH RECURSIVE ancestors(id) AS (
-    SELECT parent_id FROM posts WHERE id=? AND parent_id IS NOT NULL
-    UNION SELECT p.parent_id FROM posts p JOIN ancestors a ON p.id=a.id WHERE p.parent_id IS NOT NULL
-  ) ${selection} WHERE p.id IN (SELECT id FROM ancestors)`, id, Date.now()-86400000, viewer || '');
-  const byId = new Map(rows.map(p => [p.id, p]));
-  const ordered: ForumPost[] = [];
-  const parentIds = new Set(rows.map(p => p.parentId));
-  let current = rows.find(p => !parentIds.has(p.id));
-  const seen = new Set([id]);
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id); ordered.push(current);
-    current = current.parentId ? byId.get(current.parentId) : undefined;
-  }
-  return ordered.reverse();
-}
 export async function replyLocation(id: string) {
   const p = await one<{id:string}>('SELECT id FROM post_addresses WHERE post_id=?', id);
   return p ? `/p/${p.id}` : '/';
