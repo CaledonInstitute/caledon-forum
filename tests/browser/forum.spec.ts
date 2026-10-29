@@ -1,3 +1,4 @@
+import {readFile} from 'node:fs/promises';
 import {test,expect} from '@playwright/test';
 import {load} from 'cheerio';
 let notebookPath:string,mediaPath:string;
@@ -17,7 +18,7 @@ test('public thread has SSR content, metadata and crawlable pagination',async({b
  const context=await browser.newContext({javaScriptEnabled:false});const page=await context.newPage();await page.goto(notebookPath+'?utm_source=test');
  expect(await page.title()).toContain('research notebook');await expect(page.locator('meta[property="og:title"]')).toHaveAttribute('content',/research notebook/);await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content','summary_large_image');await expect(page.locator('link[rel=canonical]')).toHaveAttribute('href','http://localhost:4321'+notebookPath);
  await expect(page.locator('#post-qa-notebook pre')).toContainText('notebook.add');const schemas=await page.locator('script[type="application/ld+json"]').allTextContents();expect(schemas.some(s=>JSON.parse(s)['@type']==='DiscussionForumPosting')).toBe(true);
- await expect(page.locator('#post-qa-reply-00 .reply-details')).toHaveCount(1);await page.getByRole('link',{name:'Load more'}).click();await expect(page.locator('#post-qa-reply-22')).toBeVisible();await context.close();
+ await expect(page.locator('#post-qa-reply-00 .read-more')).toHaveCount(1);await page.getByRole('link',{name:'Load more'}).click();await expect(page.locator('#post-qa-reply-22')).toBeVisible();await context.close();
 });
 test('post content and empty space open the detail page',async({page})=>{
  for(const area of ['content','space']){
@@ -75,4 +76,90 @@ test('old routes are removed and profile URLs are canonical',async({request})=>{
  const profile=await request.get('/qa_caledon?utm_source=test');expect(profile.status()).toBe(200);const $=load(await profile.text());expect($('link[rel=canonical]').attr('href')).toBe('http://localhost:4321/qa_caledon');
  expect((await request.get('/missing_profile')).status()).toBe(404);expect((await request.get('/constructor')).status()).toBe(404);
  const sitemap=await (await request.get('/sitemap.xml')).text();expect(sitemap).not.toContain('/thread/');expect(sitemap).not.toContain('/u/qa_caledon');expect(sitemap).toContain('/qa_caledon');
+});
+
+async function firstReplyPath(page:import('@playwright/test').Page) {
+ await page.goto(notebookPath);
+ return (await page.locator('#post-qa-reply-00 .post-time').getAttribute('href'))!;
+}
+
+test('reply pages show only their ancestors and direct children, including deleted parents',async({page,browser})=>{
+ const replyPath=await firstReplyPath(page);
+ await page.goto(replyPath);
+ await expect(page.locator('.conversation > article')).toHaveCount(2);
+ await expect(page.locator('#post-qa-reply-00')).not.toHaveAttribute('data-post-url');
+ await expect(page.locator('#post-qa-reply-00 .post-content')).toContainText('pagination testing.');
+ const replies=page.getByRole('region',{name:'Replies',exact:true});
+ await expect(replies.locator('article')).toHaveCount(2);
+ const branchPath=(await page.locator('#post-qa-branch-a .post-time').getAttribute('href'))!;
+ await page.locator('#post-qa-branch-a .post-content').click();
+ await expect(page).toHaveURL(branchPath);
+ await expect(page.locator('#post-qa-branch-b')).toHaveCount(0);
+ await page.locator('#post-qa-branch-deleted .post-time').click();
+ await expect(page.locator('#post-qa-branch-deleted')).toContainText('This post was deleted.');
+ await expect(page.locator('#reply')).toHaveCount(0);
+ const leafPath=(await page.locator('#post-qa-branch-leaf .post-time').getAttribute('href'))!;
+ await page.goto(leafPath);
+ await expect(page.locator('.conversation > article')).toHaveCount(5);
+ await expect(page.locator('.conversation .connected')).toHaveCount(4);
+ await expect(page.locator('#post-qa-branch-b')).toHaveCount(0);
+ await expect(page.locator('link[rel=canonical]')).toHaveAttribute('href','http://localhost:4321'+leafPath);
+ await page.screenshot({path:'artifacts/reply-desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:'artifacts/reply-mobile.png',fullPage:true});
+ const context=await browser.newContext({javaScriptEnabled:false});
+ const ssr=await context.newPage();await ssr.goto(leafPath);
+ await expect(ssr.locator('.conversation > article')).toHaveCount(5);
+ await context.close();
+});
+
+test('avatar-column empty space opens post and reply details, while identity opens profiles',async({page})=>{
+ const replyPath=await firstReplyPath(page);
+ for(const [path,id,target] of [['/','qa-notebook',notebookPath],[notebookPath,'qa-reply-00',replyPath]]) {
+  await page.goto(path);
+  const article=page.locator(`#post-${id}`);
+  const avatar=article.locator('.post-avatar-link');
+  const bounds=(await article.boundingBox())!,avatarBounds=(await avatar.boundingBox())!;
+  expect(avatarBounds.height).toBeLessThanOrEqual(42);
+  await article.click({position:{x:avatarBounds.x-bounds.x+5,y:avatarBounds.y-bounds.y+avatarBounds.height+12}});
+  await expect(page).toHaveURL(target);
+  await page.goto(path);await avatar.click();await expect(page).toHaveURL(id==='qa-notebook'?'/qa_caledon':'/qa_research');
+ }
+ await page.goto(replyPath);
+ await page.locator('#post-qa-reply-00').click({position:{x:5,y:5}});
+ await expect(page).toHaveURL(replyPath);
+ await page.locator('#post-qa-reply-00 .handle').click();await expect(page).toHaveURL('/qa_research');
+});
+
+test('composer preserves failed drafts, prevents duplicate sends and opens a reply with an empty editor',async({page,context})=>{
+ const cookie=await readFile('.astro/qa-session.json','utf8').then(JSON.parse).catch(()=>null);
+ test.skip(!cookie,'Run seed-local with local authentication enabled to test the composer.');
+ await context.addCookies([cookie]);
+ const replyPath=await firstReplyPath(page);
+ await page.goto(replyPath);
+ const destination=(await page.locator('#post-qa-branch-a .post-time').getAttribute('href'))!;
+ const editor=page.getByRole('textbox',{name:'Your reply'});
+ await expect(editor).toBeVisible();
+ await editor.fill('A draft that should survive a failed request.');
+ let calls=0;
+ let finish:(()=>Promise<void>)|undefined;
+ await page.route('**/api/forum/publish',async route=>{
+  calls++;
+  if(calls===1)await route.fulfill({status:400,json:{error:'This thread is locked.'}});
+  else await new Promise<void>(resolve=>{finish=async()=>{await route.fulfill({json:{ok:true,url:destination}});resolve();};});
+ });
+ const send=page.getByRole('button',{name:'Reply',exact:true});
+ await send.click();
+ await expect(page.getByRole('alert')).toHaveText('This thread is locked.');
+ await expect(editor).toHaveValue('A draft that should survive a failed request.');
+ await send.click();
+ await expect(page.getByRole('button',{name:/^Working/})).toBeDisabled();
+ await expect(editor).toBeDisabled();
+ expect(calls).toBe(2);
+ await expect.poll(()=>!!finish).toBe(true);await finish!();
+ await expect(page).toHaveURL(destination);
+ await expect(page.getByRole('textbox',{name:'Your reply'})).toHaveValue('');
+ await expect(page.locator('.counter')).toHaveText('0 / 25,000');
+ await expect(page.locator('.composer [role=alert]')).toBeEmpty();
 });

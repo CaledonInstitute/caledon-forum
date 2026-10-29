@@ -27,7 +27,7 @@ Likes and notification uniqueness constraints make repeated like requests idempo
 
 Google is an optional Better Auth provider using the existing encrypted account-token storage and explicit linking policy. New Google users use the existing username onboarding. The browser auth gateway permits Google's callback, but token retrieval stays blocked. Social disconnect uses a conditional D1 delete that requires another account to remain, preventing concurrent disconnects from deleting all login methods. Disconnecting Google preserves GitHub membership; removing GitHub clears its membership cache. Google identity never affects the membership badge.
 
-Pagination uses bounded numeric pages so anonymous users and crawlers have stable, directly addressable reply pages. Replies link to their page and anchor. Ordering always includes IDs to break timestamp ties. This uses SQL offsets rather than opaque cursor-only URLs to support public reply permalinks.
+Every post and reply renders at its own `/p/<publicId>` URL. Reply details render the ancestor chain from root to immediate parent, the selected reply in full, and only its direct children below the composer. Ancestors are fetched with a recursive query; deleted ancestors retain placeholders and locks follow the root. Direct children use chronological numeric pagination (20 entries), with IDs breaking timestamp ties. `0006_direct_replies_index.sql` indexes parent IDs and ordering. New publish, edit, notification and API URLs use individual permalinks; old root fragment links still open the root but may no longer reveal that reply. API v1 keeps its existing conversation-wide replies endpoint and `replies` count; UI counts use `directReplies` instead.
 
 ## Links and media
 
@@ -51,6 +51,6 @@ The PNG endpoint renders 1200×630 images, caches by post revision in the Worker
 
 ## SEO
 
-Public content and metadata are in initial server HTML, including reply bodies inside native expandable details. Canonicals use SITE_URL and normalized page/profile-tab parameters. UTM parameters do not change canonicals. Thread JSON-LD describes only comments on the current page. Sitemap lastmod includes reply changes. Private/search/auth/API responses carry noindex; robots.txt allows crawlers to read these directives. Do not add disallow rules that hide noindex pages from crawlers.
+Public content and metadata are in initial server HTML. Selected posts/replies render their full bodies; ancestor and reply-list previews link to their individual details. Canonicals use SITE_URL and normalized page/profile-tab parameters. UTM parameters do not change canonicals. Thread JSON-LD describes only comments on the current page. Sitemap lastmod includes reply changes. Private/search/auth/API responses carry noindex; robots.txt allows crawlers to read these directives. Do not add disallow rules that hide noindex pages from crawlers.
 
-Public moderation removals return 410 when a deleted root has no remaining visible replies. Other missing pages return 404. Private HTML and authenticated responses are never cached publicly. CSP permits only the required Turnstile, GitHub avatar and click-loaded YouTube origins.
+Deleted post/reply details return 410 when they have no children; otherwise they retain a placeholder and links to their children. Other missing pages return 404. Private HTML and authenticated responses are never cached publicly. CSP permits only the required Turnstile, GitHub avatar and click-loaded YouTube origins.

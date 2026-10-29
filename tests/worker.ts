@@ -4,6 +4,7 @@ import addressesSql from '../migrations/0002_public_post_addresses.sql';
 import coverSql from '../migrations/0003_profile_cover.sql';
 import keysSql from '../migrations/0004_api_keys.sql';
 import randomAddressesSql from '../migrations/0005_random_post_addresses.sql';
+import directRepliesSql from '../migrations/0006_direct_replies_index.sql';
 import { createAuth } from '../src/lib/auth';
 import { POST as forum } from '../src/pages/api/forum/[action]';
 import { issueKey } from '../src/lib/api-keys';
@@ -33,6 +34,7 @@ export default {async fetch(request:Request){
   const columns=await env.DB.prepare('PRAGMA table_info(user)').all<{name:string}>();if(!columns.results.some(c=>c.name==='cover_image'))await env.DB.exec(coverSql.replace(/^--.*$/gm,'').trim());
   const keysTable=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='api_keys'").first();if(!keysTable)await env.DB.exec(keysSql.replace(/\s+/g,' ').trim());
   const addressColumns=await env.DB.prepare('PRAGMA table_info(post_addresses)').all<{name:string;type:string}>();if(addressColumns.results.find(c=>c.name==='id')?.type!=='TEXT')await env.DB.exec(randomAddressesSql.replace(/^--.*$/gm,'').replace(/\s+/g,' ').trim());
+  await env.DB.exec(directRepliesSql.replace(/^--.*$/gm,'').trim());
   await env.DB.batch(['api_keys','notifications','post_links','likes','reports','moderation_actions','post_addresses','posts','memberships','session','account','verification','user','rate_limits','link_previews'].map(t=>env.DB.prepare(`DELETE FROM ${t}`)));
   const auth=createAuth();
   const call=(path:string,body:any,cookie='')=>auth.handler(new Request(`http://localhost:8789/api/auth/${path}`,{method:'POST',headers:{'Content-Type':'application/json',origin:'http://localhost:8789',cookie,'x-captcha-response':'test'},body:JSON.stringify(body)}));

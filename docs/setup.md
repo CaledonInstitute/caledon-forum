@@ -60,7 +60,7 @@ Both values must be set to show Google sign-in. Missing Google configuration doe
 
 ### Account API
 
-Apply all pending migrations before deploying this version. `0004_api_keys.sql` adds the `api_keys` table; `0005_random_post_addresses.sql` preserves existing post IDs and enables random 19-digit IDs for new posts/replies. Existing accounts and sessions remain intact. Local migrations have no effect on production:
+Apply all pending migrations before deploying this version. `0004_api_keys.sql` adds the `api_keys` table; `0005_random_post_addresses.sql` preserves existing post IDs and enables random 19-digit IDs for new posts/replies. `0006_direct_replies_index.sql` adds the index for direct-reply lists and counts without changing existing posts or relations. Existing accounts and sessions remain intact. Local migrations have no effect on production:
 
 ```powershell
 npx wrangler d1 migrations apply caledon-forum-db --local
@@ -100,7 +100,7 @@ npm audit --omit=dev
 npm run test:smoke
 ```
 
-The browser tests require the background dev server and local fixtures. Screenshots are saved to ignored `artifacts/`. Worker regression tests use a separate test-only Worker and D1 database, with mocked email/Turnstile transports. They verify real workerd hashing, sessions, verification/reset tokens, and posting; they do not prove production provider credentials work. The test-only Worker is never deployed.
+The browser tests require the background dev server and local fixtures. Screenshots are saved to ignored `artifacts/`. With local authentication configured and enabled, the seed script also creates a local QA session in ignored `.astro/qa-session.json` for composer tests. Without it, the authenticated composer browser test is skipped. Worker regression tests use a separate test-only Worker and D1 database, with mocked email/Turnstile transports. They verify real workerd hashing, sessions, verification/reset tokens, and posting; they do not prove production provider credentials work. The test-only Worker is never deployed.
 
 ## Deploy
 

@@ -66,7 +66,7 @@ it('shares post rules, public IDs, reply permalinks and ownership with the websi
   expect(root.id).toMatch(/^[1-9][0-9]{18}$/);
   const reply=await publish('Reply',bobToken,root.id);
   const post=await (await call(`posts/${reply.id}`)).json() as any;
-  expect(post).toMatchObject({id:reply.id,parentId:root.id,rootId:root.id,body:'Reply'});expect(post.url).toContain(`#post-`);
+  expect(post).toMatchObject({id:reply.id,parentId:root.id,rootId:root.id,body:'Reply'});expect(post.url).toBe(`/p/${reply.id}`);
   expect((await call('posts','POST',{body:'😀'.repeat(25001)})).status).toBe(400);
   expect((await call(`posts/${root.id}`,'PATCH',{body:'hijack'},bobToken)).status).toBe(403);
   const internal=row('SELECT post_id FROM post_addresses WHERE id=?',root.id).post_id;

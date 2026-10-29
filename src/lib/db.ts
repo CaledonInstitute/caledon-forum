@@ -17,8 +17,12 @@ const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_
  CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account a WHERE a.user_id=u.id AND a.provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember,
  (SELECT COUNT(*) FROM likes l WHERE l.post_id=p.id) AS likes,
  (SELECT COUNT(*) FROM posts r WHERE r.root_id=p.id AND r.deleted=0) AS replies,
+ (SELECT COUNT(*) FROM posts r WHERE r.parent_id=p.id AND r.deleted=0) AS directReplies,
+ EXISTS(SELECT 1 FROM posts r WHERE r.parent_id=p.id) AS hasChildren,
  EXISTS(SELECT 1 FROM likes l WHERE l.post_id=p.id AND l.user_id=?) AS liked,
  (SELECT name FROM user pu JOIN posts pp ON pp.author_id=pu.id WHERE pp.id=p.parent_id) AS parentName,
+ (SELECT pu.username FROM user pu JOIN posts pp ON pp.author_id=pu.id WHERE pp.id=p.parent_id) AS parentUsername,
+ (SELECT a.id FROM post_addresses a WHERE a.post_id=p.parent_id) AS parentPublicId,
  (SELECT CASE WHEN pp.deleted=0 THEN substr(pp.body,1,120) ELSE 'Deleted post' END FROM posts pp WHERE pp.id=p.parent_id) AS parentBody
  FROM posts p JOIN post_addresses pa ON pa.post_id=p.id JOIN user u ON u.id=p.author_id LEFT JOIN memberships m ON m.user_id=u.id`;
 export const posts = (where: string, args: any[], viewer?: string, order = 'p.created_at DESC,p.id DESC', page = 1) => all<ForumPost>(`${selection} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`, Date.now()-86400000, viewer || '', ...args, PAGE_SIZE + 1, (page-1)*PAGE_SIZE);
@@ -28,10 +32,23 @@ export async function publicPost(value:string, viewer?:string) {
   return /^[1-9][0-9]{0,18}$/.test(canonical) ? (await posts('pa.id=?',[canonical],viewer))[0] || null : null;
 }
 export const previews = (id: string) => all<LinkPreview>(`SELECT lp.id,lp.url,lp.kind,lp.title,lp.description,lp.site,lp.image,lp.video_id AS videoId,lp.checked_at AS checkedAt FROM link_previews lp JOIN post_links pl ON pl.preview_id=lp.id WHERE pl.post_id=? ORDER BY pl.position`, id);
+export async function ancestors(id: string, viewer?: string) {
+  const rows = await all<ForumPost>(`WITH RECURSIVE ancestors(id) AS (
+    SELECT parent_id FROM posts WHERE id=? AND parent_id IS NOT NULL
+    UNION SELECT p.parent_id FROM posts p JOIN ancestors a ON p.id=a.id WHERE p.parent_id IS NOT NULL
+  ) ${selection} WHERE p.id IN (SELECT id FROM ancestors)`, id, Date.now()-86400000, viewer || '');
+  const byId = new Map(rows.map(p => [p.id, p]));
+  const ordered: ForumPost[] = [];
+  const parentIds = new Set(rows.map(p => p.parentId));
+  let current = rows.find(p => !parentIds.has(p.id));
+  const seen = new Set([id]);
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id); ordered.push(current);
+    current = current.parentId ? byId.get(current.parentId) : undefined;
+  }
+  return ordered.reverse();
+}
 export async function replyLocation(id: string) {
-  const p = await one<{root_id: string|null; created_at:number;public_id:string;root_public_id:string|null}>('SELECT p.root_id,p.created_at,pa.id AS public_id,ra.id AS root_public_id FROM posts p JOIN post_addresses pa ON pa.post_id=p.id LEFT JOIN post_addresses ra ON ra.post_id=p.root_id WHERE p.id=?',id);
-  if (!p) return '/'; if (!p.root_id) return `/p/${p.public_id}`;
-  const n = await one<{n:number}>('SELECT COUNT(*) AS n FROM posts WHERE root_id=? AND (created_at<? OR (created_at=? AND id<=?))',p.root_id,p.created_at,p.created_at,id);
-  const page = Math.ceil((n?.n || 1)/PAGE_SIZE);
-  return `/p/${p.root_public_id}${page>1?`?page=${page}`:''}#post-${id}`;
+  const p = await one<{id:string}>('SELECT id FROM post_addresses WHERE post_id=?', id);
+  return p ? `/p/${p.id}` : '/';
 }

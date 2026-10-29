@@ -9,6 +9,7 @@ export interface ForumPost {
   id: string; publicId: string; authorId: string; rootId: string | null; parentId: string | null;
   body: string; createdAt: number; updatedAt: number; deleted: number; locked: number;
   name: string; username: string; image: string | null; isCaledonMember: boolean;
+  directReplies: number; hasChildren: number; parentUsername?: string; parentPublicId?: string;
   likes: number; replies: number; liked: number; parentName?: string; parentBody?: string;
 }
 export interface LinkPreview {
