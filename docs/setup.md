@@ -43,6 +43,39 @@ npx wrangler secret put TURNSTILE_SECRET_KEY
 
 6. Set `AUTH_ENABLED` to `true`, deploy, and complete the provider smoke checks below. Missing configuration keeps sign-in disabled. GitHub users without a verified email must add/verify one in Settings. Connecting GitHub explains that a membership badge publicly reveals affiliation, including private membership.
 
+### Optional Google sign-in
+
+Create a Google OAuth client of type **Web application** in Google Cloud Console and configure the consent screen. Add authorized redirect URIs `http://localhost:4321/api/auth/callback/google` for development and `https://YOUR-WORKER.workers.dev/api/auth/callback/google` for production. Use the actual `SITE_URL` hostname if it differs. During Google's testing phase, add the intended users to the consent screen's test users.
+
+Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in ignored `.dev.vars` locally. For production:
+
+```powershell
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+```
+
+Both values must be set to show Google sign-in. Missing Google configuration does not disable existing sign-in methods. Existing accounts are never merged automatically by email: sign in using the existing method, then connect Google in Settings > Email & security. New Google users choose a permanent username in onboarding. Disconnecting the last sign-in method is blocked. Google does not grant a Caledon membership badge.
+
+### Account API
+
+Apply migration `0004_api_keys.sql` before deploying this version. This adds the `api_keys` table; existing accounts and sessions remain intact. Local migrations have no effect on production:
+
+```powershell
+npx wrangler d1 migrations apply caledon-forum-db --local
+# Before production deployment:
+npx wrangler d1 migrations apply caledon-forum-db --remote
+```
+
+An active account with a username and verified email can generate one key in **Settings > API**. Copy it when generated: the server stores only a SHA-256 hash. Regenerating immediately invalidates the old key; revoking removes access. Keys do not expire automatically. Account suspension or removal of verified status also blocks API access.
+
+Public Swagger UI: `/api/docs`. Downloadable OpenAPI 3.1: `/api/openapi.json`. In Swagger's **Authorize** dialog, paste the full `cfk_...` key without the `Bearer` prefix. Authorization is held in memory and cleared on reload. Documentation assets are served locally; there is no external validator.
+
+Scripts send `Authorization: Bearer YOUR_API_KEY` to `/api/v1`. Cookies cannot replace an API key. The API supports feed/profile reads, profile updates, posts/replies, likes, reports, and notifications; login settings, key management, and administrator moderation stay on the website. IDs in API post routes and `parentId` inputs are the same public numeric IDs used by `/p/123`, including individual reply IDs returned by the API. List responses use `{items, page, hasMore}` with 20 entries per page. Timestamps are Unix milliseconds.
+
+The total limit is 60 requests per minute per account, plus shared website action limits (10 publishes and 40 other mutations per action per minute). Exceeding a limit returns `429` with `Retry-After` in seconds. Clients should wait before retrying; publishing is not idempotent, so do not blindly retry after an uncertain network response. Cross-origin browser access is not enabled. Never include keys in URLs, checked-in scripts, or logs.
+
+Smoke checks: sign in with a new Google account and finish onboarding; connect Google to an existing account; confirm an unlinked Google identity with the same email cannot auto-merge; disconnect one provider while another remains. Generate a key, use Swagger to read `/me` and create a post/reply, regenerate it, and verify the old key returns `401`. Revoke and verify access stops. Real Google credentials and consent configuration must be checked on the deployed origin; the automated OAuth tests use test-only signed tokens and mocked Google token/JWKS transports.
+
 Register the administrator's own account first, find its ID using D1, then run:
 
 ```powershell

@@ -9,6 +9,9 @@ import { isValidUsername } from './usernames';
 export function authReady() {
   return env.AUTH_ENABLED === 'true' && !!(env.BETTER_AUTH_SECRET && env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET && env.RESEND_API_KEY && env.EMAIL_FROM && env.TURNSTILE_SECRET_KEY && env.TURNSTILE_SITE_KEY);
 }
+export function googleReady() {
+  return !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+}
 async function email(to: string, url: string, purpose: string) {
   if (!env.RESEND_API_KEY || !env.EMAIL_FROM) throw new Error('Email is not configured.');
   const response = await fetch('https://api.resend.com/emails', {method:'POST',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({from:env.EMAIL_FROM,to,subject:`${purpose} — Caledon Forum`,text:`${purpose}\n\n${url}\n\nIf you did not request this, you can ignore this email.`})});
@@ -23,7 +26,7 @@ export function createAuth() {
     emailVerification:{sendOnSignUp:true,sendOnSignIn:true,autoSignInAfterVerification:true,sendVerificationEmail:async ({user,url})=>email(user.email,url,'Verify your email')},
     user:{changeEmail:{enabled:true},additionalFields:{bio:{type:'string',defaultValue:'',input:false},role:{type:'string',defaultValue:'user',input:false},suspended:{type:'boolean',defaultValue:false,input:false}}},
     account:{encryptOAuthTokens:true,accountLinking:{enabled:true,disableImplicitLinking:true,allowDifferentEmails:true,allowUnlinkingAll:false}},
-    socialProviders:{github:{clientId:env.GITHUB_CLIENT_ID || '',clientSecret:env.GITHUB_CLIENT_SECRET || '',scope:['read:org'],
+    socialProviders:{...(googleReady()?{google:{clientId:env.GOOGLE_CLIENT_ID!,clientSecret:env.GOOGLE_CLIENT_SECRET!}}:{}),github:{clientId:env.GITHUB_CLIENT_ID || '',clientSecret:env.GITHUB_CLIENT_SECRET || '',scope:['read:org'],
       getUserInfo:async (tokens) => {
         const headers = {Authorization:`Bearer ${tokens.accessToken}`,'User-Agent':'CaledonForum','Accept':'application/vnd.github+json'};
         const [pr,er] = await Promise.all([fetch('https://api.github.com/user',{headers,signal:AbortSignal.timeout(5000)}),fetch('https://api.github.com/user/emails',{headers,signal:AbortSignal.timeout(5000)})]);

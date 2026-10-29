@@ -9,7 +9,7 @@ Astro server rendering owns public HTML, metadata, structured data and crawlable
 - Username is permanent; a GitHub organization badge grants no moderation privileges.
 - Never auto-link existing accounts by email. GitHub linking requires an authenticated session.
 - Provider tokens stay encrypted in D1. Browser auth routes cannot retrieve tokens.
-- API mutation authorization always comes from the server session and current D1 user state.
+- Browser mutation authorization comes from the server session; `/api/v1` uses Bearer API keys. Both enforce current D1 user state.
 
 ## Data
 
@@ -18,6 +18,12 @@ Astro server rendering owns public HTML, metadata, structured data and crawlable
 `0002_public_post_addresses.sql` adds an INTEGER PRIMARY KEY AUTOINCREMENT address for each existing/new post. An INSERT trigger allocates new addresses atomically with the post. Public URLs use `/p/<integer>`; internal UUID references remain intact so replies, likes and reports do not need to be rewritten. Profiles use `/username`, with case-insensitive reserved system names. No old profile/thread URL handlers are retained.
 
 Likes and notification uniqueness constraints make repeated like requests idempotent. Deletion clears post text and link references, preserving parent/root relationships. Thread locks are checked inside the reply INSERT. Moderation actions are recorded alongside their changes in a batch.
+
+`0004_api_keys.sql` stores one key per account with a unique SHA-256 hash, a short display prefix, and creation/last-use timestamps. Tokens have 256 random bits and are only returned by generation/rotation, never by reads. A single conditional INSERT or UPDATE determines the active key; rotation has no overlap period. Already-authorized in-flight requests may finish. Key management requires a browser session and same-origin mutation requests; Bearer keys are recognized only under `/api/v1`. Every API request joins to the current D1 user to enforce suspension, verification, and username requirements. Authenticated API responses and key management responses are never publicly cached. Key endpoints are also unavailable when `AUTH_ENABLED` is false.
+
+`forum-service.ts` contains the shared forum mutation rules; the browser wrapper retains its origin, cookie and CAPTCHA-dependent email flow. API v1 explicitly maps only permitted operations to the shared service, uses public numeric post IDs at its boundary, and serializes public profiles using an explicit column list. It never dispatches arbitrary action names. Rate limits share user/action buckets with the website and add an account-wide 60/minute API bucket. `/api/docs` serves locally bundled Swagger UI, with in-memory Bearer authorization and external validation disabled; `/api/openapi.json` defines the versioned interface. API timestamps use Unix milliseconds.
+
+Google is an optional Better Auth provider using the existing encrypted account-token storage and explicit linking policy. New Google users use the existing username onboarding. The browser auth gateway permits Google's callback, but token retrieval stays blocked. Social disconnect uses a conditional D1 delete that requires another account to remain, preventing concurrent disconnects from deleting all login methods. Disconnecting Google preserves GitHub membership; removing GitHub clears its membership cache. Google identity never affects the membership badge.
 
 Pagination uses bounded numeric pages so anonymous users and crawlers have stable, directly addressable reply pages. Replies link to their page and anchor. Ordering always includes IDs to break timestamp ties. This uses SQL offsets rather than opaque cursor-only URLs to support public reply permalinks.
 

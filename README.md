@@ -4,7 +4,8 @@ A public forum for Caledon Institute, built with Astro, React, and Cloudflare Wo
 
 - Markdown posts and replies up to 25,000 characters each.
 - External images, link previews, and click-to-play YouTube. No image uploads.
-- GitHub or username/password login, with verified-member badges.
+- GitHub, optional Google, or username/password login, with verified-member badges.
+- Account API keys, a versioned REST API, and public Swagger docs at `/api/docs`.
 - Likes, notifications, search, reports, and admin moderation.
 - Server-rendered pages, Open Graph, Twitter Cards, and structured data.
 

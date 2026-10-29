@@ -1,0 +1,16 @@
+---
+import swaggerScript from 'swagger-ui-dist/swagger-ui-bundle.js?url';
+import swaggerCss from 'swagger-ui-dist/swagger-ui.css?url';
+---
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="robots" content="noindex"/><title>Caledon Forum API documentation</title><link rel="stylesheet" href={swaggerCss}/></head>
+  <body>
+    <header style="padding:16px 24px;font-family:system-ui"><a href="/">Caledon Forum</a> · <a href="/settings?category=api">Manage API key</a></header>
+    <div id="swagger-ui"></div>
+    <script is:inline src={swaggerScript}></script>
+    <script is:inline>
+      window.ui=SwaggerUIBundle({url:'/api/openapi.json',dom_id:'#swagger-ui',deepLinking:true,persistAuthorization:false,validatorUrl:null,queryConfigEnabled:false});
+    </script>
+  </body>
+</html>

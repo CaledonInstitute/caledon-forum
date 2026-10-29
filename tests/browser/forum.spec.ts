@@ -10,7 +10,7 @@ test('feed, navigation and anonymous interaction',async({page})=>{
  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto('/');await expect(page.getByRole('heading',{name:'Home',exact:true})).toBeVisible();await expect(page.locator('#post-qa-notebook')).toContainText('research notebook');
  await page.screenshot({path:'artifacts/feed-desktop.png',fullPage:true});
- await page.locator('#post-qa-notebook [data-like]').click();await expect(page).toHaveURL(/\/login$/);await expect(page.getByText('Sign-in is not available yet.')).toBeVisible();
+ await page.locator('#post-qa-notebook [data-like]').click();await expect(page).toHaveURL(/\/login$/);await expect(page.getByRole('heading',{name:'Welcome back',exact:true})).toBeVisible();await expect(page.getByLabel('Username',{exact:true})).toBeVisible();
  expect(errors).toEqual([]);
 });
 test('public thread has SSR content, metadata and crawlable pagination',async({browser})=>{
