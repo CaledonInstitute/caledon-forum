@@ -10,6 +10,7 @@ import { refreshMembership } from '../../../lib/membership';
 import { createAuth } from '../../../lib/auth';
 import { readLimited } from '../../../lib/security';
 import { isValidUsername } from '../../../lib/usernames';
+import { avatarUrl, fetchAvatar } from '../../../lib/avatar';
 const id = z.string().min(1).max(100);
 export const POST: APIRoute = async ctx => {
   try {
@@ -23,11 +24,16 @@ export const POST: APIRoute = async ctx => {
     await rateLimit(`forum:${user.id}:${action}`,action==='preview'?15:action==='publish'?10:40);
     if (action==='membership') return Response.json({isCaledonMember:await refreshMembership(user.id,true)});
     if (action==='profile') {
-      const input = z.object({name:z.string().trim().min(1).max(80),bio:z.string().max(300)}).parse(data);
-      await run('UPDATE user SET name=?,bio=?,updated_at=? WHERE id=?',input.name,input.bio,Date.now(),user.id); return Response.json({ok:true});
+      const input = z.object({name:z.string().trim().min(1).max(80),bio:z.string().max(300),image:z.string().trim().max(2048).nullable().optional()}).parse(data);
+      if (input.image !== undefined) {
+        const image = input.image ? avatarUrl(input.image) : null;
+        if (image) await fetchAvatar(image);
+        await run('UPDATE user SET name=?,bio=?,image=?,updated_at=? WHERE id=?',input.name,input.bio,image,Date.now(),user.id);
+      } else await run('UPDATE user SET name=?,bio=?,updated_at=? WHERE id=?',input.name,input.bio,Date.now(),user.id);
+      return Response.json({ok:true});
     }
     if (action==='onboarding') {
-      const input = z.object({username:z.string().refine(isValidUsername,'Choose 3–30 letters, numbers, or underscores. System names are reserved.')}).parse(data);
+      const input = z.object({username:z.string().refine(isValidUsername,'Choose 1–30 letters, numbers, or underscores. Do not start with a number. System names are reserved.')}).parse(data);
       if (user.username) throw new Error('Your username is already set.');
       try { await run('UPDATE user SET username=?,display_username=?,updated_at=? WHERE id=? AND username IS NULL',input.username.toLowerCase(),input.username,Date.now(),user.id); }
       catch { throw new Error('That username is already taken. Choose another.'); }

@@ -5,4 +5,4 @@ export const RESERVED_USERNAMES = new Set([
   'favicon','social','assets','sitemaps','constructor','prototype','__proto__',
 ]);
 export const isReservedUsername = (value:string) => RESERVED_USERNAMES.has(value.toLowerCase());
-export const isValidUsername = (value:string) => /^[a-zA-Z0-9_]{3,30}$/.test(value) && !isReservedUsername(value);
+export const isValidUsername = (value:string) => /^[a-zA-Z_][a-zA-Z0-9_]{0,29}$/.test(value) && !isReservedUsername(value);

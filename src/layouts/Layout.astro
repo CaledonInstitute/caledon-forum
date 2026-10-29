@@ -40,7 +40,7 @@ const siteSchema={'@context':'https://schema.org','@graph':[{'@type':'Organizati
 <a href="/settings" class:list={{active:path==='/settings'}}><Settings size={21} strokeWidth={1.6}/>Settings</a>
 </nav>
 <div style="margin-top:28px"><a class="button" style="width:176px" href={viewer?'/#compose':'/login'}><PenLine size={16}/>Start a thread</a></div>
-<div class="sidebar-bottom">{viewer ? <a href={viewer.username?`/${viewer.username}`:'/onboarding'} class="sidebar-user"><Avatar name={viewer.name} image={viewer.image}/><span><strong>{viewer.name}</strong><span class="muted">@{viewer.username || 'choose_username'}</span></span></a> : <a class="text-link small" href="/login">Sign in to join in</a>}
+<div class="sidebar-bottom">{viewer ? <a href={viewer.username?`/${viewer.username}`:'/onboarding'} class="sidebar-user"><Avatar name={viewer.name} image={viewer.image} username={viewer.username}/><span><strong>{viewer.name}</strong><span class="muted">@{viewer.username || 'choose_username'}</span></span></a> : <a class="text-link small" href="/login">Sign in to join in</a>}
 <p>A little curiosity is a good place to start.</p><div class="footer-links"><a href="/rules">Community rules</a><a href="/privacy">Privacy</a><a href="https://caledoninstitute.github.io/" target="_blank" rel="noopener">Institute</a></div>
 <p>© {new Date().getUTCFullYear()} Caledon Institute</p></div></aside>
 <main id="main" class="main" tabindex="-1"><slot/></main></div>

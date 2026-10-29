@@ -6,6 +6,16 @@ import {isValidUsername,isReservedUsername} from '../src/lib/usernames';
 import {publicPost,replyLocation} from '../src/lib/db';
 import {POST} from '../src/pages/api/forum/[action]';
 beforeEach(resetDatabase);
+it('allows 1–30 characters while rejecting leading numbers and reserved short names',()=>{
+ for(const name of ['a','Z','ab','_','_1','a1','a'.repeat(30)])expect(isValidUsername(name),name).toBe(true);
+ for(const name of ['','1','1a','9_name','a'.repeat(31),'a-b','a b','é','p','P','u','U'])expect(isValidUsername(name),name).toBe(false);
+});
+it.each(['a','ab','_1','1a','p'])('applies short username rules in onboarding: %s',async(username)=>{
+ const user=seedUser();execute('UPDATE user SET username=NULL WHERE id=?',user.id);user.username=null as any;
+ const response=await POST({params:{action:'onboarding'},locals:{user},request:new Request('http://localhost:4321/api/forum/onboarding',{method:'POST',headers:{origin:'http://localhost:4321','Content-Type':'application/json'},body:JSON.stringify({username})})} as any);
+ const valid=isValidUsername(username);expect(response.status).toBe(valid?200:400);
+ expect(row('SELECT username FROM user WHERE id=?',user.id).username).toBe(valid?username:null);
+});
 it('reserves system usernames case-insensitively',()=>{
  for(const name of ['settings','ADMIN','search','register','api','thread','constructor','__proto__'])expect(isReservedUsername(name)).toBe(true);
  expect(isValidUsername('andika')).toBe(true);expect(isValidUsername('qa_caledon')).toBe(true);expect(isValidUsername('AdMiN')).toBe(false);

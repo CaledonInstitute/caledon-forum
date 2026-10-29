@@ -34,7 +34,7 @@ export function createAuth() {
         return {user:{name:profile.name || profile.login,email:selected?.email || `github-${profile.id}@unverified.caledon.invalid`,emailVerified:!!selected?.verified,image:profile.avatar_url},data:profile};
       },
     }},
-    plugins:[username({immutableUsername:true,minUsernameLength:3,maxUsernameLength:30,usernameValidator:isValidUsername}),...(env.TURNSTILE_SECRET_KEY?[captcha({provider:'cloudflare-turnstile',secretKey:env.TURNSTILE_SECRET_KEY,allowedHostnames:[new URL(env.SITE_URL).hostname],endpoints:['/sign-up/email','/sign-in/username','/sign-in/email','/request-password-reset','/send-verification-email','/change-email']})]:[])],
+    plugins:[username({immutableUsername:true,minUsernameLength:1,maxUsernameLength:30,usernameValidator:isValidUsername}),...(env.TURNSTILE_SECRET_KEY?[captcha({provider:'cloudflare-turnstile',secretKey:env.TURNSTILE_SECRET_KEY,allowedHostnames:[new URL(env.SITE_URL).hostname],endpoints:['/sign-up/email','/sign-in/username','/sign-in/email','/request-password-reset','/send-verification-email','/change-email']})]:[])],
     rateLimit:{enabled:false}, // Persistent D1 rate limiting is applied before the auth handler.
     advanced:{ipAddress:{ipAddressHeaders:['cf-connecting-ip']}},
     session:{expiresIn:60*60*24*14,updateAge:60*60*24},

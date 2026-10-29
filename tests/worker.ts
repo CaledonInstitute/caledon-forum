@@ -38,6 +38,10 @@ export default {async fetch(request:Request){
   response=await call('reset-password',{token:resetToken,newPassword:'A-new-test-password-456'});check(response.ok,'Password reset works');
   response=await call('reset-password',{token:resetToken,newPassword:'Another-test-password-789'});check(!response.ok,'Reset token cannot be reused');
   response=await call('sign-in/username',{username:'researcher',password:'A-new-test-password-456'});check(response.ok,'New password works');
+  response=await call('sign-up/email',{username:'z',name:'Short username',email:'short@caledon.test',password:'A-real-test-password-123',callbackURL:'/verify'});
+  check(response.ok,'Registration accepts a one-character username');
+  response=await call('sign-up/email',{username:'1z',name:'Invalid username',email:'invalid@caledon.test',password:'A-real-test-password-123',callbackURL:'/verify'});
+  check(!response.ok,'Registration rejects usernames starting with a number');
   return Response.json({passed});
  }catch(error){return Response.json({passed,error:error instanceof Error?error.message:'Worker test failed'},{status:500});}
  finally{globalThis.fetch=nativeFetch;}
