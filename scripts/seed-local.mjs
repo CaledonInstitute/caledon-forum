@@ -40,16 +40,18 @@ const variable = (name) =>
     ?.trim()
     .replace(/^['"]|['"]$/g, "");
 if (variable("AUTH_ENABLED") === "true" && variable("BETTER_AUTH_SECRET")) {
-  const token = randomUUID();
-  statements.push(
-    `INSERT OR REPLACE INTO session(id,token,user_id,expires_at,created_at,updated_at) VALUES('qa-browser-session',${q(token)},'qa-alice',${now + 86400000},${now},${now})`
-  );
-  const signature = createHmac("sha256", variable("BETTER_AUTH_SECRET")).update(token).digest("base64");
-  await mkdir(".astro", { recursive: true });
-  await writeFile(
-    ".astro/qa-session.json",
-    JSON.stringify({ name: "better-auth.session_token", value: encodeURIComponent(`${token}.${signature}`), url: "http://localhost:4321" })
-  );
+  for (const [userId, sessionId, filename] of [
+    ["qa-alice", "qa-browser-session", "qa-session.json"],
+    ["qa-bob", "qa-mention-session", "qa-mention-session.json"],
+  ]) {
+    const token = randomUUID();
+    statements.push(
+      `INSERT OR REPLACE INTO session(id,token,user_id,expires_at,created_at,updated_at) VALUES(${q(sessionId)},${q(token)},${q(userId)},${now + 86400000},${now},${now})`
+    );
+    const signature = createHmac("sha256", variable("BETTER_AUTH_SECRET")).update(token).digest("base64");
+    await mkdir(".astro", { recursive: true });
+    await writeFile(`.astro/${filename}`, JSON.stringify({ name: "better-auth.session_token", value: encodeURIComponent(`${token}.${signature}`), url: "http://localhost:4321" }));
+  }
 }
 statements.push(
   `INSERT OR IGNORE INTO posts(id,author_id,body,created_at,updated_at) VALUES('qa-media','qa-alice','External media regression fixture.\n\nhttps://avatars.githubusercontent.com/u/9919?v=4\n\nhttps://youtu.be/jNQXAC9IVRw',${now - 18000000},${now - 18000000})`

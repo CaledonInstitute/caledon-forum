@@ -136,7 +136,7 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
               ) : (
                 <Avatar name={r.actor?.name} image={r.actor?.image} username={r.actor?.username} />
               )}
-              <div>
+              <div class="notification-content">
                 <div class="identity">
                   {r.actor?.username ? (
                     <a class="notification-profile" href={`/${r.actor.username}`}>

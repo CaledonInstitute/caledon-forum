@@ -152,12 +152,18 @@ small,
 .nav a:hover {
   background: var(--surface);
 }
-.nav .dot {
+.nav .dot,
+.mobile-nav .dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: black;
   margin-left: auto;
+}
+.mobile-nav .dot {
+  position: absolute;
+  top: 8px;
+  right: 14px;
 }
 .sidebar-bottom {
   margin-top: auto;
@@ -849,6 +855,16 @@ small,
   position: relative;
   z-index: 2;
   align-self: flex-start;
+  flex-shrink: 0;
+}
+.notification-content {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notification-content .identity > .notification-profile {
+  flex-shrink: 1;
+  min-width: 0;
 }
 .notification-post {
   display: block;
@@ -1138,6 +1154,7 @@ small,
     align-items: center;
   }
   .mobile-nav a {
+    position: relative;
     padding: 12px 20px;
     display: flex;
   }

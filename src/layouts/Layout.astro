@@ -164,6 +164,7 @@ const siteSchema = {
       {nav.map((item) => (
         <a href={item.href} class:list={{ active: active(item.href) }} aria-label={item.label} aria-current={active(item.href) ? "page" : undefined}>
           <item.icon size={22} strokeWidth={active(item.href) ? 2 : 1.6} />
+          {item.label === "Notifications" && !!unread?.n && <span class="dot" role="img" aria-label={`${unread.n} unread notifications`} />}
         </a>
       ))}
     </nav>
