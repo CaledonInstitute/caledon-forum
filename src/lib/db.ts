@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import type { ForumPost, LinkPreview } from "./types";
+import type { ForumPost, LinkPreview, PublicProfile } from "./types";
 import { PAGE_SIZE } from "./content";
 export const db = () => env.DB;
 export const all = async <T = Record<string, unknown>>(sql: string, ...args: any[]): Promise<T[]> =>
@@ -19,6 +19,12 @@ export const run = (sql: string, ...args: any[]) =>
     .prepare(sql)
     .bind(...args)
     .run();
+export const publicProfile = (username: string) =>
+  one<PublicProfile>(
+    `SELECT u.*,u.cover_image AS coverImage,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,
+    Date.now() - 86400000,
+    username
+  );
 export async function publishBatch(statements: D1PreparedStatement[]) {
   for (let attempt = 0; ; attempt++) {
     try {

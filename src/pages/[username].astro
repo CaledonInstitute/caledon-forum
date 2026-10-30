@@ -6,13 +6,12 @@ import PageHeader from "../components/PageHeader.astro";
 import AccountPanel from "../components/AccountPanel";
 import { env } from "cloudflare:workers";
 import { authReady, googleReady } from "../lib/auth";
-import { all, replyLocation, one } from "../lib/db";
+import { all, replyLocation, one, publicProfile } from "../lib/db";
 import Avatar from "../components/Avatar.astro";
 import Badge from "../components/Badge.astro";
 import PushSettings from "../components/PushSettings.astro";
 import Pagination from "../components/Pagination.astro";
 import { PAGE_SIZE, pageNumber, excerpt } from "../lib/content";
-import type { PublicProfile } from "../lib/types";
 const page = Astro.params.username!;
 if (/^[A-Za-z0-9_]{1,30}$/.test(page) && page !== page.toLowerCase()) return Astro.redirect(`/${page.toLowerCase()}${Astro.url.search}`, 301);
 const titles: Record<string, string> = {
@@ -32,13 +31,7 @@ const systemPage = Object.hasOwn(titles, page);
 const title = systemPage ? titles[page] : "Profile unavailable";
 const user = Astro.locals.user;
 const n = pageNumber(Astro.url);
-const person = !systemPage
-  ? await one<PublicProfile>(
-      `SELECT u.*,u.cover_image AS coverImage,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,
-      Date.now() - 86400000,
-      page
-    )
-  : null;
+const person = !systemPage ? await publicProfile(page) : null;
 if (!systemPage && !person) Astro.response.status = 404;
 
 if (["settings", "notifications", "onboarding", "admin"].includes(page) && !user) return Astro.redirect("/login");

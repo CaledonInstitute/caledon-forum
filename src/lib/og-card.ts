@@ -1,9 +1,35 @@
 import { Buffer } from "node:buffer";
 import { load } from "cheerio";
 import { safeFetch, readLimited, rasterType } from "./security";
-import type { ForumPost, LinkPreview } from "./types";
+import type { ForumPost, LinkPreview, PublicProfile } from "./types";
 
 export const OG_DESIGN_VERSION = "post-v1.2";
+export const PROFILE_OG_DESIGN_VERSION = "profile-v1";
+export function profileCardData(person: PublicProfile, origin: string) {
+  return {
+    name: person.name,
+    username: person.username,
+    avatar: person.image,
+    cover: person.coverImage,
+    member: !!person.isCaledonMember,
+    bio: person.bio.replace(/\s+/g, " ").trim(),
+    host: new URL(origin).host,
+  };
+}
+export type ProfileCardData = ReturnType<typeof profileCardData>;
+export async function profileCardKey(data: ProfileCardData, origin: string) {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(data)));
+  return new Request(new URL(`/api/og/profile/${encodeURIComponent(data.username)}.png?v=${PROFILE_OG_DESIGN_VERSION}-${Buffer.from(hash).toString("hex")}`, origin));
+}
+export function truncateCardText(value: string, limit: number) {
+  const chars = Array.from(value);
+  return chars.length > limit
+    ? chars
+        .slice(0, limit - 1)
+        .join("")
+        .trimEnd() + "…"
+    : value;
+}
 export function postCardData(p: ForumPost, links: LinkPreview[], origin: string) {
   const media = links.find((link) => link.kind === "image");
   const raw = p.body.replace(/```[^\n]*\n([\s\S]*?)```/g, "$1").replace(/!\[[^\]]*\]\([^)]*\)/g, "");

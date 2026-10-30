@@ -12,7 +12,20 @@ await new Promise((resolve) => reservation.close(resolve));
 const origin = `http://localhost:${port}`;
 const worker = spawn(
   process.execPath,
-  ["node_modules/wrangler/bin/wrangler.js", "dev", "--port", String(port), "--var", "POST_OG_ENABLED:true", "--var", `SITE_URL:${origin}`, "--log-level", "error"],
+  [
+    "node_modules/wrangler/bin/wrangler.js",
+    "dev",
+    "--port",
+    String(port),
+    "--var",
+    "POST_OG_ENABLED:true",
+    "--var",
+    "PROFILE_OG_ENABLED:true",
+    "--var",
+    `SITE_URL:${origin}`,
+    "--log-level",
+    "error",
+  ],
   {
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
@@ -45,7 +58,7 @@ try {
     const test = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test", "tests/browser/og.spec.ts"], {
       windowsHide: true,
       stdio: "inherit",
-      env: { ...process.env, TEST_BASE_URL: origin, EXPECT_POST_OG: "true" },
+      env: { ...process.env, TEST_BASE_URL: origin, EXPECT_POST_OG: "true", EXPECT_PROFILE_OG: "true" },
     });
     test.on("error", reject);
     test.on("exit", (code) => (code ? reject(new Error(`OG browser test exited ${code}. ${output}`)) : resolve()));

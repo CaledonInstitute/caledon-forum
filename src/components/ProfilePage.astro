@@ -11,10 +11,12 @@ import { profilePosts } from "../lib/db";
 import { PAGE_SIZE, pageNumber } from "../lib/content";
 import type { PublicProfile } from "../lib/types";
 import { preparePostContent } from "../lib/post-content";
+import { profileCardData, profileCardKey } from "../lib/og-card";
 interface Props {
   person: PublicProfile | null;
 }
 const { person } = Astro.props;
+const socialImage = person ? new URL((await profileCardKey(profileCardData(person, env.SITE_URL), env.SITE_URL)).url) : undefined;
 const requestedTab = Astro.url.searchParams.get("tab");
 const tab = requestedTab === "replies" || requestedTab === "likes" ? requestedTab : "posts";
 const page = pageNumber(Astro.url);
@@ -41,6 +43,7 @@ const schema = person
   title={person ? `${person.name} (@${person.username})` : "Profile unavailable"}
   description={person?.bio || "Public conversations on Caledon Forum."}
   noindex={!person}
+  image={socialImage ? socialImage.pathname + socialImage.search : undefined}
   schema={schema}
   profile
 >

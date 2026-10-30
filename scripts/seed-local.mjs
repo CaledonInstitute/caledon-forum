@@ -7,6 +7,39 @@ const statements = [
   `INSERT OR IGNORE INTO user(id,name,email,email_verified,username,created_at,updated_at,bio) VALUES('qa-alice','Caledon QA','qa-alice@caledon.invalid',1,'qa_caledon',${now},${now},'Local regression-test profile. Not published to production.')`,
   `INSERT OR IGNORE INTO user(id,name,email,email_verified,username,created_at,updated_at) VALUES('qa-bob','Research QA','qa-bob@caledon.invalid',1,'qa_research',${now},${now})`,
 ];
+// Dedicated profile-card fixtures; these do not change the signed-in QA accounts.
+for (const [username, name, bio, image, cover] of [
+  [
+    "qa_og_cover",
+    "Caledon Research",
+    "Exploring vulnerability research and the things we learn by building together.",
+    "https://avatars.githubusercontent.com/u/9919?v=4",
+    "https://avatars.githubusercontent.com/u/9919?v=4",
+  ],
+  ["qa_og_empty", "New researcher", "", null, null],
+  [
+    "qa_og_long",
+    "A very long researcher name with emoji 😀 and more words than the card can display",
+    "Research 😀 🧪 " + "Questions, experiments, and useful observations. ".repeat(6),
+    null,
+    null,
+  ],
+  [
+    "qa_og_broken",
+    "Unavailable images",
+    "The profile remains readable when external images cannot be loaded.",
+    "https://example.com/missing-avatar.png",
+    "https://example.com/missing-cover.png",
+  ],
+]) {
+  statements.push(
+    `INSERT INTO user(id,name,email,email_verified,username,created_at,updated_at,bio,image,cover_image) VALUES(${q(username)},${q(name)},${q(username + "@caledon.invalid")},1,${q(username)},${now},${now},${q(bio)},${image ? q(image) : "NULL"},${cover ? q(cover) : "NULL"}) ON CONFLICT(id) DO UPDATE SET name=excluded.name,bio=excluded.bio,image=excluded.image,cover_image=excluded.cover_image`
+  );
+}
+statements.push(
+  `INSERT OR IGNORE INTO account(id,account_id,provider_id,user_id,created_at,updated_at) VALUES('qa-og-github','qa-og-github','github','qa_og_long',${now},${now})`,
+  `INSERT INTO memberships(user_id,github_id,state,checked_at) VALUES('qa_og_long','qa-og-github','active',${now}) ON CONFLICT(user_id) DO UPDATE SET checked_at=excluded.checked_at,state=excluded.state`
+);
 const roots = [
   [
     "qa-notebook",

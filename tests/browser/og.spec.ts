@@ -2,6 +2,46 @@ import { test, expect } from "@playwright/test";
 import { load } from "cheerio";
 import { mkdir, writeFile } from "node:fs/promises";
 
+test("profile OG cards use public identity on every tab and render real PNGs", async ({ request }, testInfo) => {
+  const origin = testInfo.project.use.baseURL!;
+  const fallback = await (await request.get("/api/og/site.png")).body();
+  await mkdir("artifacts", { recursive: true });
+  const cards: Buffer[] = [];
+  for (const kind of ["cover", "empty", "long", "broken"]) {
+    const username = `qa_og_${kind}`;
+    let imageUrl = "";
+    for (const suffix of ["", "?tab=replies", "?tab=likes", "?page=2"]) {
+      const page = await request.get(`/${username}${suffix}`);
+      expect(page.status()).toBe(200);
+      const html = load(await page.text());
+      const url = html('meta[property="og:image"]').attr("content")!;
+      expect(url).toContain(`${origin}/api/og/profile/${username}.png?v=profile-v1-`);
+      expect(html('meta[name="twitter:image"]').attr("content")).toBe(url);
+      if (imageUrl) expect(url).toBe(imageUrl);
+      imageUrl = url;
+    }
+    const response = await request.get(imageUrl);
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("image/png");
+    const bytes = await response.body();
+    expect(bytes.readUInt32BE(16)).toBe(1200);
+    expect(bytes.readUInt32BE(20)).toBe(630);
+    if (process.env.EXPECT_PROFILE_OG === "true") expect(bytes.equals(fallback)).toBe(false);
+    expect(await (await request.get(`/api/og/profile/${username}.png?v=old&ignored=1`)).body()).toEqual(bytes);
+    await writeFile(`artifacts/og-profile-${kind}.png`, bytes);
+    cards.push(bytes);
+  }
+  if (process.env.EXPECT_PROFILE_OG === "true") expect(new Set(cards.map((bytes) => bytes.toString("base64"))).size).toBe(4);
+  const alias = await request.get("/api/og/profile/QA_OG_EMPTY.png", { maxRedirects: 0 });
+  expect(alias.status()).toBe(301);
+  expect(alias.headers().location).toBe("/api/og/profile/qa_og_empty.png");
+  for (const name of ["qa_og_nonexistent", "settings", "bad-name"]) {
+    const response = await request.get(`/api/og/profile/${name}.png`);
+    expect(response.status()).toBe(404);
+    expect(response.headers()["cache-control"]).toBe("no-store");
+  }
+});
+
 test("post and reply OG images use their own content, remain passive and preserve generic pages", async ({ request }, testInfo) => {
   const origin = testInfo.project.use.baseURL!;
   const feed = load(await (await request.get("/")).text());
