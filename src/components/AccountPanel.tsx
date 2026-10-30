@@ -87,6 +87,8 @@ export default function AccountPanel({
   hasPassword?: boolean;
 }) {
   const [hydrated, setHydrated] = useState(false);
+  const [passwordSet, setPasswordSet] = useState(hasPassword);
+  const [rememberMe, setRememberMe] = useState(false);
   useEffect(() => setHydrated(true), []);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -113,6 +115,7 @@ export default function AccountPanel({
     await perform(async () => {
       const r = await send(link ? "/api/auth/link-social" : "/api/auth/sign-in/social", {
         provider,
+        ...(!link && mode === "login" ? { additionalData: { rememberMe } } : {}),
         callbackURL: link ? `/settings?category=${provider === "github" ? "github" : "security"}` : "/onboarding",
         errorCallbackURL: link ? `/settings?category=${provider === "github" ? "github" : "security"}&error=oauth` : "/login?error=oauth",
       });
@@ -125,7 +128,7 @@ export default function AccountPanel({
     const value = (key: string) => String(form.get(key) || "");
     perform(async () => {
       if (mode === "login") {
-        await send("/api/auth/sign-in/username", { username: value("username"), password: value("password") }, token);
+        await send("/api/auth/sign-in/username", { username: value("username"), password: value("password"), rememberMe }, token);
         location.assign("/");
       }
       if (mode === "register") {
@@ -250,7 +253,7 @@ export default function AccountPanel({
                     <RefreshCw size={15} />
                     Refresh membership
                   </button>
-                  {(hasPassword || hasGoogle) && (
+                  {(passwordSet || hasGoogle) && (
                     <button
                       className="text-button"
                       disabled={busy}
@@ -287,7 +290,7 @@ export default function AccountPanel({
                 {hasGoogle ? (
                   <>
                     <p>Google is connected.</p>
-                    {(hasPassword || hasGithub) && (
+                    {(passwordSet || hasGithub) && (
                       <button
                         className="button secondary"
                         disabled={busy}
@@ -301,7 +304,7 @@ export default function AccountPanel({
                         Disconnect Google
                       </button>
                     )}
-                    {!hasPassword && !hasGithub && <p className="help">Add another sign-in method before disconnecting Google.</p>}
+                    {!passwordSet && !hasGithub && <p className="help">Add another sign-in method before disconnecting Google.</p>}
                   </>
                 ) : (
                   <button className="button secondary" disabled={busy || !enabled || !googleEnabled} onClick={() => social("google", true)}>
@@ -344,7 +347,7 @@ export default function AccountPanel({
                 Update email
               </button>
             </form>
-            {hasPassword ? (
+            {passwordSet ? (
               <form
                 className="form"
                 style={{ marginTop: 24 }}
@@ -376,12 +379,37 @@ export default function AccountPanel({
                 </button>
               </form>
             ) : (
-              <p>
-                <a className="text-link" href="/forgot-password">
-                  Set a password using email recovery
-                </a>{" "}
-                to secure your account.
-              </p>
+              <form
+                className="form"
+                style={{ marginTop: 24 }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const f = new FormData(form);
+                  perform(async () => {
+                    if (f.get("newPassword") !== f.get("confirmPassword")) throw new Error("Passwords do not match.");
+                    await send("/api/auth/set-password", { newPassword: f.get("newPassword") });
+                    form.reset();
+                    setPasswordSet(true);
+                    setMessage("Password set. You can now sign in with your username and password.");
+                  });
+                }}
+              >
+                <h3>Set a password</h3>
+                <p>Add a password to sign in with your username. No recovery email is needed.</p>
+                <label>
+                  New password
+                  <input type="password" name="newPassword" minLength={12} maxLength={128} autoComplete="new-password" required />
+                  <span className="help">Use 12–128 characters.</span>
+                </label>
+                <label>
+                  Confirm password
+                  <input type="password" name="confirmPassword" minLength={12} maxLength={128} autoComplete="new-password" required />
+                </label>
+                <button className="button secondary" disabled={busy || !enabled || !hydrated}>
+                  {busy ? "Working…" : "Set password"}
+                </button>
+              </form>
             )}
           </section>
         )}
@@ -410,6 +438,12 @@ export default function AccountPanel({
   return (
     <div className="auth-panel">
       {!enabled && <div className="notice">Sign-in is not available yet. You can still explore public conversations.</div>}
+      {mode === "login" && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <input type="checkbox" name="rememberMe" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} disabled={busy} style={{ width: "auto" }} />
+          Remember me for 30 days
+        </label>
+      )}
       {(mode === "login" || mode === "register") && (
         <>
           <div className="social-signin-actions">

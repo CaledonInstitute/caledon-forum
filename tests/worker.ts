@@ -190,6 +190,37 @@ export default {
         .join("; ");
       const session = await auth.api.getSession({ headers: new Headers({ cookie }) });
       check(!!session, "Signed session read from D1");
+      const sessionCookie = (response: Response) =>
+        response.headers
+          .getSetCookie()
+          .filter((c) => c.split("=")[0].endsWith("session_token"))
+          .at(-1) || "";
+      const cookieHeader = (response: Response) =>
+        response.headers
+          .getSetCookie()
+          .map((c) => c.split(";")[0])
+          .join("; ");
+      const rememberedLogin = await call("sign-in/username", { username: "researcher", password: "A-real-test-password-123", rememberMe: true });
+      check(rememberedLogin.ok && /Max-Age=2592000/i.test(sessionCookie(rememberedLogin)), "Remember me persists the password login cookie for 30 days");
+      const rememberedSession = await auth.api.getSession({ headers: new Headers({ cookie: cookieHeader(rememberedLogin) }) });
+      check(
+        rememberedSession && Math.abs(new Date(rememberedSession.session.expiresAt).getTime() - Date.now() - 30 * 86400000) < 10000,
+        "Remembered password session expires in 30 days in D1"
+      );
+      const temporaryLogin = await call("sign-in/username", { username: "researcher", password: "A-real-test-password-123", rememberMe: false });
+      check(temporaryLogin.ok && !/Max-Age=|Expires=/i.test(sessionCookie(temporaryLogin)), "Unchecked remember me uses a browser-session password cookie");
+      const temporarySession = await auth.api.getSession({ headers: new Headers({ cookie: cookieHeader(temporaryLogin) }) });
+      check(
+        temporarySession && Math.abs(new Date(temporarySession.session.expiresAt).getTime() - Date.now() - 86400000) < 10000,
+        "Temporary password session expires in one day in D1"
+      );
+      const rememberedAgain = await call("sign-in/username", { username: "researcher", password: "A-real-test-password-123", rememberMe: true }, cookieHeader(temporaryLogin));
+      check(
+        rememberedAgain.ok &&
+          /Max-Age=2592000/i.test(sessionCookie(rememberedAgain)) &&
+          rememberedAgain.headers.getSetCookie().some((c) => c.includes("dont_remember") && /Max-Age=0/i.test(c)),
+        "Remember me clears the previous temporary-session preference"
+      );
       const user = { ...signup.user, username: "researcher", emailVerified: true, role: "user", suspended: false };
       const mutate = async (action: string, data: any) =>
         forum({
@@ -246,8 +277,12 @@ export default {
       check(!response.ok, "Registration rejects usernames starting with a number");
       // Exercise Google's real OAuth state, signed ID token validation, and D1 linking
       // with test-only token/JWKS transports. No production provider calls are made.
-      const oauth = async (email: string, subject: string, linkCookie = "", invalidState = false) => {
-        const initiated = await call(linkCookie ? "link-social" : "sign-in/social", { provider: "google", callbackURL: "/onboarding", errorCallbackURL: "/login" }, linkCookie);
+      const oauth = async (email: string, subject: string, linkCookie = "", invalidState = false, rememberMe?: boolean) => {
+        const initiated = await call(
+          linkCookie ? "link-social" : "sign-in/social",
+          { provider: "google", callbackURL: "/onboarding", errorCallbackURL: "/login", ...(rememberMe === undefined ? {} : { additionalData: { rememberMe } }) },
+          linkCookie
+        );
         check(initiated.ok, "Google OAuth initiation");
         const authorization = new URL(((await initiated.json()) as any).url);
         check(authorization.searchParams.get("redirect_uri") === "http://localhost:8789/api/auth/callback/google", "Google callback URI");
@@ -284,6 +319,23 @@ export default {
         .join("; ");
       const googleSession = await auth.api.getSession({ headers: new Headers({ cookie: googleCookie }) });
       check(!!googleSession && googleSession.user.emailVerified && !googleSession.user.username, "Verified Google user awaits username");
+      const temporaryGoogle = await oauth("google-new@caledon.test", "new-google-subject", "", false, false);
+      check(
+        temporaryGoogle.status === 302 && !!sessionCookie(temporaryGoogle) && !/Max-Age=|Expires=/i.test(sessionCookie(temporaryGoogle)),
+        "Unchecked remember me uses a browser-session Google cookie"
+      );
+      const temporaryGoogleSession = await auth.api.getSession({ headers: new Headers({ cookie: cookieHeader(temporaryGoogle) }) });
+      check(
+        temporaryGoogleSession && Math.abs(new Date(temporaryGoogleSession.session.expiresAt).getTime() - Date.now() - 86400000) < 10000,
+        "Temporary Google session expires in one day in D1"
+      );
+      const rememberedGoogle = await oauth("google-new@caledon.test", "new-google-subject", "", false, true);
+      check(rememberedGoogle.status === 302 && /Max-Age=2592000/i.test(sessionCookie(rememberedGoogle)), "Remember me persists the Google login cookie for 30 days");
+      const rememberedGoogleSession = await auth.api.getSession({ headers: new Headers({ cookie: cookieHeader(rememberedGoogle) }) });
+      check(
+        rememberedGoogleSession && Math.abs(new Date(rememberedGoogleSession.session.expiresAt).getTime() - Date.now() - 30 * 86400000) < 10000,
+        "Remembered Google session expires in 30 days in D1"
+      );
       response = await oauth("forged@caledon.test", "forged-google-subject", "", true);
       check(response.headers.get("location")?.includes("error="), "Google rejects invalid OAuth state");
       check(!(await env.DB.prepare("SELECT id FROM user WHERE email='forged@caledon.test'").first()), "Invalid OAuth state creates no account");
@@ -311,6 +363,35 @@ export default {
         } as any);
       check((await unlink(user, "google")).ok, "Worker/D1 explicitly disconnects Google");
       check((await unlink({ ...user, id: googleSession!.user.id }, "google")).status === 400, "Worker/D1 protects the last social login");
+      let passwordAttempt = 0;
+      const setPassword = (cookie: string, viewer: any, newPassword: string, origin = "http://localhost:8789") =>
+        authGateway({
+          params: { all: "set-password" },
+          locals: { user: viewer },
+          request: new Request("http://localhost:8789/api/auth/set-password", {
+            method: "POST",
+            headers: { origin, cookie, "Content-Type": "application/json", "cf-connecting-ip": `192.0.2.${++passwordAttempt}` },
+            body: JSON.stringify({ newPassword }),
+          }),
+        } as any);
+      const googleUser = googleSession!.user;
+      check((await setPassword("", null, "Social-password-12345")).status === 401, "Set password requires a signed-in user");
+      check((await setPassword("", googleUser, "Social-password-12345")).status === 401, "Set password validates the actual session cookie");
+      check((await setPassword(googleCookie, googleUser, "Social-password-12345", "https://attacker.invalid")).status === 403, "Set password rejects cross-origin requests");
+      check((await setPassword(googleCookie, { ...googleUser, suspended: true }, "Social-password-12345")).status === 403, "Suspended users cannot set a password");
+      check((await setPassword(googleCookie, googleUser, "short")).status === 400, "Set password enforces the minimum length");
+      check((await setPassword(googleCookie, googleUser, "x".repeat(129))).status === 400, "Set password enforces the maximum length");
+      await env.DB.prepare("UPDATE session SET created_at=? WHERE user_id=?")
+        .bind(Date.now() - 2 * 86400000, googleUser.id)
+        .run();
+      check((await setPassword(googleCookie, googleUser, "Social-password-12345")).status === 403, "Set password rejects stale sessions");
+      await env.DB.prepare("UPDATE session SET created_at=? WHERE user_id=?").bind(Date.now(), googleUser.id).run();
+      verifyUrl = "";
+      check((await setPassword(googleCookie, googleUser, "Social-password-12345")).ok, "Social user sets a password directly through the gateway");
+      check(!verifyUrl, "Setting the first password sends no recovery email");
+      check((await setPassword(googleCookie, googleUser, "Replacement-password-12345")).status === 400, "Set password cannot overwrite an existing password");
+      await env.DB.prepare("UPDATE user SET username='googleuser',display_username='googleuser' WHERE id=?").bind(googleUser.id).run();
+      check((await call("sign-in/username", { username: "googleuser", password: "Social-password-12345" })).ok, "Social user can sign in using the new password");
       const key = await issueKey(user.id);
       const apiCall = (token: string) =>
         api({ params: { path: "me" }, locals: { user: null }, request: new Request("http://localhost:8789/api/v1/me", { headers: { Authorization: `Bearer ${token}` } }) } as any);

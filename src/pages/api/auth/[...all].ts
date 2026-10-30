@@ -16,6 +16,7 @@ const allowed = new Set([
   "/link-social",
   "/unlink-account",
   "/change-password",
+  "/set-password",
   "/sign-out",
   "/get-session",
   "/callback/github",
@@ -31,6 +32,28 @@ export const ALL: APIRoute = async (ctx) => {
     if (ctx.request.method === "POST") {
       await rateLimit(`auth:${ctx.request.headers.get("cf-connecting-ip") || "local"}:${route}`, route.includes("sign-in") ? 10 : 5, 600000);
       if (ctx.locals.user?.suspended && route !== "/sign-out") return Response.json({ message: "This account is suspended." }, { status: 403 });
+    }
+    if (route === "/set-password") {
+      if (ctx.request.method !== "POST") return Response.json({ message: "Use a POST request." }, { status: 405, headers: { Allow: "POST" } });
+      if (!ctx.locals.user) return Response.json({ message: "Sign in to continue." }, { status: 401 });
+      if (ctx.request.headers.get("origin") !== new URL(env.SITE_URL).origin) return Response.json({ message: "Refresh this page and try again." }, { status: 403 });
+      if (!ctx.request.headers.get("content-type")?.startsWith("application/json")) return Response.json({ message: "Use a JSON request." }, { status: 415 });
+      let data: unknown;
+      try {
+        data = JSON.parse(new TextDecoder().decode(await readLimited(new Response(ctx.request.body), 2048)));
+      } catch {
+        return Response.json({ message: "Use a valid JSON request of at most 2 KB." }, { status: 400 });
+      }
+      if (!data || typeof data !== "object" || !("newPassword" in data) || typeof data.newPassword !== "string")
+        return Response.json({ message: "Enter a new password." }, { status: 400 });
+      const auth = createAuth();
+      const session = await auth.api.getSession({ headers: ctx.request.headers, query: { disableCookieCache: true } });
+      if (!session || session.user.id !== ctx.locals.user.id) return Response.json({ message: "Sign in to continue." }, { status: 401 });
+      if (session.user.suspended) return Response.json({ message: "This account is suspended." }, { status: 403 });
+      if (Date.now() - new Date(session.session.createdAt).getTime() > 86400000)
+        return Response.json({ message: "Sign out and sign in again before setting a password." }, { status: 403 });
+      // Better Auth keeps setPassword server-only and refuses to replace an existing password.
+      return await auth.api.setPassword({ body: { newPassword: data.newPassword }, headers: ctx.request.headers, asResponse: true });
     }
     if (route === "/unlink-account" && ctx.request.method === "POST") {
       if (!ctx.locals.user) return Response.json({ message: "Sign in to continue." }, { status: 401 });

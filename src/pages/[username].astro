@@ -43,7 +43,13 @@ const category =
   settingsCategory === "github" || settingsCategory === "security" || settingsCategory === "notifications" || settingsCategory === "api" ? settingsCategory : "profile";
 const settingsEmail = page === "settings" && user ? await one<{ email: string }>("SELECT email FROM user WHERE id=?", user.id) : null;
 const currentEmail = settingsEmail?.email.endsWith("@unverified.caledon.invalid") ? null : settingsEmail?.email;
-const accounts = page === "settings" && user ? await all<{ provider_id: string }>("SELECT provider_id FROM account WHERE user_id=?", user.id) : [];
+const accounts =
+  page === "settings" && user
+    ? await all<{ provider_id: string; has_password: number }>(
+        "SELECT provider_id,CASE WHEN password IS NOT NULL AND password<>'' THEN 1 ELSE 0 END AS has_password FROM account WHERE user_id=?",
+        user.id
+      )
+    : [];
 const notifications =
   page === "notifications" && user
     ? await all<any>(
@@ -120,7 +126,7 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
           siteKey={env.TURNSTILE_SITE_KEY}
           user={user}
           hasGithub={accounts.some((a) => a.provider_id === "github")}
-          hasPassword={accounts.some((a) => a.provider_id === "credential")}
+          hasPassword={accounts.some((a) => a.provider_id === "credential" && !!a.has_password)}
         />
       </>
     )}

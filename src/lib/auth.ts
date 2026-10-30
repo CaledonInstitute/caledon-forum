@@ -5,7 +5,8 @@ import { drizzle } from "drizzle-orm/d1";
 import { username, captcha } from "better-auth/plugins";
 import * as schema from "../db/schema";
 import { stagePasswordVault, reconcileVault } from "./dm-vault";
-import { createAuthMiddleware } from "better-auth/api";
+import { createAuthMiddleware, getOAuthState } from "better-auth/api";
+import { setSessionCookie } from "better-auth/cookies";
 import { run } from "./db";
 import { isValidUsername } from "./usernames";
 import { emailReady, sendAuthEmail } from "./email";
@@ -63,6 +64,15 @@ function buildAuth(onEmailError?: () => void) {
             if (record && record.expiresAt > new Date()) (ctx.context as any).dmResetUser = record.value;
           }
         }
+      }),
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === "/sign-in/username" && ctx.body?.rememberMe === true && ctx.context.newSession)
+          ctx.setCookie(ctx.context.authCookies.dontRememberToken.name, "", { ...ctx.context.authCookies.dontRememberToken.attributes, maxAge: 0 });
+        if (!ctx.path.startsWith("/callback/") || !ctx.context.newSession) return;
+        const state = await getOAuthState<{ rememberMe?: boolean }>();
+        if (typeof state?.rememberMe !== "boolean" || state.link) return;
+        await setSessionCookie(ctx, ctx.context.newSession, !state.rememberMe);
+        if (state.rememberMe) ctx.setCookie(ctx.context.authCookies.dontRememberToken.name, "", { ...ctx.context.authCookies.dontRememberToken.attributes, maxAge: 0 });
       }),
     },
     emailAndPassword: {
@@ -131,7 +141,7 @@ function buildAuth(onEmailError?: () => void) {
     ],
     rateLimit: { enabled: false }, // Persistent D1 rate limiting is applied before the auth handler.
     advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
-    session: { expiresIn: 60 * 60 * 24 * 14, updateAge: 60 * 60 * 24 },
+    session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
     databaseHooks: {
       account: {
         update: {
@@ -150,6 +160,10 @@ function buildAuth(onEmailError?: () => void) {
       },
       session: {
         create: {
+          before: async (session) => {
+            const state = await getOAuthState<{ rememberMe?: boolean }>();
+            if (state?.rememberMe === false && !state.link) return { data: { ...session, expiresAt: new Date(Date.now() + 86400000) } };
+          },
           after: async (s) => {
             await run("UPDATE memberships SET checked_at=0,retry_after=0 WHERE user_id=?", s.userId);
           },
