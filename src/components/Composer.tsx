@@ -28,6 +28,17 @@ export default function Composer({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  const [threadState, setThreadState] = useState({ locked: false, deleted: false });
+  useEffect(() => {
+    if (!parentId) return;
+    const apply = (event: Event) => {
+      const state = (event as CustomEvent).detail;
+      setThreadState({ locked: !!state?.locked, deleted: !!state?.deleted });
+    };
+    document.addEventListener("forum:thread-state", apply);
+    if (document.body.dataset.threadState) setThreadState(JSON.parse(document.body.dataset.threadState));
+    return () => document.removeEventListener("forum:thread-state", apply);
+  }, [parentId]);
   const [notice, setNotice] = useState<{ message: string; url: string; persistent?: boolean } | null>(null);
   const closeNotice = useCallback(() => setNotice(null), []);
   const [quote, setQuote] = useState<QuotedPost | null>(null);
@@ -40,14 +51,7 @@ export default function Composer({
     const timer = setTimeout(async () => {
       setQuoteStatus("Loading quoted post…");
       try {
-        const response = await fetch("/api/forum/quote", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body }),
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error();
-        const result = (await response.json()) as { quote: QuotedPost | null };
+        const result = { quote: await (await import("../lib/client-content")).clientQuote(body) };
         if (controller.signal.aborted) return;
         setQuote(result.quote);
         setQuoteStatus("");
@@ -72,10 +76,11 @@ export default function Composer({
     setError("");
     try {
       if (body.trim()) {
-        const r = await request("preview", { body });
-        setHtml(r.html);
+        const r = await request("preview-data", { body });
+        const rendered = await (await import("../lib/client-content")).clientRender(body, r.links);
+        setHtml(rendered.html);
         setLinks(r.links);
-        setQuote(r.quote);
+        setQuote(rendered.quote);
         setQuoteStatus("");
       } else {
         setHtml("");
@@ -120,6 +125,14 @@ export default function Composer({
       setBusy(false);
     }
   }
+  if (threadState.locked || threadState.deleted)
+    return (
+      <section className="composer" id="reply">
+        <p className="notice">
+          {threadState.deleted ? "This post is no longer available for replies." : "This thread is locked. Your draft is preserved until you leave this page."}
+        </p>
+      </section>
+    );
   return (
     <section className="composer" id={parentId ? "reply" : "compose"} aria-label={editId ? "Edit post" : parentId ? "Write a reply" : "Start a thread"}>
       <div className="composer-head">

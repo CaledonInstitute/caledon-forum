@@ -1,4 +1,7 @@
+import "./post-tools";
 import "./post-views";
+import "./rich-posts";
+import "./realtime";
 
 async function action(name: string, data: unknown) {
   const r = await fetch(`/api/forum/${name}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });

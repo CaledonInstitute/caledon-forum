@@ -1,0 +1,12 @@
+---
+import type { IconName } from "../lib/icon-data";
+import { iconMarkup } from "../lib/icon-markup";
+interface Props {
+  name: IconName;
+  size?: number;
+  strokeWidth?: number;
+}
+const { name, size = 24, strokeWidth = 2 } = Astro.props;
+---
+
+<Fragment set:html={iconMarkup(name, size, strokeWidth)} />

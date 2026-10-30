@@ -14,6 +14,7 @@ export const GET: APIRoute = async (ctx) => {
   const id = file.slice(0, -4);
   const p = id === "site" ? null : await publicPost(id);
   if (id !== "site" && (!p || p.deleted)) return new Response(null, { status: 404 });
+  if (env.STATIC_OG_ENABLED === "true") return env.ASSETS.fetch(new URL("/social.png", env.SITE_URL));
   if (p && id !== String(p.publicId)) return ctx.redirect(`/api/og/${p.publicId}.png${ctx.url.search}`, 301);
   const key = new Request(new URL(`/api/og/${file}${p ? `?v=${p.updatedAt}` : ""}`, env.SITE_URL));
   const cache = await caches.open("social-images");

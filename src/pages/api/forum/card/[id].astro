@@ -9,5 +9,5 @@ const parent = item?.parentId ? await post(item.parentId, Astro.locals.user?.id)
 if (!item || item.deleted) Astro.response.status = 404;
 ---
 
-{item && !item.deleted && <Post post={item} reply={!!item.parentId} />}
+{item && !item.deleted && <Post post={item} reply={!!item.parentId} full={Astro.url.searchParams.get("full") === "1"} />}
 {parent && <template data-parent-id={parent.id} data-direct-replies={parent.directReplies} />}

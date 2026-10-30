@@ -9,6 +9,7 @@ import { authReady, googleReady } from "../lib/auth";
 import { all, replyLocation, one } from "../lib/db";
 import Avatar from "../components/Avatar.astro";
 import Badge from "../components/Badge.astro";
+import PushSettings from "../components/PushSettings.astro";
 import Pagination from "../components/Pagination.astro";
 import { PAGE_SIZE, pageNumber, excerpt } from "../lib/content";
 import type { PublicProfile } from "../lib/types";
@@ -125,7 +126,7 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
       />
     )}
     {page === "notifications" && (
-      <>
+      <div data-notification-list>
         {notificationRows.length ? (
           notificationRows.map((r) => (
             <article class:list={["notification", { unread: !r.read_at }]}>
@@ -167,8 +168,9 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
           </section>
         )}
         <Pagination page={n} hasMore={notifications.length > PAGE_SIZE} />
-      </>
+      </div>
     )}
+    {page === "settings" && category === "security" && <PushSettings />}
     {page === "admin" &&
       (user?.role !== "admin" ? (
         <section class="empty">

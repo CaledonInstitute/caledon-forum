@@ -8,19 +8,21 @@ const link = (n: number) => {
 };
 ---
 
-{(page > 1 || hasMore) && (
-  <nav class="pagination" aria-label="Pagination">
-    <span>
-      {page > 1 && (
-        <a href={link(page - 1)} rel="prev">
-          Previous page
+<div data-pagination>
+  {(page > 1 || hasMore) && (
+    <nav class="pagination" aria-label="Pagination">
+      <span>
+        {page > 1 && (
+          <a href={link(page - 1)} rel="prev">
+            Previous page
+          </a>
+        )}
+      </span>
+      {hasMore && (
+        <a href={link(page + 1)} rel="next">
+          Load more
         </a>
       )}
-    </span>
-    {hasMore && (
-      <a href={link(page + 1)} rel="next">
-        Load more
-      </a>
-    )}
-  </nav>
-)}
+    </nav>
+  )}
+</div>

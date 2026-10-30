@@ -57,6 +57,11 @@ export const ALL: APIRoute = async (ctx) => {
       return Response.json({ status: true });
     }
     const response = await createAuth().handler(ctx.request);
+    if (route === "/sign-out" && ctx.request.method === "POST" && response.ok && ctx.locals.user) {
+      const device = ctx.cookies?.get("push-device")?.value;
+      if (device && /^[a-f0-9]{64}$/.test(device)) await run("DELETE FROM push_subscriptions WHERE id=? AND user_id=?", device, ctx.locals.user.id);
+      ctx.cookies?.delete("push-device", { path: "/" });
+    }
     if (route === "/callback/github" && response.status < 400) {
       // Invalidate any cached status; the redirected page verifies the current linked identity.
       if (ctx.locals.user) await run("UPDATE memberships SET checked_at=0,retry_after=0 WHERE user_id=?", ctx.locals.user.id);

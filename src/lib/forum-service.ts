@@ -9,6 +9,7 @@ import { refreshMembership } from "./membership";
 import { isValidUsername } from "./usernames";
 import { avatarUrl, fetchAvatar } from "./avatar";
 import type { Viewer } from "./types";
+import { signalChange } from "./control";
 const id = z.string().min(1).max(100);
 function mentionNotifications(body: string, postId: string, actorId: string, now: number, exclude = "") {
   return db()
@@ -22,6 +23,13 @@ function mentionNotifications(body: string, postId: string, actorId: string, now
     .bind(actorId, postId, now, JSON.stringify(extractMentions(body)), actorId, exclude, postId, actorId, postId);
 }
 export async function forumAction(user: Viewer, action: string, data: any): Promise<Response> {
+  const response = await forumActionImpl(user, action, data);
+  if (response.ok && ["publish", "edit", "delete", "like", "read", "moderate", "profile"].includes(action)) {
+    await signalChange();
+  }
+  return response;
+}
+async function forumActionImpl(user: Viewer, action: string, data: any): Promise<Response> {
   if (user.suspended) return Response.json({ error: "Your account is suspended." }, { status: 403 });
   if (action === "membership") return Response.json({ isCaledonMember: await refreshMembership(user.id, true) });
   if (action === "profile") {
@@ -87,6 +95,7 @@ export async function forumAction(user: Viewer, action: string, data: any): Prom
     });
   }
   if (action === "quote") return Response.json({ quote: await quotedPost(validateBody(data.body)) });
+  if (action === "preview-data") return Response.json({ links: await inspectBody(validateBody(data.body)) });
   if (action === "preview") {
     const body = validateBody(data.body);
     const links = await inspectBody(body);

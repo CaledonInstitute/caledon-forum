@@ -2,10 +2,25 @@
 declare namespace App {
   interface Locals {
     user: import("./lib/types").Viewer | null;
+    sessionId?: string;
   }
 }
 declare namespace Cloudflare {
   interface Env {
+    STATIC_OG_ENABLED?: string;
+    REALTIME_ENABLED?: string;
+    PRESENCE_ENABLED?: string;
+    PUSH_ENABLED?: string;
+    RATE_LIMIT_DO_ENABLED?: string;
+    FORUM_CONTROL?: DurableObjectNamespace;
+    PUBLIC_METADATA?: KVNamespace;
+    PUSH_QUEUE?: Queue;
+    VAPID_PUBLIC_KEY?: string;
+    VAPID_PRIVATE_KEY?: string;
+    VAPID_SUBJECT?: string;
+    WEB_ANALYTICS_TOKEN?: string;
+    SERVER_DO_ENABLED?: string;
+    FORUM_PAGES?: DurableObjectNamespace;
     BETTER_AUTH_SECRET?: string;
     GITHUB_CLIENT_ID?: string;
     GITHUB_CLIENT_SECRET?: string;

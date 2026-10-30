@@ -9,8 +9,31 @@
     "EMAIL_FROM": "Caledon Forum <caledon@resend.dev>",
     "SEARCH_CONSOLE_TOKEN": "",
     "SITE_URL": "https://caledon-forum.supervoid.workers.dev",
+    "REALTIME_ENABLED": "true",
+    "PRESENCE_ENABLED": "true",
+    "PUSH_ENABLED": "true",
+    "RATE_LIMIT_DO_ENABLED": "true",
+    "STATIC_OG_ENABLED": "true",
+    "SERVER_DO_ENABLED": "true",
+    "WEB_ANALYTICS_TOKEN": "2ab9f441aa5e4a7ea46b0668b538e5b5",
   },
-  "main": "@astrojs/cloudflare/entrypoints/server",
+  "main": "./src/worker.ts",
+  "durable_objects": {
+    "bindings": [
+      { "name": "FORUM_CONTROL", "class_name": "ForumControl" },
+      { "name": "FORUM_PAGES", "class_name": "ForumPages" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ForumControl"] },
+    { "tag": "v2", "new_sqlite_classes": ["ForumPages"] },
+  ],
+  "kv_namespaces": [{ "binding": "PUBLIC_METADATA", "id": "4c028d9516a042bcb37755675bffe7bf" }],
+  "queues": {
+    "producers": [{ "binding": "PUSH_QUEUE", "queue": "caledon-forum-push" }],
+    "consumers": [{ "queue": "caledon-forum-push", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 2 }],
+  },
+  "triggers": { "crons": ["* * * * *"] },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

@@ -1,6 +1,6 @@
 ---
 import Composer from "./Composer";
-import { PenLine } from "lucide-react";
+import Icon from "./Icon.astro";
 const { parentId, locked = false, unavailable = false } = Astro.props;
 const user = Astro.locals.user;
 ---
@@ -10,7 +10,7 @@ const user = Astro.locals.user;
     This post was deleted. You can still read its replies.
   </div>
 ) : locked ? (
-  <div class="notice" style="margin:24px">
+  <div class="notice" style="margin:24px" data-thread-lock-notice>
     This thread is locked. You can still read the conversation.
   </div>
 ) : user?.suspended ? (
@@ -20,7 +20,7 @@ const user = Astro.locals.user;
 ) : !user ? (
   <div class="compose-invite">
     <span class="avatar">
-      <PenLine size={18} />
+      <Icon name="pen-line" size={18} />
     </span>
     <p>{parentId ? "Have something to add?" : "What are you exploring today?"}</p>
     <a class="button secondary" href="/login">
@@ -42,5 +42,5 @@ const user = Astro.locals.user;
     </a>
   </div>
 ) : (
-  <Composer client:load parentId={parentId} name={user.name} username={user.username} image={user.image} />
+  <Composer client:only="react" parentId={parentId} name={user.name} username={user.username} image={user.image} />
 )}

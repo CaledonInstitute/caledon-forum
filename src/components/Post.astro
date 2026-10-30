@@ -1,35 +1,30 @@
 ---
-import { Heart, MessageCircle, MoreHorizontal, Eye, Link as LinkIcon } from "lucide-react";
 import Avatar from "./Avatar.astro";
 import Badge from "./Badge.astro";
 import LinkCard from "./LinkCard.astro";
-import QuoteCard from "./QuoteCard";
-import { quotedPost, localPostId } from "../lib/quotes";
-import { previews } from "../lib/db";
-import { markdown } from "../lib/markdown";
-import { excerpt, countCharacters } from "../lib/content";
+import { preparePostContent, type PostContent } from "../lib/post-content";
+import { postTime } from "../lib/post-time";
 import type { ForumPost } from "../lib/types";
 interface Props {
   post: ForumPost;
   full?: boolean;
   reply?: boolean;
+  prepared?: PostContent;
 }
-const { post: p, full = false, reply = false } = Astro.props;
+const { post: p, full = false, reply = false, prepared } = Astro.props;
 const viewer = Astro.locals.user;
-const links = p.deleted ? [] : (await previews(p.id)).filter((link) => !localPostId(link.url));
-const quote = p.deleted ? null : await quotedPost(p.body);
-const long = !full && countCharacters(p.body) > 600;
-const html = p.deleted ? "" : await markdown(long ? excerpt(p.body, 600) : p.body, links, quote?.sourceUrl);
+const { links, long, body } = prepared || (await preparePostContent([p], new Set(full ? [p.id] : []))).get(p.id)!;
 const permalink = `/p/${p.publicId}`;
 const createdAt = new Date(p.createdAt);
-const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "Asia/Jakarta" }).format(createdAt);
-const clock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" }).format(createdAt);
-const time = `${date} ${clock}`;
+const time = postTime(p.createdAt);
 ---
 
 <article
   class:list={["post", { reply, "post-detail": full }]}
   id={`post-${p.id}`}
+  data-post-id={p.id}
+  data-public-id={p.publicId}
+  data-updated-at={p.updatedAt}
   data-post-url={!full ? permalink : undefined}
   data-view-post={!full && !p.deleted ? p.id : undefined}
 >
@@ -62,8 +57,11 @@ const time = `${date} ${clock}`;
         <p class="muted small">This post was deleted.</p>
       ) : (
         <>
-          <div class="post-content" set:html={html} />
-          {quote && <QuoteCard quote={quote} />}
+          <div class="post-content" data-rich-content data-rich-previews={JSON.stringify(links)} data-rich-long={long ? "true" : undefined}>
+            <span class="plain-post">{body}</span>
+            <template data-rich-source>{long && !p.body.includes("p/") ? body : p.body}</template>
+          </div>
+          <div data-rich-quote></div>
           {long && (
             <a class="read-more" href={permalink}>
               Read full {p.rootId ? "reply" : "thread"}
@@ -81,50 +79,33 @@ const time = `${date} ${clock}`;
                 Open original image
               </a>
             ))}
-          <div class="post-tools">
-            <a href={`${permalink}#reply`} aria-label={`Reply to ${p.name}`}>
-              <MessageCircle size={17} strokeWidth={1.6} />
+          <div
+            class="post-tools"
+            data-post-controls={JSON.stringify({
+              id: p.id,
+              url: permalink,
+              name: p.name,
+              directReplies: p.directReplies,
+              likes: p.likes,
+              liked: !!p.liked,
+              shares: p.shares,
+              views: p.views,
+              signedIn: !!viewer,
+              owner: viewer?.id === p.authorId,
+              admin: viewer?.role === "admin",
+              root: !p.rootId,
+              locked: !!p.locked,
+            })}
+          >
+            <a href={`${permalink}#reply`}>
               <span data-reply-count={p.id}>{p.directReplies || "Reply"}</span>
             </a>
-            <button data-like={p.id} aria-pressed={!!p.liked} data-signed-in={!!viewer} aria-label={p.liked ? "Unlike" : "Like"}>
-              <Heart size={17} strokeWidth={1.6} fill={p.liked ? "currentColor" : "none"} />
-              <span>{p.likes || "Like"}</span>
-            </button>
-            <button data-copy={permalink} data-share={p.id} aria-label={`Copy post link, ${p.shares} shares`}>
-              <LinkIcon size={16} strokeWidth={1.6} />
-              <span>{p.shares}</span>
-            </button>
-            <span class="post-views" role="img" aria-label={`${p.views.toLocaleString("en-US")} ${p.views === 1 ? "view" : "views"}`}>
-              <Eye size={17} strokeWidth={1.6} aria-hidden="true" />
+            <span>
+              {p.likes} likes · {p.shares} shares
+            </span>
+            <span class="post-views" role="img" aria-label={`${p.views} ${p.views === 1 ? "view" : "views"}`}>
               <span aria-hidden="true">{p.views.toLocaleString("en-US")}</span>
             </span>
-            <details class="more">
-              <summary aria-label="More actions">
-                <MoreHorizontal size={19} />
-              </summary>
-              <div class="menu">
-                {viewer?.id === p.authorId && (
-                  <>
-                    <a href={`/edit/${p.id}`}>Edit post</a>
-                    <button data-delete={p.id}>Delete post</button>
-                  </>
-                )}
-                {viewer && <button data-report={p.id}>Report post</button>}
-                {!viewer && <a href="/login">Sign in to report</a>}
-                {viewer?.role === "admin" && (
-                  <>
-                    <button data-moderate={p.id} data-operation="delete">
-                      Remove as admin
-                    </button>
-                    {!p.rootId && (
-                      <button data-moderate={p.id} data-operation={p.locked ? "unlock" : "lock"}>
-                        {p.locked ? "Unlock" : "Lock"} thread
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            </details>
           </div>
           <p class="error" role="status" data-post-status></p>
         </>

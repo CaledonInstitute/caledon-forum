@@ -17,6 +17,21 @@ import { ALL as authGateway } from "../src/pages/api/auth/[...all]";
 import { post as readPost, recordPostView } from "../src/lib/db";
 export default {
   async fetch(request: Request) {
+    if (new URL(request.url).pathname === "/push-crypto") {
+      const webpush = await import("web-push");
+      const vapid = webpush.generateVAPIDKeys();
+      const client = webpush.generateVAPIDKeys();
+      const details = webpush.generateRequestDetails(
+        { endpoint: "https://fcm.googleapis.com/fcm/send/test", keys: { p256dh: client.publicKey, auth: "AgICAgICAgICAgICAgICAg" } },
+        JSON.stringify({ title: "Test" }),
+        { vapidDetails: { subject: "mailto:test@caledon.invalid", publicKey: vapid.publicKey, privateKey: vapid.privateKey } }
+      );
+      return Response.json({
+        encrypted: !!details.body?.byteLength,
+        encoding: details.headers["Content-Encoding"],
+        vapid: String(details.headers.Authorization).startsWith("vapid "),
+      });
+    }
     if (new URL(request.url).pathname !== "/run") return new Response(null, { status: 404 });
     const nativeFetch = globalThis.fetch;
     let verifyUrl = "";

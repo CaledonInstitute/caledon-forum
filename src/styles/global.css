@@ -1708,3 +1708,46 @@ small,
     flex-basis: 100%;
   }
 }
+.plain-post {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.avatar-shell {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.presence-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--bg, #fff);
+  border-radius: 50%;
+  background: #96999d;
+}
+.presence-dot[data-online="true"] {
+  background: #22a35a;
+}
+.live-updates {
+  display: block;
+  margin: 12px auto;
+}
+[data-push-preferences] {
+  border: 0;
+  padding: 12px 0;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+[data-push-preferences] legend {
+  font-size: 13px;
+  padding: 0;
+}
+[data-push-preferences] label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

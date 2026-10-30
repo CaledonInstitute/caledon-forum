@@ -1,6 +1,6 @@
 # Caledon Forum architecture
 
-Astro server rendering owns public HTML, metadata, structured data and crawlable pagination. React islands enhance the composer and account forms. Small TypeScript handlers handle likes, moderation and click-to-load YouTube. There is no background polling.
+Astro serves lightweight public HTML, metadata, structured data and crawlable pagination. The browser progressively renders rich post bodies and current quote cards. React islands handle account forms; the composer mounts only in the browser. Handlers support likes, moderation, live updates and click-to-load YouTube without background polling. See [Cloudflare Free operations](cloudflare-free.md) for presence, push, budgets and the Error 1102 investigation.
 
 ## Product invariants
 
@@ -47,11 +47,11 @@ Check the connected GitHub identity with `GET /user/memberships/orgs/CaledonInst
 
 `scripts/prepare-renderer.mjs` adapts pinned Satori 0.63.2 for Workers: HarfBuzz and its `free(void*)` callback trampoline are statically imported WASM modules. Emscripten normally tries to compile both at runtime, which Workers forbids. The script fails loudly if the pinned bootstrap changes. Generated files live in ignored `.astro/` and must be regenerated before dev/build/check.
 
-The PNG endpoint renders 1200×630 images, caches by post revision in the Worker Cache API, and falls back to `public/social.png`. No user-upload functionality is involved. Font data is bundled locally. The renderer never returns user-generated SVG.
+With `STATIC_OG_ENABLED=true`, the PNG endpoint serves packaged `public/social.png`. The optional dynamic renderer produces 1200×630 images, caches by post revision in the Worker Cache API, and falls back to that packaged image. No user-upload functionality is involved. Font data is bundled locally. The renderer never returns user-generated SVG.
 
 ## SEO
 
-Public content and metadata are in initial server HTML. Selected posts/replies render their full bodies; reply-list previews link to their individual details. Canonicals use SITE_URL and normalized page/profile-tab parameters. UTM parameters do not change canonicals. Thread JSON-LD describes only comments on the current page. Sitemap lastmod includes reply changes. Private/search/auth/API responses carry noindex; robots.txt allows crawlers to read these directives. Do not add disallow rules that hide noindex pages from crawlers.
+Public text and metadata are in initial server HTML. Rich Markdown, code, math and quote cards are enhanced in the browser. Selected posts/replies include their full text; reply-list previews link to their individual details. Canonicals use SITE_URL and normalized page/profile-tab parameters. UTM parameters do not change canonicals. Thread JSON-LD describes only comments on the current page. Sitemap lastmod includes reply changes. Private/search/auth/API responses carry noindex; robots.txt allows crawlers to read these directives. Do not add disallow rules that hide noindex pages from crawlers.
 
 Deleted post/reply details return 410 when they have no children; otherwise they retain a placeholder and links to their children. Other missing pages return 404. Private HTML and authenticated responses are never cached publicly. CSP permits only the required Turnstile, GitHub avatar and click-loaded YouTube origins.
 

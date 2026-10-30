@@ -7,11 +7,13 @@ import Badge from "../components/Badge.astro";
 import Pagination from "../components/Pagination.astro";
 import { all, posts } from "../lib/db";
 import { PAGE_SIZE, pageNumber } from "../lib/content";
+import { preparePostContent } from "../lib/post-content";
 const q = (Astro.url.searchParams.get("q") || "").trim().slice(0, 200);
 const tab = Astro.url.searchParams.get("tab") === "people" ? "people" : "posts";
 const page = pageNumber(Astro.url);
 const pattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
 const items = q && tab === "posts" ? await posts("p.root_id IS NULL AND p.deleted=0 AND p.body LIKE ? ESCAPE '\\'", [pattern], Astro.locals.user?.id, undefined, page) : [];
+const prepared = await preparePostContent(items.slice(0, PAGE_SIZE));
 const people =
   q && tab === "people"
     ? await all<any>(
@@ -51,7 +53,7 @@ const people =
       <p>Look for a phrase, an idea, or someone’s username.</p>
     </section>
   ) : tab === "posts" ? (
-    items.slice(0, PAGE_SIZE).map((post) => <Post post={post} />)
+    items.slice(0, PAGE_SIZE).map((post) => <Post post={post} prepared={prepared.get(post.id)} />)
   ) : (
     people.slice(0, PAGE_SIZE).map((p) => (
       <a class="person-row" href={`/${p.username}`}>

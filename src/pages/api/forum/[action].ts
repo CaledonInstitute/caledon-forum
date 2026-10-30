@@ -7,6 +7,7 @@ import { rateLimit } from "../../../lib/rate-limit";
 import { forumAction } from "../../../lib/forum-service";
 import { one, incrementPostView } from "../../../lib/db";
 import { forumError } from "../../../lib/forum-errors";
+import { signalChange } from "../../../lib/control";
 export const POST: APIRoute = async (ctx) => {
   try {
     if (ctx.request.headers.get("origin") !== new URL(env.SITE_URL).origin) return Response.json({ error: "Refresh this page and try again." }, { status: 403 });
@@ -15,6 +16,7 @@ export const POST: APIRoute = async (ctx) => {
       await rateLimit(`view:${ctx.request.headers.get("cf-connecting-ip") || "local"}`, 240);
       const data = z.object({ id: z.string().min(1).max(100) }).parse(JSON.parse(new TextDecoder().decode(await readLimited(new Response(ctx.request.body), 1024))));
       const result = await incrementPostView(data.id);
+      if (result) await signalChange();
       return result ? Response.json({ ok: true, ...result }) : Response.json({ error: "Post not found." }, { status: 404 });
     }
     if (ctx.params.action === "share") {
@@ -22,6 +24,7 @@ export const POST: APIRoute = async (ctx) => {
       await rateLimit(`share:${ctx.request.headers.get("cf-connecting-ip") || "local"}`, 40);
       const data = z.object({ id: z.string().min(1).max(100) }).parse(JSON.parse(new TextDecoder().decode(await readLimited(new Response(ctx.request.body), 1024))));
       const result = await one<{ shares: number }>("UPDATE posts SET shares=shares+1 WHERE id=? AND deleted=0 RETURNING shares", data.id);
+      if (result) await signalChange();
       return result ? Response.json({ ok: true, ...result }) : Response.json({ error: "Post not found." }, { status: 404 });
     }
     const user = ctx.locals.user;
@@ -29,7 +32,10 @@ export const POST: APIRoute = async (ctx) => {
     if (user.suspended) return Response.json({ error: "Your account is suspended." }, { status: 403 });
     const data = JSON.parse(new TextDecoder().decode(await readLimited(new Response(ctx.request.body), 512000)));
     const action = ctx.params.action!;
-    await rateLimit(`forum:${user.id}:${action}`, action === "mentions" || action === "quote" ? 120 : action === "preview" ? 15 : action === "publish" ? 10 : 40);
+    await rateLimit(
+      `forum:${user.id}:${action === "preview-data" ? "preview" : action}`,
+      action === "mentions" || action === "quote" ? 120 : action === "preview" || action === "preview-data" ? 15 : action === "publish" ? 10 : 40
+    );
     if (action === "email") {
       const input = z.object({ email: z.email(), token: z.string().min(1) }).parse(data);
       return await createAuth().handler(

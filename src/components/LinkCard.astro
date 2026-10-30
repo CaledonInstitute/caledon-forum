@@ -1,5 +1,5 @@
 ---
-import { Play } from "lucide-react";
+import { iconMarkup } from "../lib/icon-markup";
 import type { LinkPreview } from "../lib/types";
 interface Props {
   preview: LinkPreview;
@@ -12,7 +12,7 @@ const { preview: p } = Astro.props;
     <button class="video-thumbnail" data-video={p.videoId} aria-label={`Play ${p.title}`}>
       <img src={`/api/media/${p.id}`} alt={p.title || "YouTube video"} loading="lazy" width="600" height="338" />
       <span class="play">
-        <Play size={20} fill="currentColor" />
+        <Fragment set:html={iconMarkup("play", 20, 2, true)} />
       </span>
     </button>
     <div class="link-card-copy">

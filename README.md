@@ -11,7 +11,8 @@ A public forum for Caledon Institute, built with Astro, React, and Cloudflare Wo
 - @username mentions with keyboard-accessible suggestions, profile links, and notifications.
 - New posts and replies appear on the current page without navigation, with a short confirmation toast.
 - Paste a Caledon post or reply link to attach a quote card, including a live draft preview.
-- Server-rendered pages, Open Graph, Twitter Cards, and structured data.
+- Lightweight server HTML with browser-rendered rich posts, Open Graph, Twitter Cards, and structured data.
+- Budgeted realtime updates, online status, and opt-in browser push for replies, mentions, and likes.
 
 Profiles live at `/username`; posts at `/p/<id>`. New post IDs have exactly 19 random digits; existing post URLs are preserved.
 
@@ -40,6 +41,7 @@ npm run build
 ```
 
 See [setup and deployment](docs/setup.md) for service configuration and browser tests, or [architecture](docs/architecture.md) for implementation details.
+See [Cloudflare Free operations](docs/cloudflare-free.md) for hybrid rendering, resource budgets, push setup, and feature switches.
 
 ## Contributing
 

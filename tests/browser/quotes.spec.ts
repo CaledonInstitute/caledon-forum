@@ -46,7 +46,7 @@ for (const kind of ["post", "reply"] as const) {
       await card.scrollIntoViewIfNeeded();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: `artifacts/quote-${kind}-mobile.png` });
-      const publicContext = await browser.newContext({ javaScriptEnabled: false });
+      const publicContext = await browser.newContext();
       try {
         const reader = await publicContext.newPage();
         await reader.goto(result.url);

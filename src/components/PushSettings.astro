@@ -1,0 +1,29 @@
+<section class="settings-group" data-push-settings>
+  <h2>Browser notifications</h2>
+  <p>Get replies, mentions, and likes even when this tab is closed.</p>
+  <p class="muted small">On iPhone or iPad, add this site to your Home Screen and open it there first.</p>
+  <div>
+    <button class="button secondary" type="button" data-push-enable disabled>
+      Enable browser notifications
+    </button>
+    <button class="text-button" type="button" data-push-disable hidden>
+      Disable on this device
+    </button>
+  </div>
+  <fieldset data-push-preferences disabled>
+    <legend>Send notifications for</legend>
+    <label>
+      <input type="checkbox" name="reply" checked /> Replies
+    </label>
+    <label>
+      <input type="checkbox" name="mention" checked /> Mentions
+    </label>
+    <label>
+      <input type="checkbox" name="like" checked /> Likes
+    </label>
+  </fieldset>
+  <p role="status" data-push-status></p>
+</section>
+<script>
+  import "../scripts/push-settings";
+</script>

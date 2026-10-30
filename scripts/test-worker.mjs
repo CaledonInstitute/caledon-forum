@@ -27,6 +27,10 @@ try {
   const result = await response.json();
   for (const test of result.passed || []) console.log(`PASS ${test}`);
   if (!response.ok) throw new Error(result.error || output);
+  const cryptoResponse = await fetch("http://localhost:8789/push-crypto");
+  const cryptoResult = await cryptoResponse.json();
+  if (!cryptoResponse.ok || !cryptoResult.encrypted || cryptoResult.encoding !== "aes128gcm" || !cryptoResult.vapid) throw new Error("Workers Web Push encryption/VAPID failed");
+  console.log("PASS Workers Web Push encryption and VAPID signing (no external delivery)");
   success = true;
 } catch (error) {
   console.error(error.message);

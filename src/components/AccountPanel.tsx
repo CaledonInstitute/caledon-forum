@@ -86,6 +86,8 @@ export default function AccountPanel({
   hasGithub?: boolean;
   hasPassword?: boolean;
 }) {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
@@ -218,7 +220,7 @@ export default function AccountPanel({
               <p className="error" role="alert">
                 {isProfileAction ? error : ""}
               </p>
-              <button className="button" disabled={busy}>
+              <button className="button" disabled={busy || !hydrated}>
                 Save profile
               </button>
             </form>

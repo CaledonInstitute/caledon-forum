@@ -1,5 +1,10 @@
 export const MAX_CHARACTERS = 25_000;
 export const countCharacters = (value: string) => Array.from(value).length;
+export function exceedsCharacters(value: string, limit: number) {
+  let count = 0;
+  for (const _ of value) if (++count > limit) return true;
+  return false;
+}
 export function validateBody(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) throw new Error("Write something before publishing.");
   if (countCharacters(value) > MAX_CHARACTERS) throw new Error("Keep your post within 25,000 characters.");
@@ -15,7 +20,11 @@ export function plainText(value: string): string {
     .trim();
 }
 export function excerpt(value: string, length = 160): string {
-  const chars = Array.from(plainText(value));
+  const chars: string[] = [];
+  for (const char of plainText(value)) {
+    chars.push(char);
+    if (chars.length > length) break;
+  }
   if (chars.length <= length) return chars.join("");
   const cut = chars.slice(0, length - 1).join("");
   const space = cut.lastIndexOf(" ");

@@ -23,7 +23,7 @@ test("feed, navigation and anonymous interaction", async ({ page }) => {
   await expect(page.getByLabel("Username", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
-test("public thread has SSR content, metadata and crawlable pagination", async ({ browser }) => {
+test("public thread has lightweight server text, metadata and crawlable pagination", async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto(notebookPath + "?utm_source=test");
@@ -31,7 +31,7 @@ test("public thread has SSR content, metadata and crawlable pagination", async (
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", /research notebook/);
   await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute("content", "summary_large_image");
   await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", "http://localhost:4321" + notebookPath);
-  await expect(page.locator("#post-qa-notebook pre")).toContainText("notebook.add");
+  await expect(page.locator("#post-qa-notebook .plain-post")).toContainText("notebook.add");
   const schemas = await page.locator('script[type="application/ld+json"]').allTextContents();
   expect(schemas.some((s) => JSON.parse(s)["@type"] === "DiscussionForumPosting")).toBe(true);
   await expect(page.locator("#post-qa-reply-00 .read-more")).toHaveCount(1);
@@ -43,6 +43,7 @@ test("post content and empty space open the detail page", async ({ page }) => {
   for (const area of ["content", "space"]) {
     await page.goto("/");
     const post = page.locator("#post-qa-notebook");
+    await post.scrollIntoViewIfNeeded();
     if (area === "content") await post.locator(".post-content p").first().click();
     else await post.click({ position: { x: 5, y: 5 } });
     await expect(page).toHaveURL(notebookPath);
@@ -92,7 +93,7 @@ test("mobile has no horizontal overflow and exposes keyboard navigation", async 
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
 });
-test("index directives, missing content and generated PNG cards", async ({ request }) => {
+test("index directives, missing content and social PNG cards", async ({ request }) => {
   const robots = await request.get("/robots.txt");
   expect(await robots.text()).toContain("Sitemap: http://localhost:4321/sitemap.xml");
   const sitemap = await request.get("/sitemap.xml");
@@ -107,7 +108,7 @@ test("index directives, missing content and generated PNG cards", async ({ reque
   expect(bytes.readUInt32BE(16)).toBe(1200);
   expect(bytes.readUInt32BE(20)).toBe(630);
   const fallback = await request.get("/social.png");
-  expect(bytes.equals(await fallback.body())).toBe(false);
+  expect(bytes.equals(await fallback.body())).toBe(process.env.EXPECT_STATIC_OG !== "false");
 });
 test("external images and click-loaded YouTube", async ({ page, request }) => {
   await page.route("https://www.youtube-nocookie.com/**", (route) => route.fulfill({ contentType: "text/html", body: "<html><body>Test player</body></html>" }));

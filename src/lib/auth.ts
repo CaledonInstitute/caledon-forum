@@ -29,7 +29,25 @@ async function email(to: string, url: string, purpose: string) {
   });
   if (!response.ok) throw new Error("Email could not be sent. Please try again.");
 }
+let cachedAuth: ReturnType<typeof buildAuth> | undefined;
+let cachedConfiguration = "";
 export function createAuth() {
+  const configuration = JSON.stringify([
+    env.SITE_URL,
+    env.BETTER_AUTH_SECRET,
+    env.GITHUB_CLIENT_ID,
+    env.GITHUB_CLIENT_SECRET,
+    env.GOOGLE_CLIENT_ID,
+    env.GOOGLE_CLIENT_SECRET,
+    env.TURNSTILE_SECRET_KEY,
+  ]);
+  if (!cachedAuth || configuration !== cachedConfiguration) {
+    cachedAuth = buildAuth();
+    cachedConfiguration = configuration;
+  }
+  return cachedAuth;
+}
+function buildAuth() {
   if (!env.BETTER_AUTH_SECRET) throw new Error("Authentication is not configured.");
   return betterAuth({
     appName: "Caledon Forum",

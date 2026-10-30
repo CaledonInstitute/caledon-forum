@@ -1,10 +1,11 @@
 ---
 import "../styles/global.css";
-import { Home, Search, Bell, UserRound, Settings, Shield, PenLine } from "lucide-react";
+import Icon from "../components/Icon.astro";
 import { env } from "cloudflare:workers";
 import Mark from "../components/Mark.astro";
 import Avatar from "../components/Avatar.astro";
 import { one } from "../lib/db";
+import { isValidUsername } from "../lib/usernames";
 interface Props {
   title?: string;
   description?: string;
@@ -29,12 +30,14 @@ const currentPage = Math.min(100000, Math.max(1, Math.floor(Number(Astro.url.sea
 if (currentPage > 1) canonical.searchParams.set("page", String(currentPage));
 if (Astro.props.profile && ["replies", "likes"].includes(Astro.url.searchParams.get("tab") || "")) canonical.searchParams.set("tab", Astro.url.searchParams.get("tab")!);
 const path = Astro.url.pathname;
+const analyticsAllowed =
+  (path === "/" || /^\/p\/[1-9][0-9]{0,18}$/.test(path) || isValidUsername(path.slice(1))) && [...Astro.url.searchParams.keys()].every((key) => key === "page" || key === "tab");
 const nav = [
-  { label: "Home", href: "/", icon: Home },
-  { label: "Search", href: "/search", icon: Search },
-  { label: "Notifications", href: "/notifications", icon: Bell },
-  { label: "Profile", href: viewer?.username ? `/${viewer.username}` : "/login", icon: UserRound },
-];
+  { label: "Home", href: "/", icon: "home" },
+  { label: "Search", href: "/search", icon: "search" },
+  { label: "Notifications", href: "/notifications", icon: "bell" },
+  { label: "Profile", href: viewer?.username ? `/${viewer.username}` : "/login", icon: "user-round" },
+] as const;
 const unread = viewer ? await one<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE recipient_id=? AND read_at IS NULL", viewer.id) : null;
 const active = (href: string) => (href === "/" ? path === "/" : path === href);
 const fullTitle = title === "Caledon Forum" ? title : `${title} | Caledon Forum`;
@@ -64,6 +67,11 @@ const siteSchema = {
     <meta name="robots" content={noindex ? "noindex, follow" : "index, follow, max-image-preview:large"} />
     <meta name="theme-color" content="#FFFFFF" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
+    {analyticsAllowed && env.WEB_ANALYTICS_TOKEN && /^[a-f0-9]{32}$/i.test(env.WEB_ANALYTICS_TOKEN) && (
+      <script is:inline defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({ token: env.WEB_ANALYTICS_TOKEN })}></script>
+    )}
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content={type} />
@@ -83,7 +91,7 @@ const siteSchema = {
     <script type="application/ld+json" set:html={JSON.stringify(siteSchema).replace(/</g, "\\u003c")} />
     {schema && <script type="application/ld+json" set:html={JSON.stringify(schema).replace(/</g, "\\u003c")} />}
   </head>
-  <body>
+  <body data-realtime={env.REALTIME_ENABLED === "true" ? "true" : undefined} data-presence={env.PRESENCE_ENABLED === "true" ? "true" : undefined}>
     <a class="skip-link" href="#main">
       Skip to content
     </a>
@@ -95,7 +103,7 @@ const siteSchema = {
         </span>
       </a>
       <a href="/settings" aria-label="Settings">
-        <Settings size={19} />
+        <Icon name="settings" size={19} />
       </a>
     </header>
     <div class="shell">
@@ -109,25 +117,25 @@ const siteSchema = {
         <nav class="nav" aria-label="Main navigation">
           {nav.map((item) => (
             <a href={item.href} class:list={{ active: active(item.href) }} aria-current={active(item.href) ? "page" : undefined}>
-              <item.icon size={21} strokeWidth={1.6} />
+              <Icon name={item.icon} size={21} strokeWidth={1.6} />
               {item.label}
               {item.label === "Notifications" && !!unread?.n && <span class="dot" aria-label={`${unread.n} unread notifications`} />}
             </a>
           ))}
           {viewer?.role === "admin" && (
             <a href="/admin">
-              <Shield size={21} strokeWidth={1.6} />
+              <Icon name="shield" size={21} strokeWidth={1.6} />
               Admin
             </a>
           )}
           <a href="/settings" class:list={{ active: path === "/settings" }}>
-            <Settings size={21} strokeWidth={1.6} />
+            <Icon name="settings" size={21} strokeWidth={1.6} />
             Settings
           </a>
         </nav>
         <div style="margin-top:28px">
           <a class="button" style="width:176px" href={viewer ? "/#compose" : "/login"}>
-            <PenLine size={16} />
+            <Icon name="pen-line" size={16} />
             Start a thread
           </a>
         </div>
@@ -163,7 +171,7 @@ const siteSchema = {
     <nav class="mobile-nav" aria-label="Mobile navigation">
       {nav.map((item) => (
         <a href={item.href} class:list={{ active: active(item.href) }} aria-label={item.label} aria-current={active(item.href) ? "page" : undefined}>
-          <item.icon size={22} strokeWidth={active(item.href) ? 2 : 1.6} />
+          <Icon name={item.icon} size={22} strokeWidth={active(item.href) ? 2 : 1.6} />
           {item.label === "Notifications" && !!unread?.n && <span class="dot" role="img" aria-label={`${unread.n} unread notifications`} />}
         </a>
       ))}
