@@ -111,7 +111,13 @@ small,
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 38px 0 24px;
+  padding: 38px 14px 24px;
+  margin-inline: -14px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.sidebar > * {
+  flex-shrink: 0;
 }
 .brand {
   display: flex;

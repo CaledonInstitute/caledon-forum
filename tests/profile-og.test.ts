@@ -60,7 +60,7 @@ it("uses only public card fields, normalizes whitespace and truncates Unicode sa
 it("fingerprints every displayed field and keeps profile and post namespaces distinct", async () => {
   const data = profileCardData(person, env.SITE_URL);
   const key = (await profileCardKey(data, env.SITE_URL)).url;
-  expect(key).toContain("/api/og/profile/alice.png?v=profile-v1-");
+  expect(key).toContain("/api/og/profile/alice.png?v=profile-v2-");
   for (const change of [
     { name: "Bob" },
     { username: "bob" },

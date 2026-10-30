@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { load } from "cheerio";
 import { mkdir, writeFile } from "node:fs/promises";
+import { PROFILE_OG_DESIGN_VERSION } from "../../src/lib/og-card";
 
 test("profile OG cards use public identity on every tab and render real PNGs", async ({ request }, testInfo) => {
   const origin = testInfo.project.use.baseURL!;
@@ -15,7 +16,7 @@ test("profile OG cards use public identity on every tab and render real PNGs", a
       expect(page.status()).toBe(200);
       const html = load(await page.text());
       const url = html('meta[property="og:image"]').attr("content")!;
-      expect(url).toContain(`${origin}/api/og/profile/${username}.png?v=profile-v1-`);
+      expect(url).toContain(`${origin}/api/og/profile/${username}.png?v=${PROFILE_OG_DESIGN_VERSION}-`);
       expect(html('meta[name="twitter:image"]').attr("content")).toBe(url);
       if (imageUrl) expect(url).toBe(imageUrl);
       imageUrl = url;

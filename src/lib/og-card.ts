@@ -3,8 +3,8 @@ import { load } from "cheerio";
 import { safeFetch, readLimited, rasterType } from "./security";
 import type { ForumPost, LinkPreview, PublicProfile } from "./types";
 
-export const OG_DESIGN_VERSION = "post-v1.2";
-export const PROFILE_OG_DESIGN_VERSION = "profile-v1";
+export const OG_DESIGN_VERSION = "post-v1.3";
+export const PROFILE_OG_DESIGN_VERSION = "profile-v2";
 export function profileCardData(person: PublicProfile, origin: string) {
   return {
     name: person.name,

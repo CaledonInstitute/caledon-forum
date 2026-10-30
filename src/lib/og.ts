@@ -68,8 +68,19 @@ export async function socialSvg(fonts: CardFonts, data: PostCardData, avatar?: s
         ]),
         node(
           "div",
-          { display: "flex", position: "absolute", top: 542, left: 48, width: 1104, paddingTop: 18, borderTop: "1px solid #E5E5E5", fontSize: 17, color: "#595959" },
-          data.host
+          {
+            display: "flex",
+            position: "absolute",
+            top: 542,
+            left: 48,
+            width: 1104,
+            paddingTop: 18,
+            borderTop: "1px solid #E5E5E5",
+            fontSize: 17,
+            color: "#595959",
+            justifyContent: "space-between",
+          },
+          [node("div", { display: "flex" }, data.host), data.member ? node("div", { display: "flex" }, "Member of Caledon Institute") : null]
         ),
       ]
     ) as ReactElement,
@@ -125,19 +136,20 @@ export async function profileSocialSvg(fonts: CardFonts, data: ProfileCardData, 
             : null,
         ]),
         node("div", { display: "flex", position: "absolute", top: 352, left: 48, width: 1104, fontSize: 22, color: "#595959" }, `@${data.username}`),
+        data.member ? node("div", { display: "flex", position: "absolute", top: 390, left: 48, width: 1104, fontSize: 18, color: "#595959" }, "Member of Caledon Institute") : null,
         node(
           "div",
           {
             display: "flex",
             position: "absolute",
-            top: 404,
+            top: data.member ? 432 : 404,
             left: 48,
             width: 1104,
-            height: 108,
+            height: data.member ? 80 : 108,
             fontSize: 26,
             lineHeight: 1.35,
             overflow: "hidden",
-            lineClamp: 3,
+            lineClamp: data.member ? 2 : 3,
             wordBreak: "break-word",
           },
           truncateCardText(data.bio, 240)
