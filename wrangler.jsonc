@@ -6,7 +6,7 @@
   "d1_databases": [{ "binding": "DB", "database_name": "caledon-forum-db", "database_id": "87a1cef5-b570-4d18-b671-2628aac7d4be", "migrations_dir": "migrations" }],
   "vars": {
     "AUTH_ENABLED": "true",
-    "SEARCH_CONSOLE_TOKEN": "",
+    "SEARCH_CONSOLE_TOKEN": "l9C2OGxolLSsHztdmSlgDXLB9gGDk7LD7A-oqeScUKQ",
     "SITE_URL": "https://forum.hengker.tech",
     "REALTIME_ENABLED": "true",
     "PRESENCE_ENABLED": "true",
@@ -16,7 +16,7 @@
     "POST_OG_ENABLED": "true",
     "PROFILE_OG_ENABLED": "true",
     "SERVER_DO_ENABLED": "true",
-    "WEB_ANALYTICS_TOKEN": "2ab9f441aa5e4a7ea46b0668b538e5b5",
+    "WEB_ANALYTICS_TOKEN": "981e85e7dfd340638e0354379fbcff3b",
   },
   "main": "./src/worker.ts",
   "durable_objects": {
