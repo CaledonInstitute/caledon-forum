@@ -56,7 +56,23 @@ export const ALL: APIRoute = async (ctx) => {
         );
       return Response.json({ status: true });
     }
-    const response = await createAuth().handler(ctx.request);
+    let emailFailed = false;
+    const sendsEmail = ["/sign-up/email", "/sign-in/username", "/request-password-reset", "/send-verification-email"].includes(route);
+    const response = await createAuth(
+      sendsEmail
+        ? () => {
+            emailFailed = true;
+          }
+        : undefined
+    ).handler(ctx.request);
+    if (emailFailed) {
+      // Signup has already persisted the account, even when delivery fails.
+      if (route === "/sign-up/email" && response.ok) {
+        const body = (await response.json()) as Record<string, unknown>;
+        return Response.json({ ...body, emailDelivery: "failed" }, { status: response.status, headers: response.headers });
+      }
+      return Response.json({ message: "We could not send the email. Please try again later. If this continues, contact the forum administrator." }, { status: 503 });
+    }
     if (route === "/sign-out" && ctx.request.method === "POST" && response.ok && ctx.locals.user) {
       const device = ctx.cookies?.get("push-device")?.value;
       if (device && /^[a-f0-9]{64}$/.test(device)) await run("DELETE FROM push_subscriptions WHERE id=? AND user_id=?", device, ctx.locals.user.id);

@@ -29,11 +29,17 @@ async function email(to: string, url: string, purpose: string) {
       text: `${purpose}\n\n${url}\n\nIf you did not request this, you can ignore this email.`,
     }),
   });
-  if (!response.ok) throw new Error("Email could not be sent. Please try again.");
+  if (!response.ok) {
+    // Do not log provider response bodies: they can contain recipient addresses.
+    console.error("Authentication email rejected by Resend", { status: response.status });
+    throw new Error("Email could not be sent. Please try again.");
+  }
 }
 let cachedAuth: ReturnType<typeof buildAuth> | undefined;
 let cachedConfiguration = "";
-export function createAuth() {
+export function createAuth(onEmailError?: () => void) {
+  // Delivery failures are request-scoped; Better Auth logs and swallows them.
+  if (onEmailError) return buildAuth(onEmailError);
   const configuration = JSON.stringify([
     env.SITE_URL,
     env.BETTER_AUTH_SECRET,
@@ -49,8 +55,16 @@ export function createAuth() {
   }
   return cachedAuth;
 }
-function buildAuth() {
+function buildAuth(onEmailError?: () => void) {
   if (!env.BETTER_AUTH_SECRET) throw new Error("Authentication is not configured.");
+  async function sendEmail(to: string, url: string, purpose: string) {
+    try {
+      await email(to, url, purpose);
+    } catch (error) {
+      onEmailError?.();
+      throw error;
+    }
+  }
   return betterAuth({
     appName: "Caledon Forum",
     baseURL: env.SITE_URL,
@@ -72,14 +86,14 @@ function buildAuth() {
       requireEmailVerification: true,
       minPasswordLength: 12,
       maxPasswordLength: 128,
-      sendResetPassword: async ({ user, url }) => email(user.email, url, "Reset your password"),
+      sendResetPassword: async ({ user, url }) => sendEmail(user.email, url, "Reset your password"),
       revokeSessionsOnPasswordReset: true,
     },
     emailVerification: {
       sendOnSignUp: true,
       sendOnSignIn: true,
       autoSignInAfterVerification: true,
-      sendVerificationEmail: async ({ user, url }) => email(user.email, url, "Verify your email"),
+      sendVerificationEmail: async ({ user, url }) => sendEmail(user.email, url, "Verify your email"),
     },
     user: {
       changeEmail: { enabled: true },

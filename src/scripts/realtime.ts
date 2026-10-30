@@ -30,7 +30,11 @@ function paint(unknown = false) {
 }
 function beat() {
   if (socket?.readyState !== WebSocket.OPEN) return;
-  const users = [...new Set([...document.querySelectorAll<HTMLElement>("[data-presence-for]")].filter(visible).map((dot) => dot.dataset.presenceFor!))].slice(0, 100);
+  // Indicators are hidden when status is private or unavailable. Track the avatar
+  // or profile container so those users can become visible again on a later beat.
+  const users = [
+    ...new Set([...document.querySelectorAll<HTMLElement>("[data-presence-for]")].filter((dot) => visible(dot.parentElement || dot)).map((dot) => dot.dataset.presenceFor!)),
+  ].slice(0, 100);
   socket.send(JSON.stringify({ type: "heartbeat", users }));
 }
 function newItemsButton() {

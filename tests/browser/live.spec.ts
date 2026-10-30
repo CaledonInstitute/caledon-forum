@@ -1,5 +1,48 @@
 import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
+
+test("presence recovers after reconnecting with hidden status indicators", async ({ page, context }) => {
+  const cookie = await readFile(".astro/qa-session.json", "utf8")
+    .then(JSON.parse)
+    .catch(() => null);
+  test.skip(!cookie, "Local QA session required");
+  await context.addCookies([cookie]);
+  let connections = 0;
+  let disconnect = () => {};
+  let hideStatus = () => {};
+  const subscriptions: string[][] = [];
+  await page.routeWebSocket("**/api/live/connect", (ws) => {
+    connections++;
+    disconnect = () => ws.close({ code: 1000 });
+    hideStatus = () => ws.send(JSON.stringify({ type: "presence", users: {} }));
+    ws.onMessage((message) => {
+      const data = JSON.parse(String(message));
+      if (data.type !== "heartbeat") return;
+      subscriptions.push(data.users);
+      ws.send(JSON.stringify({ type: "presence", users: data.users.includes("qa_caledon") ? { qa_caledon: { online: true, lastActiveAt: Date.now() } } : {} }));
+    });
+  });
+  await page.goto("/qa_caledon");
+  test.skip((await page.locator('body[data-realtime="true"]').count()) === 0, "Requires realtime enabled");
+  const activity = page.locator(".profile-activity");
+  const dot = page.locator('.profile-header .presence-dot[data-presence-for="qa_caledon"]');
+  await expect(activity).toHaveText("Online");
+  await expect(dot).toHaveAttribute("data-online", "true");
+  // A private/unavailable status must still be requested when it becomes public again.
+  hideStatus();
+  await expect(activity).toBeHidden();
+  await expect(dot).toBeHidden();
+  subscriptions.length = 0;
+  disconnect();
+  await expect(activity).toBeHidden();
+  await expect.poll(() => connections).toBe(2);
+  await expect.poll(() => subscriptions.some((users) => users.includes("qa_caledon"))).toBe(true);
+  await expect(activity).toBeVisible();
+  await expect(activity).toHaveText("Online");
+  await expect(dot).toBeVisible();
+  await expect(dot).toHaveAttribute("data-online", "true");
+});
+
 test("public presence follows an authenticated tab and an anonymous viewer receives live counts", async ({ browser }) => {
   test.setTimeout(90000);
   const cookie = await readFile(".astro/qa-session.json", "utf8")

@@ -129,12 +129,12 @@ export default function AccountPanel({
         location.assign("/");
       }
       if (mode === "register") {
-        await send(
+        const result = await send(
           "/api/auth/sign-up/email",
           { username: value("username"), name: value("name"), email: value("email"), password: value("password"), callbackURL: "/verify" },
           token
         );
-        setMessage("Check your inbox to verify your email. Then sign in to join the conversation.");
+        location.assign(result.emailDelivery === "failed" ? "/login?registration=email-failed" : "/login?registration=success");
       }
       if (mode === "forgot-password") {
         await send("/api/auth/request-password-reset", { email: value("email"), redirectTo: "/reset-password" }, token);
@@ -157,6 +157,9 @@ export default function AccountPanel({
   }
   useEffect(() => {
     const params = new URL(location.href).searchParams;
+    if (mode === "login" && params.get("registration") === "success") setMessage("Registration successful. Check your email to verify your account before signing in.");
+    if (mode === "login" && params.get("registration") === "email-failed")
+      setError("Your account was created, but we could not send the verification email. Please try resending it later. If this continues, contact the forum administrator.");
     if (params.has("error"))
       setError(
         "Unable to connect this sign-in method. If you already have an account with this email, sign in using your existing method, then connect Google or GitHub from Settings."
@@ -505,6 +508,11 @@ export default function AccountPanel({
         {message}
       </p>
       <div className="auth-links">
+        {mode === "login" && (
+          <a className="text-link" href="/verify">
+            Resend verification email
+          </a>
+        )}
         <a className="text-link" href={mode === "login" ? "/register" : "/login"}>
           {mode === "login" ? "Create an account" : "Sign in"}
         </a>

@@ -13,6 +13,7 @@ import type { PublicProfile } from "../lib/types";
 import { preparePostContent } from "../lib/post-content";
 import { postTime } from "../lib/post-time";
 import { profileCardData, profileCardKey } from "../lib/og-card";
+import { memberSvg } from "../lib/member-badge";
 interface Props {
   person: PublicProfile | null;
 }
@@ -83,7 +84,15 @@ const schema = person
           {!!person.isCaledonMember && <Badge />}
         </h1>
         <span class="muted small">@{person.username}</span>
-        {!!person.isCaledonMember && <p class="profile-membership small">Official Member of Caledon Institute.</p>}
+        {!!person.isCaledonMember && (
+          <p class="profile-membership">
+            <span class="profile-membership-seal" aria-hidden="true" set:html={memberSvg} />
+            <span class="profile-membership-copy">
+              <span class="profile-membership-label">Official member</span>
+              <strong>Caledon Institute</strong>
+            </span>
+          </p>
+        )}
         {person.lastActiveAt && (
           <p
             class="profile-activity muted small"

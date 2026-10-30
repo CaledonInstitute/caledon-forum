@@ -38,6 +38,7 @@ export default {
     if (new URL(request.url).pathname !== "/run") return new Response(null, { status: 404 });
     const nativeFetch = globalThis.fetch;
     let verifyUrl = "";
+    let rejectEmail = false;
     const passed: string[] = [];
     const check = (value: unknown, label: string) => {
       if (!value) throw new Error(label);
@@ -60,6 +61,7 @@ export default {
       globalThis.fetch = async (input: any, options?: RequestInit) => {
         const url = String(input instanceof Request ? input.url : input);
         if (url.startsWith("https://api.resend.com/")) {
+          if (rejectEmail) return Response.json({ name: "validation_error", message: "Test sender restricted" }, { status: 403 });
           const data = JSON.parse(String(options?.body));
           verifyUrl = data.text.match(/https?:\/\/\S+/)?.[0] || "";
           return Response.json({ id: "mail-test" });
@@ -119,6 +121,32 @@ export default {
         ].map((t) => env.DB.prepare(`DELETE FROM ${t}`))
       );
       const auth = createAuth();
+      const gateway = (path: string, body: unknown) =>
+        authGateway({
+          params: { all: path },
+          locals: { user: null },
+          request: new Request(`http://localhost:8789/api/auth/${path}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", origin: "http://localhost:8789", "x-captcha-response": "test" },
+            body: JSON.stringify(body),
+          }),
+        } as any);
+      rejectEmail = true;
+      const failedSignup = await gateway("sign-up/email", {
+        username: "mailfailure",
+        name: "Mail failure",
+        email: "mailfailure@caledon.test",
+        password: "A-real-test-password-123",
+        callbackURL: "/verify",
+      });
+      check(failedSignup.ok && ((await failedSignup.json()) as any).emailDelivery === "failed", "Signup reports created account separately from rejected verification email");
+      check(!!(await env.DB.prepare("SELECT id FROM user WHERE username='mailfailure' AND email_verified=0").first()), "Email failure preserves unverified account for resend");
+      const failedResend = await gateway("send-verification-email", { email: "mailfailure@caledon.test", callbackURL: "/verify" });
+      check(failedResend.status === 503, "Resend exposes delivery failure instead of false success");
+      rejectEmail = false;
+      const retriedEmail = await gateway("send-verification-email", { email: "mailfailure@caledon.test", callbackURL: "/verify" });
+      check(retriedEmail.ok && !!verifyUrl, "Verification delivery can be retried after provider recovery");
+      verifyUrl = "";
       const call = (path: string, body: any, cookie = "") =>
         auth.handler(
           new Request(`http://localhost:8789/api/auth/${path}`, {
