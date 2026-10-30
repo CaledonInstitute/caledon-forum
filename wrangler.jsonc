@@ -14,7 +14,7 @@
     "PUSH_ENABLED": "true",
     "RATE_LIMIT_DO_ENABLED": "true",
     "STATIC_OG_ENABLED": "true",
-    "POST_OG_ENABLED": "false",
+    "POST_OG_ENABLED": "true",
     "SERVER_DO_ENABLED": "true",
     "WEB_ANALYTICS_TOKEN": "2ab9f441aa5e4a7ea46b0668b538e5b5",
   },
