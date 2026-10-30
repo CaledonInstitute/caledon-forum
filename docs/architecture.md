@@ -33,7 +33,7 @@ Every post and reply renders at its own `/p/<publicId>` URL. Each detail page re
 
 Parse URLs from the Markdown AST (not code blocks), inspect at most eight unique URLs, and retain images plus the first non-image card. Fetch in batches of four, timeout after five seconds, reject private URLs and revalidate up to three redirects. The production `global_fetch_strictly_public` flag additionally blocks private DNS resolutions/rebinding. Tests for this flag must run in workerd, not just Node.
 
-HTML is bounded to 1 MB; raster images to 10 MB with MIME and magic-byte checks. SVG is rejected. Media proxy IDs must refer to a live published post, or an authenticated user's preview. Links use HTTPS, standard ports, no credentials. External HTML/embed code never runs inside the page.
+HTML is bounded to 1 MB; raster images to 10 MB with MIME and magic-byte checks. SVG is rejected. Media proxy IDs must refer to a live published post, or an authenticated user's preview. Links use HTTPS, standard ports, no credentials. External HTML/embed code never runs inside the page. URLs whose pathname ends in an image extension are fetched with an image Accept header and classified as images even when the host would otherwise return Open Graph HTML; linked video/audio paths never produce a link preview card.
 
 Metadata is cached for 24 hours in D1. A failure leaves a normal link and does not prevent publishing. YouTube uses oEmbed metadata and a player loaded only on click. External images use the read-only proxy; no media is stored in D1.
 

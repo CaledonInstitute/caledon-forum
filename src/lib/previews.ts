@@ -8,12 +8,53 @@ import { localPostId } from "./quotes";
 import { env } from "cloudflare:workers";
 import { reserveBudget } from "./control";
 const query = "SELECT id,url,kind,title,description,site,image,video_id AS videoId,checked_at AS checkedAt FROM link_previews WHERE url=?";
+const IMAGE_ACCEPT = "image/webp,image/png,image/jpeg,image/gif";
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp)$/i;
+const VIDEO_AUDIO_EXT = /\.(mp4|webm|mov|m4v|mp3|m4a|ogg|wav|aac)$/i;
 const clean = (s: string, max = 300) =>
   s
     .replace(/[\u0000-\u001f]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max);
+/** Pathname-only media hint; query strings (e.g. Discord signatures) are ignored. */
+export function mediaPathKind(value: string): "image" | "video_audio" | null {
+  try {
+    const path = new URL(value).pathname;
+    if (IMAGE_EXT.test(path)) return "image";
+    if (VIDEO_AUDIO_EXT.test(path)) return "video_audio";
+  } catch {
+    /* Invalid URL. */
+  }
+  return null;
+}
+async function inspectImage(url: string, p: LinkPreview): Promise<LinkPreview | null> {
+  const response = await safeFetch(url, IMAGE_ACCEPT);
+  const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+  if (!type.startsWith("image/")) {
+    await response.body?.cancel();
+    return null;
+  }
+  const bytes = await readLimited(response, 10 * 1024 * 1024);
+  if (!rasterType(bytes, type)) return null;
+  p.kind = "image";
+  p.image = url;
+  return p;
+}
+async function scrapeLink(url: string, response: Response, p: LinkPreview): Promise<LinkPreview> {
+  const $ = load(new TextDecoder().decode(await readLimited(response, 1024 * 1024)));
+  const meta = (key: string) => $(`meta[property="${key}"],meta[name="${key}"]`).first().attr("content") || "";
+  p.title = clean(meta("og:title") || meta("twitter:title") || $("title").first().text());
+  p.description = clean(meta("og:description") || meta("twitter:description") || meta("description"));
+  p.site = clean(meta("og:site_name") || p.site, 100);
+  const image = meta("og:image") || meta("twitter:image");
+  if (image) {
+    try {
+      p.image = publicUrl(new URL(image, url).href).href;
+    } catch {}
+  }
+  return p;
+}
 export async function inspectLink(value: string): Promise<LinkPreview | null> {
   try {
     if (localPostId(value)) return null;
@@ -54,28 +95,30 @@ export async function inspectLink(value: string): Promise<LinkPreview | null> {
           videoId: vid,
         };
       } else {
-        const response = await safeFetch(url);
-        const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
-        if (type.startsWith("image/")) {
-          const bytes = await readLimited(response, 10 * 1024 * 1024);
-          if (!rasterType(bytes, type)) return null;
-          p.kind = "image";
-          p.image = url;
+        const pathKind = mediaPathKind(url);
+        // Linked video/audio must stay plain links — never SEO cards.
+        if (pathKind === "video_audio") return null;
+        if (pathKind === "image") {
+          const image = await inspectImage(url, p);
+          if (!image) return null;
+          p = image;
         } else {
-          if (!["text/html", "application/xhtml+xml"].includes(type)) {
+          const response = await safeFetch(url);
+          const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+          if (type.startsWith("image/")) {
+            const bytes = await readLimited(response, 10 * 1024 * 1024);
+            if (!rasterType(bytes, type)) return null;
+            p.kind = "image";
+            p.image = url;
+          } else if (type.startsWith("video/") || type.startsWith("audio/")) {
             await response.body?.cancel();
             return null;
-          }
-          const $ = load(new TextDecoder().decode(await readLimited(response, 1024 * 1024)));
-          const meta = (key: string) => $(`meta[property="${key}"],meta[name="${key}"]`).first().attr("content") || "";
-          p.title = clean(meta("og:title") || meta("twitter:title") || $("title").first().text());
-          p.description = clean(meta("og:description") || meta("twitter:description") || meta("description"));
-          p.site = clean(meta("og:site_name") || p.site, 100);
-          const image = meta("og:image") || meta("twitter:image");
-          if (image) {
-            try {
-              p.image = publicUrl(new URL(image, url).href).href;
-            } catch {}
+          } else {
+            if (!["text/html", "application/xhtml+xml"].includes(type)) {
+              await response.body?.cancel();
+              return null;
+            }
+            p = await scrapeLink(url, response, p);
           }
         }
       }

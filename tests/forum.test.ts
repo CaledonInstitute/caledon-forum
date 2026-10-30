@@ -141,6 +141,39 @@ describe("previews", () => {
     expect(await inspectLink("https://youtu.be/dQw4w9WgXcQ")).toBeNull();
     expect((await act("publish", { body: "https://github.com/unavailable" })).status).toBe(200);
   });
+  it("prefers image bytes over HTML SEO cards for image attachment URLs", async () => {
+    const jpeg = new Uint8Array([255, 216, 255, 225, 0, 16]);
+    const html =
+      '<title>Photo</title><meta property="og:title" content="SEO card"><meta property="og:description" content="Should not win"><meta property="og:image" content="/thumb.png">';
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const accept = String(new Headers(init?.headers).get("Accept") || "");
+      if (accept.includes("image/")) return new Response(jpeg, { headers: { "Content-Type": "image/jpeg" } });
+      return new Response(html, { headers: { "Content-Type": "text/html" } });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const preview = await inspectLink("https://cdn.example.com/attachments/1/2/photo.jpg?ex=sig");
+    expect(preview).toMatchObject({ kind: "image", image: "https://cdn.example.com/attachments/1/2/photo.jpg?ex=sig", title: "" });
+    expect(fetcher.mock.calls.every(([, init]) => String(new Headers(init?.headers).get("Accept") || "").includes("image/"))).toBe(true);
+  });
+  it("never turns video or audio attachment URLs into SEO cards", async () => {
+    const html =
+      '<title>Clip</title><meta property="og:title" content="Video page"><meta property="og:description" content="Clip"><meta property="og:image" content="/thumb.png">';
+    const fetcher = vi.fn(async () => new Response(html, { headers: { "Content-Type": "text/html" } }));
+    vi.stubGlobal("fetch", fetcher);
+    expect(await inspectLink("https://cdn.example.com/clip.mp4")).toBeNull();
+    expect(await inspectLink("https://cdn.example.com/track.mp3?token=1")).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("still scrapes ordinary HTML pages without media extensions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response('<meta property="og:title" content="Article"><meta property="og:description" content="News">', {
+          headers: { "Content-Type": "text/html" },
+        })
+    );
+    expect(await inspectLink("https://news.example.com/story")).toMatchObject({ kind: "link", title: "Article" });
+  });
 });
 describe("membership", () => {
   async function link() {
