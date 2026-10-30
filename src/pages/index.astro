@@ -14,11 +14,7 @@ const prepared = await preparePostContent(items.slice(0, PAGE_SIZE));
 ---
 
 <Layout>
-  <PageHeader title="Home" subtitle="A place to learn together">
-    <span class="header-symbol">
-      <Icon name="message-circle" size={21} strokeWidth={1.4} />
-    </span>
-  </PageHeader>
+  <PageHeader title="Home" subtitle="A place to learn together" />
   <ComposeGate />
   <section data-post-list aria-label="Posts">
     {items.length ? (

@@ -20,6 +20,7 @@ export interface PublicProfile {
   location: string;
   created_at: number;
   lastActiveAt?: number | null;
+  dmEnabled?: number;
   isCaledonMember: number;
 }
 export interface ForumPost {

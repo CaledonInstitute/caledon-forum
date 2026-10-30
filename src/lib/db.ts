@@ -21,7 +21,7 @@ export const run = (sql: string, ...args: any[]) =>
     .run();
 export const publicProfile = (username: string) =>
   one<PublicProfile>(
-    `SELECT u.id,u.name,u.username,u.image,u.cover_image AS coverImage,u.bio,u.location,u.created_at,CASE WHEN u.show_activity=1 THEN u.last_active_at ELSE NULL END AS lastActiveAt,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,
+    `SELECT u.id,u.name,u.username,u.image,u.cover_image AS coverImage,u.bio,u.location,u.created_at,CASE WHEN u.suspended=0 AND u.email_verified=1 AND EXISTS(SELECT 1 FROM dm_vaults v WHERE v.user_id=u.id AND v.invalidated=0) THEN 1 ELSE 0 END AS dmEnabled,CASE WHEN u.show_activity=1 THEN u.last_active_at ELSE NULL END AS lastActiveAt,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,
     Date.now() - 86400000,
     username
   );

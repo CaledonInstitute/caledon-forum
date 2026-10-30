@@ -101,6 +101,7 @@ const schema = person
             Last active at {postTime(person.lastActiveAt)}
           </p>
         )}
+        {!!person.dmEnabled && <p class="profile-dm muted small">DM enabled</p>}
         {person.bio && <p>{person.bio}</p>}
         {person.location && (
           <p class="profile-location muted small">

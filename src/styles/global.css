@@ -225,9 +225,6 @@ small,
   color: var(--muted);
   margin: 6px 0 0;
 }
-.page-header .header-symbol {
-  color: #aaa;
-}
 .mobile-header,
 .mobile-nav {
   display: none;
@@ -1834,6 +1831,7 @@ small,
   font-weight: 600;
   white-space: nowrap;
 }
+.profile-header .profile-dm,
 .profile-header .profile-activity {
   display: flex;
   align-items: center;
