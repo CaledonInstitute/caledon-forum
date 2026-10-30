@@ -31,8 +31,10 @@ if (currentPage > 1) canonical.searchParams.set("page", String(currentPage));
 if (Astro.props.profile && ["replies", "likes"].includes(Astro.url.searchParams.get("tab") || "")) canonical.searchParams.set("tab", Astro.url.searchParams.get("tab")!);
 const path = Astro.url.pathname;
 const lastUpdated = __SITE_LAST_UPDATED__;
+const commitHash = __SITE_COMMIT_HASH__;
+const commitUrl = commitHash ? `https://github.com/CaledonInstitute/caledon-forum/commit/${commitHash}` : null;
 const lastUpdatedLabel = lastUpdated
-  ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(lastUpdated))
+  ? `${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" }).format(new Date(lastUpdated))} WIB`
   : null;
 const analyticsAllowed =
   (path === "/" || /^\/p\/[1-9][0-9]{0,18}$/.test(path) || isValidUsername(path.slice(1))) && [...Astro.url.searchParams.keys()].every((key) => key === "page" || key === "tab");
@@ -190,6 +192,11 @@ const siteSchema = {
           {lastUpdated && (
             <p class="site-updated">
               Last updated on <time datetime={lastUpdated}>{lastUpdatedLabel}</time>
+              {commitHash && commitUrl && (
+                <a class="site-commit" href={commitUrl} target="_blank" rel="noopener" aria-label={`View commit ${commitHash}`}>
+                  {commitHash.slice(0, 7)}
+                </a>
+              )}
             </p>
           )}
         </div>
@@ -199,6 +206,11 @@ const siteSchema = {
         {lastUpdated && !path.startsWith("/dm/") && (
           <p class="site-updated site-updated-mobile">
             Last updated on <time datetime={lastUpdated}>{lastUpdatedLabel}</time>
+            {commitHash && commitUrl && (
+              <a class="site-commit" href={commitUrl} target="_blank" rel="noopener" aria-label={`View commit ${commitHash}`}>
+                {commitHash.slice(0, 7)}
+              </a>
+            )}
           </p>
         )}
       </main>

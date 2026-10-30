@@ -200,6 +200,12 @@ small,
 .site-updated time {
   white-space: nowrap;
 }
+.site-commit {
+  display: inline-block;
+  margin-left: 6px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .site-updated-mobile {
   display: none;
 }

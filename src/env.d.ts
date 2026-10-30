@@ -1,5 +1,6 @@
 /// <reference types="astro/client" />
 declare const __SITE_LAST_UPDATED__: string | null;
+declare const __SITE_COMMIT_HASH__: string | null;
 
 declare namespace App {
   interface Locals {
