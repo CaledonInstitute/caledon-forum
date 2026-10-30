@@ -7,7 +7,7 @@
   "vars": {
     "AUTH_ENABLED": "true",
     "SEARCH_CONSOLE_TOKEN": "",
-    "SITE_URL": "https://caledon-forum.supervoid.workers.dev",
+    "SITE_URL": "https://forum.hengker.tech",
     "REALTIME_ENABLED": "true",
     "PRESENCE_ENABLED": "true",
     "PUSH_ENABLED": "true",

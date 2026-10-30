@@ -20,5 +20,5 @@ if (!hasPublic) {
   await wrangler(["secret", "put", "VAPID_PRIVATE_KEY"], pair.privateKey);
   await wrangler(["secret", "put", "VAPID_PUBLIC_KEY"], pair.publicKey);
 }
-if (!existing.some((s) => s.name === "VAPID_SUBJECT")) await wrangler(["secret", "put", "VAPID_SUBJECT"], "https://caledon-forum.supervoid.workers.dev/privacy");
+if (!existing.some((s) => s.name === "VAPID_SUBJECT")) await wrangler(["secret", "put", "VAPID_SUBJECT"], "https://forum.hengker.tech/privacy");
 console.log("VAPID configuration ready. Existing key pairs were preserved.");

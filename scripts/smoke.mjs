@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { load } from "cheerio";
-const origin = process.argv[2] || "https://caledon-forum.supervoid.workers.dev";
+const origin = process.argv[2] || "https://forum.hengker.tech";
 const request = async (path, options = {}) => {
   const r = await fetch(new URL(path, origin), { signal: AbortSignal.timeout(20000), ...options });
   return r;

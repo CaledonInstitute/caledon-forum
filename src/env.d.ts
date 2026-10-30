@@ -23,15 +23,12 @@ declare namespace Cloudflare {
     WEB_ANALYTICS_TOKEN?: string;
     SERVER_DO_ENABLED?: string;
     FORUM_PAGES?: DurableObjectNamespace;
+    RESEND_API_KEY?: string;
     BETTER_AUTH_SECRET?: string;
     GITHUB_CLIENT_ID?: string;
     GITHUB_CLIENT_SECRET?: string;
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
-    SMTP_HOST?: string;
-    SMTP_PORT?: string;
-    SMTP_USER?: string;
-    SMTP_PASSWORD?: string;
     TURNSTILE_SECRET_KEY?: string;
     SEARCH_CONSOLE_TOKEN?: string;
   }

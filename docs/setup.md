@@ -1,8 +1,8 @@
 # Setup and operations
 
-Public, server-rendered conversations for Caledon Institute. Astro + React islands on Cloudflare Workers, D1 + Drizzle, Better Auth, Gmail SMTP, and Turnstile.
+Public, server-rendered conversations for Caledon Institute. Astro + React islands on Cloudflare Workers, D1 + Drizzle, Better Auth, Resend HTTP API, and Turnstile.
 
-Production: https://caledon-forum.supervoid.workers.dev. Sign-in remains disabled until the external service configuration below is completed.
+Production: https://forum.hengker.tech. Sign-in remains disabled until the external service configuration below is completed.
 
 Each post and reply supports **25,000 Unicode code points** of Markdown. External image URLs render automatically; other URLs receive a metadata card, including click-to-load YouTube. **Image uploads are permanently out of scope.**
 
@@ -29,11 +29,12 @@ Authentication fails closed until every required service is configured. Public p
 
 ## Enable authentication
 
-1. Create GitHub OAuth Apps for local and production. Callback URLs are `http://localhost:4321/api/auth/callback/github` and `https://YOUR-WORKER.workers.dev/api/auth/callback/github`. The app requests `read:user`, `user:email`, and `read:org`. If CaledonInstitute restricts OAuth access, approve this OAuth App in the organization settings.
-2. Configure Gmail SMTP for a dedicated sender account. Enable 2-Step Verification on that Google account, open https://myaccount.google.com/apppasswords, and create an App Password named `Caledon Forum`. No sending domain or OAuth app publishing is required. Use the App Password, not the normal Google password.
-   Keep all five email settings private: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `EMAIL_FROM`. Put their values only in ignored `.dev.vars` locally and Cloudflare Secrets in production. The tracked `.dev.vars.example` contains empty placeholders; `wrangler.jsonc` does not contain email settings. For Gmail, use host `smtp.gmail.com`, port `465`, your Gmail address as `SMTP_USER`, the App Password as `SMTP_PASSWORD`, and `Caledon Forum <YOUR-SENDER-ADDRESS>` as `EMAIL_FROM`. Restart the background dev server after editing `.dev.vars`. Spaces in Google's grouped App Password are removed automatically. Never commit actual sender details or credentials. Authentication stays disabled until SMTP credentials and the other required services are configured.
-   Email verification, verification resend, and password recovery all use SMTP. Port 465 uses TLS from connection start; port 587 requires STARTTLS. Certificate verification stays enabled; port 25 is unsupported. Connections are created per request with timeouts and are closed after delivery. After signup the browser redirects to login with a verification notice, or an account-created warning and resend link if SMTP rejects delivery. Logs contain only sanitized SMTP error codes/statuses. SMTP acceptance does not guarantee inbox delivery; check spam as well. Gmail sending limits apply, and changing the Google account password revokes its App Passwords. The old Resend API key is no longer used and can be revoked in Resend.
-3. Create a Turnstile managed widget for the production hostname. Use a separate local widget/test key for localhost. Set the site key and secret key.
+1. Create GitHub OAuth Apps for local and production. Callback URLs are `http://localhost:4321/api/auth/callback/github` and `https://forum.hengker.tech/api/auth/callback/github`. The app requests `read:user`, `user:email`, and `read:org`. If CaledonInstitute restricts OAuth access, approve this OAuth App in the organization settings.
+2. Use [Resend Free](https://resend.com/docs/knowledge-base/account-quotas-and-limits) for transactional email: 3,000 emails per month, at most 100 per day. Stay on the Free plan; quota exhaustion is treated as a delivery failure, without automatic retries or paid upgrades. Cloudflare Email Sending to arbitrary recipients requires Workers Paid, so it is not used here.
+   Add and verify `hengker.tech` in [Resend Domains](https://resend.com/docs/dashboard/domains/introduction). Copy the exact SPF/return-path and DKIM DNS records supplied by Resend into Cloudflare DNS; configure DMARC and preserve unrelated website and mail records. Keep open/click tracking disabled for authentication links. Use `Caledon Forum <noreply@hengker.tech>` as `EMAIL_FROM`.
+   Create a sending-only API key scoped to that domain. Put `RESEND_API_KEY` and `EMAIL_FROM` in ignored `.dev.vars` locally and Cloudflare Secrets in production. The tracked `.dev.vars.example` has an empty API-key placeholder. Never commit credentials. Restart the background dev server after editing local settings. Authentication stays disabled until these and the other required settings are configured; readiness checks configuration presence, not DNS or provider health.
+   Verification, resend, and password recovery use the Resend HTTPS API with a 15-second timeout. After signup the browser redirects to login with a verification notice, or an account-created warning and resend link if delivery fails. Logs contain only fixed error categories and HTTP statuses. API acceptance does not guarantee inbox delivery: check the Resend dashboard and the recipient's spam folder. After production delivery is verified, remove obsolete mail credentials from Cloudflare Secrets and revoke the previous mail-provider app password.
+3. Create a Turnstile managed widget for `forum.hengker.tech`. Use a separate local widget/test key for localhost. Set the site key and secret key.
 4. Generate a strong random `BETTER_AUTH_SECRET` of at least 32 characters. It signs sessions and encrypts GitHub tokens. Keep it stable across deployments and back it up securely.
 5. Configure non-secret values in `wrangler.jsonc`: production `SITE_URL` and `TURNSTILE_SITE_KEY`. Store secrets interactively:
 
@@ -41,10 +42,7 @@ Authentication fails closed until every required service is configured. Public p
 npx wrangler secret put BETTER_AUTH_SECRET
 npx wrangler secret put GITHUB_CLIENT_ID
 npx wrangler secret put GITHUB_CLIENT_SECRET
-npx wrangler secret put SMTP_HOST
-npx wrangler secret put SMTP_PORT
-npx wrangler secret put SMTP_USER
-npx wrangler secret put SMTP_PASSWORD
+npx wrangler secret put RESEND_API_KEY
 npx wrangler secret put EMAIL_FROM
 npx wrangler secret put TURNSTILE_SECRET_KEY
 ```
@@ -53,7 +51,7 @@ npx wrangler secret put TURNSTILE_SECRET_KEY
 
 ### Optional Google sign-in
 
-Create a Google OAuth client of type **Web application** in Google Cloud Console and configure the consent screen. Add authorized redirect URIs `http://localhost:4321/api/auth/callback/google` for development and `https://YOUR-WORKER.workers.dev/api/auth/callback/google` for production. Use the actual `SITE_URL` hostname if it differs. During Google's testing phase, add the intended users to the consent screen's test users.
+Create a Google OAuth client of type **Web application** in Google Cloud Console and configure the consent screen. Add authorized redirect URIs `http://localhost:4321/api/auth/callback/google` for development and `https://forum.hengker.tech/api/auth/callback/google` for production. Use the actual `SITE_URL` hostname if it differs. During Google's testing phase, add the intended users to the consent screen's test users.
 
 Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in ignored `.dev.vars` locally. For production:
 
@@ -106,11 +104,11 @@ npm audit --omit=dev
 npm run test:smoke
 ```
 
-The browser tests require the background dev server and local fixtures. Screenshots are saved to ignored `artifacts/`. With local authentication configured and enabled, the seed script also creates a local QA session in ignored `.astro/qa-session.json` for composer tests. Without it, the authenticated composer browser test is skipped. Worker regression tests use a separate test-only Worker and D1 database, with Nodemailer MIME generation with a mocked SMTP transport and mocked Turnstile transport. They verify real workerd hashing, sessions, verification/reset tokens, and posting; they do not prove production provider credentials work. The test-only Worker is never deployed.
+The browser tests require the background dev server and local fixtures. Screenshots are saved to ignored `artifacts/`. With local authentication configured and enabled, the seed script also creates a local QA session in ignored `.astro/qa-session.json` for composer tests. Without it, the authenticated composer browser test is skipped. Worker regression tests use a separate test-only Worker and D1 database, with mocked Resend HTTP and Turnstile transports. They verify real workerd hashing, sessions, verification/reset tokens, and posting; they do not prove production provider credentials work. The test-only Worker is never deployed.
 
 ## Deploy
 
-Set `SITE_URL` to the actual production workers.dev URL before deploying. For local development override it in `.dev.vars`. The bound D1 database is `caledon-forum-db`, separate from other existing databases.
+Set `SITE_URL` to `https://forum.hengker.tech` before deploying. For local development override it in `.dev.vars`. The bound D1 database is `caledon-forum-db`, separate from other existing databases.
 
 ```powershell
 npx wrangler d1 migrations apply caledon-forum-db --remote
@@ -130,7 +128,7 @@ Public feed content is not seeded in production. Account setup is required befor
 - Media downloads share a three-second deadline, with 2 MB avatars and 10 MB post images. Unsupported or unavailable media falls back to initials/text. Rendering errors serve the branded PNG for 60 seconds. Cache keys include content, author identity, reply context and media URLs; internal caching lasts one hour and public responses five minutes. Deleted posts are checked before internal cache access, but previously shared copies may remain cached by social platforms.
 - Cards bundle Manrope 400/700 plus monochrome Noto Emoji fallback; no remote font request is needed during rendering.
 - Local OG verification: after seeding local fixtures and running `npm run build`, run `node scripts/test-og-local.mjs`. It starts a temporary local Worker with post and profile cards enabled through CLI overrides, exercises the real Durable Objects, saves PNGs and HTTP timings in ignored `artifacts/`, then stops that Worker. Profile fixtures cover images, empty profiles, long text/emoji and failed external images. It does not change `.dev.vars` or production flags. Review the PNGs before rollout.
-- Verify the workers.dev URL-prefix property in Google Search Console. Put its HTML verification token in `SEARCH_CONSOLE_TOKEN` as a Worker secret, redeploy, and submit `/sitemap.xml`.
+- Verify the `https://forum.hengker.tech` URL-prefix property in Google Search Console. Put its HTML verification token in `SEARCH_CONSOLE_TOKEN` as a Worker secret, redeploy, and submit `/sitemap.xml`.
 - Validate a real published thread with Google's Rich Results Test, inspect HTML without JavaScript, and check social link previews. Rich-result eligibility and ranking depend on the search engine.
 - When moving to a custom domain, update SITE_URL, OAuth callbacks, Turnstile hostnames and Search Console; redirect the old origin to avoid duplicate indexable copies.
 

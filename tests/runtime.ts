@@ -32,10 +32,7 @@ export const env: any = {
   BETTER_AUTH_SECRET: "test-secret-only-012345678901234567890123456789",
   GITHUB_CLIENT_ID: "test",
   GITHUB_CLIENT_SECRET: "test",
-  SMTP_HOST: "smtp.gmail.com",
-  SMTP_PORT: "465",
-  SMTP_USER: "test@caledon.test",
-  SMTP_PASSWORD: "test-only-password",
+  RESEND_API_KEY: "re_test-only-key",
   EMAIL_FROM: "Caledon <test@caledon.test>",
   TURNSTILE_SITE_KEY: "test",
   DB: {

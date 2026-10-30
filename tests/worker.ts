@@ -1,6 +1,4 @@
 import { env } from "cloudflare:workers";
-import nodemailer from "nodemailer";
-import { Buffer } from "node:buffer";
 import sql from "../migrations/0001_forum.sql";
 import addressesSql from "../migrations/0002_public_post_addresses.sql";
 import coverSql from "../migrations/0003_profile_cover.sql";
@@ -39,7 +37,6 @@ export default {
     }
     if (new URL(request.url).pathname !== "/run") return new Response(null, { status: 404 });
     const nativeFetch = globalThis.fetch;
-    const nativeCreateTransport = nodemailer.createTransport;
     let verifyUrl = "";
     let rejectEmail = false;
     const passed: string[] = [];
@@ -60,25 +57,16 @@ export default {
           .replace(/\//g, "_");
       const encode = (value: unknown) => base64(new TextEncoder().encode(JSON.stringify(value)));
       let googleJwt = "";
-      // Exercise Nodemailer's MIME generation in workerd without external mail.
-      nodemailer.createTransport = (() => {
-        const transport = nativeCreateTransport({ streamTransport: true, buffer: true });
-        return {
-          async sendMail(mail: any) {
-            if (rejectEmail) throw Object.assign(new Error("Test SMTP authentication rejected"), { code: "EAUTH", responseCode: 535 });
-            const result = await transport.sendMail(mail);
-            if (!Buffer.isBuffer(result.message) || !result.message.length) throw new Error("SMTP message was not generated");
-            verifyUrl = String(mail.text).match(/https?:\/\/\S+/)?.[0] || "";
-            return result;
-          },
-          close() {
-            transport.close();
-          },
-        };
-      }) as typeof nodemailer.createTransport;
       // This isolate is test-only. Production never contains this transport stub.
       globalThis.fetch = async (input: any, options?: RequestInit) => {
         const url = String(input instanceof Request ? input.url : input);
+        if (url === "https://api.resend.com/emails") {
+          if (rejectEmail) return Response.json({ message: "Test email rejected" }, { status: 403 });
+          const mail = JSON.parse(String(options?.body));
+          check(options?.method === "POST" && !!mail.from && mail.to.length === 1 && !!mail.subject, "Resend HTTP payload is valid");
+          verifyUrl = String(mail.text).match(/https?:\/\/\S+/)?.[0] || "";
+          return Response.json({ id: "test-message-id" });
+        }
         if (url.includes("challenges.cloudflare.com/turnstile/")) return Response.json({ success: true, hostname: "localhost" });
         if (url === "https://oauth2.googleapis.com/token")
           return Response.json({ access_token: "test-google-access", id_token: googleJwt, token_type: "Bearer", expires_in: 3600, scope: "openid email profile" });
@@ -155,7 +143,7 @@ export default {
       check(failedSignup.ok && ((await failedSignup.json()) as any).emailDelivery === "failed", "Signup reports created account separately from rejected verification email");
       check(!!(await env.DB.prepare("SELECT id FROM user WHERE username='mailfailure' AND email_verified=0").first()), "Email failure preserves unverified account for resend");
       const failedResend = await gateway("send-verification-email", { email: "mailfailure@caledon.test", callbackURL: "/verify" });
-      check(failedResend.status === 503, "Verification resend exposes SMTP failure instead of false success");
+      check(failedResend.status === 503, "Verification resend exposes email provider failure instead of false success");
       rejectEmail = false;
       const retriedEmail = await gateway("send-verification-email", { email: "mailfailure@caledon.test", callbackURL: "/verify" });
       check(retriedEmail.ok && !!verifyUrl, "Verification delivery can be retried after provider recovery");
@@ -429,7 +417,6 @@ export default {
       return Response.json({ passed, error: error instanceof Error ? error.message : "Worker test failed" }, { status: 500 });
     } finally {
       globalThis.fetch = nativeFetch;
-      nodemailer.createTransport = nativeCreateTransport;
     }
   },
 };

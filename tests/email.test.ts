@@ -2,97 +2,78 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { env } from "./runtime";
 import { authReady } from "../src/lib/auth";
 import { emailReady, sendAuthEmail } from "../src/lib/email";
-import nodemailer from "nodemailer";
 
-vi.mock("nodemailer", () => ({ default: { createTransport: vi.fn() } }));
 const original = { ...env };
-const sendMail = vi.fn();
-const close = vi.fn();
+const send = vi.fn();
 beforeEach(() => {
-  vi.clearAllMocks();
   env.AUTH_ENABLED = "true";
   env.TURNSTILE_SECRET_KEY = "test";
-  env.SMTP_HOST = "smtp.gmail.com";
-  env.SMTP_PORT = "465";
-  env.SMTP_USER = "sender@example.com";
-  env.SMTP_PASSWORD = "abcd efgh ijkl mnop";
-  env.EMAIL_FROM = "Caledon Forum <sender@example.com>";
-  sendMail.mockResolvedValue({ accepted: ["member@example.com"] });
-  vi.mocked(nodemailer.createTransport).mockReturnValue({ sendMail, close } as any);
+  env.RESEND_API_KEY = " re_test-only-key ";
+  env.EMAIL_FROM = " Caledon Forum <noreply@hengker.tech> ";
+  send.mockReset().mockResolvedValue(Response.json({ id: "test-message-id" }));
+  vi.stubGlobal("fetch", send);
 });
+
 afterEach(() => {
   for (const key of Object.keys(env)) if (!(key in original)) delete env[key];
   Object.assign(env, original);
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
-it("requires SMTP credentials and keeps authentication disabled until the password is supplied", () => {
+it.each(["RESEND_API_KEY", "EMAIL_FROM"])("requires %s before authentication or email is ready", async (key) => {
   expect(emailReady()).toBe(true);
   expect(authReady()).toBe(true);
-  env.SMTP_PASSWORD = "   ";
+  env[key] = "   ";
   expect(emailReady()).toBe(false);
   expect(authReady()).toBe(false);
+  await expect(sendAuthEmail("member@example.com", "https://forum.hengker.tech/verify", "Verify your email")).rejects.toThrow("Email is not configured");
+  expect(send).not.toHaveBeenCalled();
 });
 
-it("sends verification mail over verified TLS using the configured Gmail App Password", async () => {
-  await sendAuthEmail("member@example.com", "https://forum.example/api/auth/verify-email?token=secret", "Verify your email");
-  expect(nodemailer.createTransport).toHaveBeenCalledWith(
+it.each(["Verify your email", "Reset your password"])("sends %s through Resend with the configured sender and a deadline", async (purpose) => {
+  const timeout = vi.spyOn(AbortSignal, "timeout");
+  const url = "https://forum.hengker.tech/api/auth/verify-email?token=secret";
+  await sendAuthEmail("member@example.com", url, purpose);
+  expect(send).toHaveBeenCalledOnce();
+  const [endpoint, options] = send.mock.calls[0];
+  expect(endpoint).toBe("https://api.resend.com/emails");
+  expect(options).toEqual(
     expect.objectContaining({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      requireTLS: true,
-      auth: { user: "sender@example.com", pass: "abcdefghijklmnop" },
-      tls: { rejectUnauthorized: true, minVersion: "TLSv1.2" },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-      logger: false,
-      debug: false,
+      method: "POST",
+      headers: { Authorization: "Bearer re_test-only-key", "Content-Type": "application/json" },
+      signal: expect.any(AbortSignal),
     })
   );
-  expect(sendMail).toHaveBeenCalledWith(
-    expect.objectContaining({
-      from: "Caledon Forum <sender@example.com>",
-      to: "member@example.com",
-      subject: "Verify your email — Caledon Forum",
-      text: expect.stringContaining("https://forum.example/api/auth/verify-email?token=secret"),
-    })
-  );
-  expect(close).toHaveBeenCalledOnce();
-});
-
-it("requires STARTTLS on port 587 and rejects unsupported ports", async () => {
-  env.SMTP_PORT = "587";
-  await sendAuthEmail("member@example.com", "https://forum.example/reset", "Reset your password");
-  expect(nodemailer.createTransport).toHaveBeenCalledWith(expect.objectContaining({ port: 587, secure: false, requireTLS: true }));
-  env.SMTP_PORT = "25";
-  expect(emailReady()).toBe(false);
-  await expect(sendAuthEmail("member@example.com", "https://forum.example/reset", "Reset your password")).rejects.toThrow("Email is not configured");
-});
-
-it.each(["EAUTH", "ETIMEDOUT", "ESOCKET"])("reports %s without exposing SMTP credentials, recipients, or links", async (code) => {
-  const log = vi.spyOn(console, "error").mockImplementation(() => {});
-  sendMail.mockRejectedValueOnce(Object.assign(new Error("private SMTP response member@example.com token=secret password=abcdefghijklmnop"), { code, responseCode: 535 }));
-  await expect(sendAuthEmail("member@example.com", "https://forum.example/?token=secret", "Verify your email")).rejects.toThrow("Email could not be sent");
-  expect(log).toHaveBeenCalledWith("Authentication email delivery failed", { code, status: 535, port: 465, secure: true });
-  expect(close).toHaveBeenCalledOnce();
-});
-
-it.each([
-  ["ECONNRESET", "CONN", "ECONNRESET", "CONN"],
-  ["ERR_OPTION_NOT_IMPLEMENTED", "STARTTLS", "ERR_OPTION_NOT_IMPLEMENTED", "STARTTLS"],
-  ["private password=secret", "AUTH member@example.com token=secret", "OTHER", "OTHER"],
-])("logs only allowed socket diagnostics for %s", async (originalCode, command, expectedCode, stage) => {
-  const log = vi.spyOn(console, "error").mockImplementation(() => {});
-  sendMail.mockRejectedValueOnce(Object.assign(new Error("private response token=secret"), { code: "ESOCKET", originalCode, command }));
-  await expect(sendAuthEmail("member@example.com", "https://forum.example/?token=secret", "Verify your email")).rejects.toThrow("Email could not be sent");
-  expect(log).toHaveBeenCalledWith("Authentication email delivery failed", {
-    code: "ESOCKET",
-    status: undefined,
-    originalCode: expectedCode,
-    stage,
-    port: 465,
-    secure: true,
+  expect(JSON.parse(options.body)).toEqual({
+    from: "Caledon Forum <noreply@hengker.tech>",
+    to: ["member@example.com"],
+    subject: `${purpose} — Caledon Forum`,
+    text: `${purpose}\n\n${url}\n\nIf you did not request this, you can ignore this email.`,
   });
+  expect(timeout).toHaveBeenCalledWith(15000);
+});
+
+it.each([401, 403, 422, 429, 500])("handles HTTP %s without retrying or exposing provider content", async (status) => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  send.mockResolvedValueOnce(Response.json({ message: "private member@example.com token=secret re_test-only-key" }, { status }));
+  await expect(sendAuthEmail("member@example.com", "https://forum.hengker.tech/?token=secret", "Verify your email")).rejects.toThrow("Email could not be sent");
+  expect(log).toHaveBeenCalledExactlyOnceWith("Authentication email delivery failed", { code: "API_ERROR", status });
+  expect(send).toHaveBeenCalledOnce();
+});
+
+it.each(["not-json", "null", "{}", '{"id":" "}', '{"id":123}'])("rejects invalid success response %s", async (body) => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  send.mockResolvedValueOnce(new Response(body, { status: 200 }));
+  await expect(sendAuthEmail("member@example.com", "https://forum.hengker.tech/reset", "Reset your password")).rejects.toThrow("Email could not be sent");
+  expect(log).toHaveBeenCalledExactlyOnceWith("Authentication email delivery failed", { code: "INVALID_RESPONSE", status: 200 });
+});
+
+it.each([false, true])("handles network failure with timeout=%s without exposing errors", async (timedOut) => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  if (timedOut) vi.spyOn(AbortSignal, "timeout").mockReturnValue(AbortSignal.abort());
+  send.mockRejectedValueOnce(new Error("private member@example.com token=secret re_test-only-key"));
+  await expect(sendAuthEmail("member@example.com", "https://forum.hengker.tech/reset", "Reset your password")).rejects.toThrow("Email could not be sent");
+  expect(log).toHaveBeenCalledExactlyOnceWith("Authentication email delivery failed", { code: timedOut ? "TIMEOUT" : "NETWORK_ERROR", status: undefined });
+  expect(send).toHaveBeenCalledOnce();
 });
