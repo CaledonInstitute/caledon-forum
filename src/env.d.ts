@@ -1,4 +1,6 @@
 /// <reference types="astro/client" />
+declare const __SITE_LAST_UPDATED__: string | null;
+
 declare namespace App {
   interface Locals {
     user: import("./lib/types").Viewer | null;

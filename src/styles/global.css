@@ -189,6 +189,20 @@ small,
   font-size: 12px;
   color: var(--muted);
 }
+.site-updated,
+.sidebar-bottom .site-updated {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin: -8px 0 0;
+  max-width: none;
+}
+.site-updated time {
+  white-space: nowrap;
+}
+.site-updated-mobile {
+  display: none;
+}
 .sidebar-user {
   display: flex;
   align-items: center;
@@ -1122,6 +1136,11 @@ small,
   }
   .sidebar {
     display: none;
+  }
+  .site-updated-mobile {
+    display: block;
+    margin: 24px 20px 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
   .main {
     border: 0;

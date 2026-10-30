@@ -30,6 +30,10 @@ const currentPage = Math.min(100000, Math.max(1, Math.floor(Number(Astro.url.sea
 if (currentPage > 1) canonical.searchParams.set("page", String(currentPage));
 if (Astro.props.profile && ["replies", "likes"].includes(Astro.url.searchParams.get("tab") || "")) canonical.searchParams.set("tab", Astro.url.searchParams.get("tab")!);
 const path = Astro.url.pathname;
+const lastUpdated = __SITE_LAST_UPDATED__;
+const lastUpdatedLabel = lastUpdated
+  ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(lastUpdated))
+  : null;
 const analyticsAllowed =
   (path === "/" || /^\/p\/[1-9][0-9]{0,18}$/.test(path) || isValidUsername(path.slice(1))) && [...Astro.url.searchParams.keys()].every((key) => key === "page" || key === "tab");
 const nav = [
@@ -183,10 +187,20 @@ const siteSchema = {
             </a>
           </div>
           <p>© {new Date().getUTCFullYear()} Caledon Institute</p>
+          {lastUpdated && (
+            <p class="site-updated">
+              Last updated on <time datetime={lastUpdated}>{lastUpdatedLabel}</time>
+            </p>
+          )}
         </div>
       </aside>
       <main id="main" class="main" tabindex="-1">
         <slot />
+        {lastUpdated && !path.startsWith("/dm/") && (
+          <p class="site-updated site-updated-mobile">
+            Last updated on <time datetime={lastUpdated}>{lastUpdatedLabel}</time>
+          </p>
+        )}
       </main>
     </div>
     <nav class="mobile-nav" aria-label="Mobile navigation">
