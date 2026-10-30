@@ -1,6 +1,6 @@
 # Setup and operations
 
-Public, server-rendered conversations for Caledon Institute. Astro + React islands on Cloudflare Workers, D1 + Drizzle, Better Auth, Resend, and Turnstile.
+Public, server-rendered conversations for Caledon Institute. Astro + React islands on Cloudflare Workers, D1 + Drizzle, Better Auth, Gmail SMTP, and Turnstile.
 
 Production: https://caledon-forum.supervoid.workers.dev. Sign-in remains disabled until the external service configuration below is completed.
 
@@ -30,17 +30,22 @@ Authentication fails closed until every required service is configured. Public p
 ## Enable authentication
 
 1. Create GitHub OAuth Apps for local and production. Callback URLs are `http://localhost:4321/api/auth/callback/github` and `https://YOUR-WORKER.workers.dev/api/auth/callback/github`. The app requests `read:user`, `user:email`, and `read:org`. If CaledonInstitute restricts OAuth access, approve this OAuth App in the organization settings.
-2. Create a Resend API key and verify an owned sending domain through its DNS records. Set `EMAIL_FROM` to a verified sender, for example `Caledon Forum <forum@YOUR-DOMAIN>`. The forum can run on workers.dev; the sender still requires an owned domain.
-   The `resend.dev` test sender can only deliver to the Resend account owner's email. It cannot verify arbitrary forum users. Without an owned domain, email registration and password recovery cannot be used for the public. After signup, the browser redirects to login with a verification notice; rejected email delivery shows an account-created warning and a resend link instead. Resend rejection HTTP statuses appear in Worker logs without recipient addresses or verification links. A successful API response confirms provider acceptance, not inbox delivery; also check Resend delivery events and spam folders.
+2. Configure Gmail SMTP for a dedicated sender account. Enable 2-Step Verification on that Google account, open https://myaccount.google.com/apppasswords, and create an App Password named `Caledon Forum`. No sending domain or OAuth app publishing is required. Use the App Password, not the normal Google password.
+   Keep all five email settings private: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `EMAIL_FROM`. Put their values only in ignored `.dev.vars` locally and Cloudflare Secrets in production. The tracked `.dev.vars.example` contains empty placeholders; `wrangler.jsonc` does not contain email settings. For Gmail, use host `smtp.gmail.com`, port `465`, your Gmail address as `SMTP_USER`, the App Password as `SMTP_PASSWORD`, and `Caledon Forum <YOUR-SENDER-ADDRESS>` as `EMAIL_FROM`. Restart the background dev server after editing `.dev.vars`. Spaces in Google's grouped App Password are removed automatically. Never commit actual sender details or credentials. Authentication stays disabled until SMTP credentials and the other required services are configured.
+   Email verification, verification resend, and password recovery all use SMTP. Port 465 uses TLS from connection start; port 587 requires STARTTLS. Certificate verification stays enabled; port 25 is unsupported. Connections are created per request with timeouts and are closed after delivery. After signup the browser redirects to login with a verification notice, or an account-created warning and resend link if SMTP rejects delivery. Logs contain only sanitized SMTP error codes/statuses. SMTP acceptance does not guarantee inbox delivery; check spam as well. Gmail sending limits apply, and changing the Google account password revokes its App Passwords. The old Resend API key is no longer used and can be revoked in Resend.
 3. Create a Turnstile managed widget for the production hostname. Use a separate local widget/test key for localhost. Set the site key and secret key.
 4. Generate a strong random `BETTER_AUTH_SECRET` of at least 32 characters. It signs sessions and encrypts GitHub tokens. Keep it stable across deployments and back it up securely.
-5. Configure non-secret values in `wrangler.jsonc`: production `SITE_URL`, `EMAIL_FROM`, `TURNSTILE_SITE_KEY`. Store secrets interactively:
+5. Configure non-secret values in `wrangler.jsonc`: production `SITE_URL` and `TURNSTILE_SITE_KEY`. Store secrets interactively:
 
 ```powershell
 npx wrangler secret put BETTER_AUTH_SECRET
 npx wrangler secret put GITHUB_CLIENT_ID
 npx wrangler secret put GITHUB_CLIENT_SECRET
-npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put SMTP_HOST
+npx wrangler secret put SMTP_PORT
+npx wrangler secret put SMTP_USER
+npx wrangler secret put SMTP_PASSWORD
+npx wrangler secret put EMAIL_FROM
 npx wrangler secret put TURNSTILE_SECRET_KEY
 ```
 
@@ -101,7 +106,7 @@ npm audit --omit=dev
 npm run test:smoke
 ```
 
-The browser tests require the background dev server and local fixtures. Screenshots are saved to ignored `artifacts/`. With local authentication configured and enabled, the seed script also creates a local QA session in ignored `.astro/qa-session.json` for composer tests. Without it, the authenticated composer browser test is skipped. Worker regression tests use a separate test-only Worker and D1 database, with mocked email/Turnstile transports. They verify real workerd hashing, sessions, verification/reset tokens, and posting; they do not prove production provider credentials work. The test-only Worker is never deployed.
+The browser tests require the background dev server and local fixtures. Screenshots are saved to ignored `artifacts/`. With local authentication configured and enabled, the seed script also creates a local QA session in ignored `.astro/qa-session.json` for composer tests. Without it, the authenticated composer browser test is skipped. Worker regression tests use a separate test-only Worker and D1 database, with Nodemailer MIME generation with a mocked SMTP transport and mocked Turnstile transport. They verify real workerd hashing, sessions, verification/reset tokens, and posting; they do not prove production provider credentials work. The test-only Worker is never deployed.
 
 ## Deploy
 

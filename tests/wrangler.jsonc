@@ -1,4 +1,6 @@
 {
+  // Test-only Worker. All credentials below are deliberately fake fixtures.
+  // Email/OAuth transports are mocked; never put real credentials in this file.
   "name": "caledon-forum-regression-tests",
   "main": "worker.ts",
   "compatibility_date": "2026-10-23",
@@ -13,7 +15,10 @@
     "GITHUB_CLIENT_SECRET": "test",
     "GOOGLE_CLIENT_ID": "test-google",
     "GOOGLE_CLIENT_SECRET": "test-google-secret",
-    "RESEND_API_KEY": "test",
+    "SMTP_HOST": "smtp.gmail.com",
+    "SMTP_PORT": "465",
+    "SMTP_USER": "test@caledon.test",
+    "SMTP_PASSWORD": "test-only-password",
     "EMAIL_FROM": "test@caledon.test",
     "TURNSTILE_SITE_KEY": "test",
     "TURNSTILE_SECRET_KEY": "test",

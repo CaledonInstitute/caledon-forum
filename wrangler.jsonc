@@ -6,7 +6,6 @@
   "d1_databases": [{ "binding": "DB", "database_name": "caledon-forum-db", "database_id": "87a1cef5-b570-4d18-b671-2628aac7d4be", "migrations_dir": "migrations" }],
   "vars": {
     "AUTH_ENABLED": "true",
-    "EMAIL_FROM": "Caledon Forum <caledon@resend.dev>",
     "SEARCH_CONSOLE_TOKEN": "",
     "SITE_URL": "https://caledon-forum.supervoid.workers.dev",
     "REALTIME_ENABLED": "true",

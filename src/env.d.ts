@@ -28,7 +28,10 @@ declare namespace Cloudflare {
     GITHUB_CLIENT_SECRET?: string;
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
-    RESEND_API_KEY?: string;
+    SMTP_HOST?: string;
+    SMTP_PORT?: string;
+    SMTP_USER?: string;
+    SMTP_PASSWORD?: string;
     TURNSTILE_SECRET_KEY?: string;
     SEARCH_CONSOLE_TOKEN?: string;
   }

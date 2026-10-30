@@ -8,32 +8,16 @@ import { stagePasswordVault, reconcileVault } from "./dm-vault";
 import { createAuthMiddleware } from "better-auth/api";
 import { run } from "./db";
 import { isValidUsername } from "./usernames";
+import { emailReady, sendAuthEmail } from "./email";
 export function authReady() {
   return (
     env.AUTH_ENABLED === "true" &&
-    !!(env.BETTER_AUTH_SECRET && env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET && env.RESEND_API_KEY && env.EMAIL_FROM && env.TURNSTILE_SECRET_KEY && env.TURNSTILE_SITE_KEY)
+    !!(env.BETTER_AUTH_SECRET && env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET && env.TURNSTILE_SECRET_KEY && env.TURNSTILE_SITE_KEY) &&
+    emailReady()
   );
 }
 export function googleReady() {
   return !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
-}
-async function email(to: string, url: string, purpose: string) {
-  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) throw new Error("Email is not configured.");
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: env.EMAIL_FROM,
-      to,
-      subject: `${purpose} — Caledon Forum`,
-      text: `${purpose}\n\n${url}\n\nIf you did not request this, you can ignore this email.`,
-    }),
-  });
-  if (!response.ok) {
-    // Do not log provider response bodies: they can contain recipient addresses.
-    console.error("Authentication email rejected by Resend", { status: response.status });
-    throw new Error("Email could not be sent. Please try again.");
-  }
 }
 let cachedAuth: ReturnType<typeof buildAuth> | undefined;
 let cachedConfiguration = "";
@@ -59,7 +43,7 @@ function buildAuth(onEmailError?: () => void) {
   if (!env.BETTER_AUTH_SECRET) throw new Error("Authentication is not configured.");
   async function sendEmail(to: string, url: string, purpose: string) {
     try {
-      await email(to, url, purpose);
+      await sendAuthEmail(to, url, purpose);
     } catch (error) {
       onEmailError?.();
       throw error;
