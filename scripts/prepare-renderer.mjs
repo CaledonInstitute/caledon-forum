@@ -29,3 +29,7 @@ await writeChanged(
   `// Generated from satori (MPL-2.0); source and licenses remain in node_modules.\nimport __caledonHarfbuzz from 'harfbuzzjs/hb.wasm?module';\nimport __caledonCallbackVi from './callback-vi.wasm?module';\n${patched}`
 );
 console.log("Prepared Satori for statically compiled Worker WASM.");
+// Keep the full emoji font in static assets rather than the Free Worker's size budget.
+await mkdir("public/fonts", { recursive: true });
+await writeChanged("public/fonts/noto-emoji.woff", await readFile("node_modules/@fontsource/noto-emoji/files/noto-emoji-emoji-400-normal.woff"));
+await writeChanged("public/fonts/noto-emoji-LICENSE.txt", await readFile("node_modules/@fontsource/noto-emoji/LICENSE"));

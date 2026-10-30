@@ -77,7 +77,7 @@ export default function AccountPanel({
 }: {
   googleEnabled?: boolean;
   hasGoogle?: boolean;
-  category?: "profile" | "github" | "security" | "api";
+  category?: "profile" | "github" | "security" | "notifications" | "api";
   currentEmail?: string | null;
   mode: string;
   enabled: boolean;

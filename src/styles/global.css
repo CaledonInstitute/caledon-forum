@@ -1268,12 +1268,17 @@ small,
 
 .settings-categories {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 20px;
   gap: 8px;
   padding: 18px 28px;
   border-bottom: 1px solid var(--line);
 }
 .settings-categories a {
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-size: 13px;
   padding: 9px 12px;
   border-radius: 6px;

@@ -108,7 +108,7 @@ test("index directives, missing content and social PNG cards", async ({ request 
   expect(bytes.readUInt32BE(16)).toBe(1200);
   expect(bytes.readUInt32BE(20)).toBe(630);
   const fallback = await request.get("/social.png");
-  expect(bytes.equals(await fallback.body())).toBe(process.env.EXPECT_STATIC_OG !== "false");
+  expect(bytes.equals(await fallback.body())).toBe(process.env.EXPECT_POST_OG !== "true");
 });
 test("external images and click-loaded YouTube", async ({ page, request }) => {
   await page.route("https://www.youtube-nocookie.com/**", (route) => route.fulfill({ contentType: "text/html", body: "<html><body>Test player</body></html>" }));

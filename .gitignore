@@ -1,5 +1,7 @@
 # build output
 dist/
+/public/fonts/noto-emoji.woff
+/public/fonts/noto-emoji-LICENSE.txt
 
 # generated types
 .astro/

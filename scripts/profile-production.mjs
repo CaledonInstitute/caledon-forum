@@ -109,6 +109,7 @@ try {
       if (post) {
         await request(post);
         await request(`/api/forum/card/${post.split("/").pop()}`);
+        if (process.argv.includes("--post-og")) await request(`/api/og/${post.split("/").pop()}.png`);
       }
     }
   }

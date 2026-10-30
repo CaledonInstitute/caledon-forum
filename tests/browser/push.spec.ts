@@ -48,7 +48,7 @@ test("push is opt-in, preferences persist, and this device can unsubscribe", asy
     },
     { endpoint }
   );
-  await page.goto("/settings?category=security");
+  await page.goto("/settings?category=notifications");
   const config = await (await context.request.get("/api/push")).json();
   test.skip(!config.enabled, "Run with scripts/test-live-local.mjs");
   const panel = page.locator("[data-push-settings]");

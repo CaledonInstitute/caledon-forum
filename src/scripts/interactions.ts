@@ -3,6 +3,12 @@ import "./post-views";
 import "./rich-posts";
 import "./realtime";
 
+const settingsTabs = document.querySelector<HTMLElement>(".settings-categories");
+const activeSettingsTab = settingsTabs?.querySelector<HTMLElement>('[aria-current="page"]');
+if (settingsTabs && activeSettingsTab && settingsTabs.scrollWidth > settingsTabs.clientWidth) {
+  settingsTabs.scrollLeft = activeSettingsTab.offsetLeft - settingsTabs.offsetLeft - 20;
+}
+
 async function action(name: string, data: unknown) {
   const r = await fetch(`/api/forum/${name}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
   const result = (await r.json()) as any;

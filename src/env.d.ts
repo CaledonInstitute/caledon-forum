@@ -8,6 +8,7 @@ declare namespace App {
 declare namespace Cloudflare {
   interface Env {
     STATIC_OG_ENABLED?: string;
+    POST_OG_ENABLED?: string;
     REALTIME_ENABLED?: string;
     PRESENCE_ENABLED?: string;
     PUSH_ENABLED?: string;

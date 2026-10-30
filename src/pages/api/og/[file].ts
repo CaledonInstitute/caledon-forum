@@ -1,47 +1,61 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { Resvg, initWasm } from "@resvg/resvg-wasm";
-import wasm from "@resvg/resvg-wasm/index_bg.wasm?module";
-import fontData from "@fontsource/manrope/files/manrope-latin-400-normal.woff?inline";
-import { socialSvg } from "../../../lib/og";
 import { publicPost, previews } from "../../../lib/db";
-import { threadTitle } from "../../../lib/content";
-let ready: Promise<void> | undefined;
-let font: Promise<ArrayBuffer> | undefined;
+import { postCardData, postCardKey } from "../../../lib/og-card";
+
+async function fallback(short = false) {
+  const asset = await env.ASSETS.fetch(new URL("/social.png", env.SITE_URL));
+  const headers = new Headers(asset.headers);
+  headers.set("Cache-Control", `public, max-age=${short ? 60 : 300}`);
+  headers.set("X-Content-Type-Options", "nosniff");
+  return new Response(asset.body, { status: asset.status, headers });
+}
 export const GET: APIRoute = async (ctx) => {
   const file = ctx.params.file || "";
-  if (!file.endsWith(".png")) return new Response(null, { status: 404 });
+  if (file === "site.png") return fallback();
+  if (!/^[0-9]{1,19}\.png$/.test(file)) return new Response(null, { status: 404 });
   const id = file.slice(0, -4);
-  const p = id === "site" ? null : await publicPost(id);
-  if (id !== "site" && (!p || p.deleted)) return new Response(null, { status: 404 });
-  if (env.STATIC_OG_ENABLED === "true") return env.ASSETS.fetch(new URL("/social.png", env.SITE_URL));
-  if (p && id !== String(p.publicId)) return ctx.redirect(`/api/og/${p.publicId}.png${ctx.url.search}`, 301);
-  const key = new Request(new URL(`/api/og/${file}${p ? `?v=${p.updatedAt}` : ""}`, env.SITE_URL));
-  const cache = await caches.open("social-images");
-  const hit = await cache.match(key);
-  if (hit) return hit;
+  const p = await publicPost(id);
+  if (!p || p.deleted) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+  if (id !== String(p.publicId)) return ctx.redirect(`/api/og/${p.publicId}.png${ctx.url.search}`, 301);
+  const inPageObject = (ctx.locals.cfContext?.props as { forumPages?: boolean } | undefined)?.forumPages === true;
+  if (env.POST_OG_ENABLED !== "true" || env.SERVER_DO_ENABLED !== "true" || !inPageObject) return fallback();
   try {
-    ready ||= initWasm(wasm);
-    await ready;
-    font ||= Promise.resolve(Uint8Array.from(atob(fontData.split(",")[1]), (c) => c.charCodeAt(0)).buffer);
-    const links = p ? await previews(p.id) : [];
-    const svg = await socialSvg(
-      await font,
-      p ? threadTitle(p.body, links.find((l) => l.kind !== "image")?.title, p.name) : "Good conversations start with a little curiosity.",
-      p?.name
-    );
-    const renderer = new Resvg(svg, { font: { loadSystemFonts: false } });
-    const image = renderer.render();
-    const bytes = image.asPng();
-    image.free();
-    renderer.free();
+    const data = postCardData(p, await previews(p.id), env.SITE_URL);
+    const key = await postCardKey(data, env.SITE_URL);
+    let cache: Cache | undefined;
+    try {
+      cache = await caches.open("social-images");
+      const hit = await cache.match(key);
+      if (hit) {
+        const headers = new Headers(hit.headers);
+        headers.set("Cache-Control", "public, max-age=300");
+        return new Response(hit.body, { headers });
+      }
+    } catch {
+      /* Cache availability must not determine render availability. */
+    }
+    const { renderPostCard } = await import("../../../lib/og-render");
+    const bytes = await renderPostCard(data);
     const response = new Response(bytes.buffer as ArrayBuffer, {
-      headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff" },
+      headers: {
+        "Content-Type": "image/png",
+        "Cache-Control": "public, max-age=300",
+        "X-Content-Type-Options": "nosniff",
+      },
     });
-    await cache.put(key, response.clone());
+    if (cache) {
+      const cached = response.clone();
+      cached.headers.set("Cache-Control", "public, max-age=3600");
+      try {
+        await cache.put(key, cached);
+      } catch {
+        /* Serve freshly rendered PNG. */
+      }
+    }
     return response;
   } catch (error) {
-    console.error("Social image rendering failed:", error instanceof Error ? error.message : "unknown error");
-    return env.ASSETS.fetch(new URL("/social.png", env.SITE_URL));
+    console.error("Social image rendering failed:", error instanceof Error ? error.name : "unknown error");
+    return fallback(true);
   }
 };

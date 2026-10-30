@@ -41,9 +41,9 @@ export async function readLimited(response: Response, max: number): Promise<Uint
   return result;
 }
 // global_fetch_strictly_public also blocks private DNS resolutions and DNS rebinding in Workers.
-export async function safeFetch(value: string, accept = "text/html,application/json,image/*", fetcher: typeof fetch = fetch) {
+export async function safeFetch(value: string, accept = "text/html,application/json,image/*", fetcher: typeof fetch = fetch, requestSignal?: AbortSignal) {
   let url = publicUrl(value);
-  const signal = AbortSignal.timeout(5000);
+  const signal = requestSignal || AbortSignal.timeout(5000);
   let redirects = 0,
     discordFallback = false,
     compatibilityRetry = false;

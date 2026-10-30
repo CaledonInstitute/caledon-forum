@@ -45,7 +45,8 @@ if (["settings", "notifications", "onboarding", "admin"].includes(page) && !user
 if (page === "onboarding" && user?.username) return Astro.redirect(user.emailVerified ? "/" : "/settings");
 if (page === "admin" && user?.role !== "admin") Astro.response.status = 403;
 const settingsCategory = Astro.url.searchParams.get("category");
-const category = settingsCategory === "github" || settingsCategory === "security" || settingsCategory === "api" ? settingsCategory : "profile";
+const category =
+  settingsCategory === "github" || settingsCategory === "security" || settingsCategory === "notifications" || settingsCategory === "api" ? settingsCategory : "profile";
 const settingsEmail = page === "settings" && user ? await one<{ email: string }>("SELECT email FROM user WHERE id=?", user.id) : null;
 const currentEmail = settingsEmail?.email.endsWith("@unverified.caledon.invalid") ? null : settingsEmail?.email;
 const accounts = page === "settings" && user ? await all<{ provider_id: string }>("SELECT provider_id FROM account WHERE user_id=?", user.id) : [];
@@ -102,6 +103,7 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
           { id: "profile", label: "Profile", href: "/settings" },
           { id: "github", label: "GitHub & membership", href: "/settings?category=github" },
           { id: "security", label: "Email & security", href: "/settings?category=security" },
+          { id: "notifications", label: "Notifications", href: "/settings?category=notifications" },
           { id: "api", label: "API", href: "/settings?category=api" },
         ].map((item) => (
           <a href={item.href} aria-current={category === item.id ? "page" : undefined}>
@@ -110,7 +112,7 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
         ))}
       </nav>
     )}
-    {["login", "register", "verify", "forgot-password", "reset-password", "onboarding", "settings"].includes(page) && (
+    {["login", "register", "verify", "forgot-password", "reset-password", "onboarding", "settings"].includes(page) && !(page === "settings" && category === "notifications") && (
       <AccountPanel
         client:load
         mode={page}
@@ -170,7 +172,7 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
         <Pagination page={n} hasMore={notifications.length > PAGE_SIZE} />
       </div>
     )}
-    {page === "settings" && category === "security" && <PushSettings />}
+    {page === "settings" && category === "notifications" && <PushSettings />}
     {page === "admin" &&
       (user?.role !== "admin" ? (
         <section class="empty">

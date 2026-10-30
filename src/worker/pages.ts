@@ -25,7 +25,11 @@ export class ForumPages extends DurableObject<Cloudflare.Env> {
       await dispatchPush();
       return new Response(null, { status: 204 });
     }
-    const context = { waitUntil: (promise: Promise<unknown>) => this.ctx.waitUntil(promise), passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
+    const context = {
+      waitUntil: (promise: Promise<unknown>) => this.ctx.waitUntil(promise),
+      passThroughOnException() {},
+      props: { forumPages: true },
+    } as unknown as ExecutionContext;
     return handle(request, this.env as Env, context);
   }
 }
