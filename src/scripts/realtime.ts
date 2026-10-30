@@ -56,10 +56,11 @@ function newItemsButton() {
       const previous = [...list.querySelectorAll<HTMLElement>("[data-post-id]")];
       const anchor = previous.find(visible);
       const before = anchor?.getBoundingClientRect().top;
-      const retained = new Map(previous.map((card) => [card.dataset.postId, card]));
+      // One post can appear as its original card and several distinct reposts.
+      const retained = new Map(previous.map((card) => [card.id, card]));
       const nodes = [...replacement.childNodes].map((node) => {
         if (!(node instanceof HTMLElement)) return node;
-        const existing = retained.get(node.dataset.postId);
+        const existing = retained.get(node.id);
         return existing && existing.dataset.updatedAt === node.dataset.updatedAt ? existing : node;
       });
       list.replaceChildren(...nodes);
