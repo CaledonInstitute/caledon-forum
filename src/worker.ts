@@ -6,7 +6,13 @@ export { ForumControl } from "./worker/control";
 export { ForumPages } from "./worker/pages";
 export default {
   async fetch(request: Request, _env: Env, context: ExecutionContext) {
-    const path = new URL(request.url).pathname;
+    const url = new URL(request.url);
+    if (url.hostname === "caledon-forum.supervoid.workers.dev") {
+      url.protocol = "https:";
+      url.host = "forum.hengker.tech";
+      return Response.redirect(url.href, 308);
+    }
+    const path = url.pathname;
     if (path.startsWith("/.internal/")) return new Response(null, { status: 404 });
     if (env.SERVER_DO_ENABLED !== "true") return handle(request, _env, context);
     if (!env.FORUM_PAGES) return new Response("Server temporarily unavailable.", { status: 503 });
