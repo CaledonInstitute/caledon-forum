@@ -15,7 +15,7 @@ export const ALL: APIRoute = async (ctx) => {
         enabled: pushReady(),
         deviceSubscribed: !!active,
         publicKey: pushReady() ? env.VAPID_PUBLIC_KEY : null,
-        preferences: (await one('SELECT reply,mention,"like" FROM push_preferences WHERE user_id=?', ctx.locals.user.id)) || { reply: 1, mention: 1, like: 1 },
+        preferences: (await one('SELECT reply,mention,"like",dm FROM push_preferences WHERE user_id=?', ctx.locals.user.id)) || { reply: 1, mention: 1, like: 1, dm: 1 },
       },
       { headers: { "Cache-Control": "private, no-store" } }
     );
@@ -31,13 +31,16 @@ export const ALL: APIRoute = async (ctx) => {
       await run("DELETE FROM push_subscriptions WHERE id=? AND user_id=?", await subscriptionId(data.endpoint), ctx.locals.user.id);
       ctx.cookies.delete("push-device", { path: "/" });
     } else if (ctx.request.method === "PATCH") {
-      if (["reply", "mention", "like"].some((key) => typeof data[key] !== "boolean")) return new Response(null, { status: 400 });
+      if (["reply", "mention", "like"].some((key) => typeof data[key] !== "boolean") || (data.dm !== undefined && typeof data.dm !== "boolean"))
+        return new Response(null, { status: 400 });
       await run(
-        'INSERT INTO push_preferences(user_id,reply,mention,"like") VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET reply=excluded.reply,mention=excluded.mention,"like"=excluded."like"',
+        'INSERT INTO push_preferences(user_id,reply,mention,"like",dm) VALUES(?,?,?,?,COALESCE(?,1)) ON CONFLICT(user_id) DO UPDATE SET reply=excluded.reply,mention=excluded.mention,"like"=excluded."like",dm=COALESCE(?,push_preferences.dm)',
         ctx.locals.user.id,
         +data.reply,
         +data.mention,
-        +data.like
+        +data.like,
+        data.dm === undefined ? null : +data.dm,
+        data.dm === undefined ? null : +data.dm
       );
     } else {
       if (!pushReady()) return Response.json({ error: "Browser notifications are not available yet." }, { status: 503 });

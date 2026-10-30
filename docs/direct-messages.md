@@ -2,7 +2,7 @@
 
 The conversation screen has one header with the participant avatar and a details icon. Incoming bubbles are gray on the left; sent bubbles are Caledon blue on the right, with timestamps outside. Block, fingerprints and Lock DM are accessed through the details panel.
 
-DM v1 supports personal text conversations, encrypted post references, unread counts, blocking and chronological history in batches of 50. Accounts require a username, verified email and active status. Both participants must activate DM. New messages go directly into inbox; groups, attachments, typing, sender read receipts and DM push are excluded.
+DM v1 supports personal text conversations, encrypted post references, unread counts, blocking and chronological history in batches of 50. Accounts require a username, verified email and active status. Both participants must activate DM. New messages go directly into inbox; groups, attachments, typing, and sender read receipts are excluded.
 
 ## Cryptography
 
@@ -24,10 +24,12 @@ Reset requests stage a reset marker instead. Once the replacement credential is 
 
 `/api/dm/{vault,users,inbox,blocks,conversation,messages,read,send,block}` accepts browser sessions only. Mutations require same-origin JSON. Every conversation operation checks membership; all responses are private/no-store and are excluded from indexing and analytics. Read positions are private and never sent to the other participant. Sending checks current key versions, account eligibility and blocks again in the INSERT. Rate limit: 30 sends/minute/account. Message text is limited to 5,000 Unicode code points in the client and after decryption; the server bounds encrypted envelope sizes.
 
-The existing hibernating control object sends a content-free `dm-refresh` only to validated participant sessions. No DM identifiers/counters appear in public broadcast messages. Visible signed-in tabs poll every 30 seconds only while realtime is disconnected. DM push is not enabled.
+The existing hibernating control object sends a content-free `dm-refresh` only to validated participant sessions. No DM identifiers/counters appear in public broadcast messages. Visible signed-in tabs poll every 30 seconds only while realtime is disconnected. DM browser push uses the shared durable outbox and delivery queue. Notifications contain only "You have a new direct message." and a conversation link, never names, plaintext or ciphertext. The Direct messages preference defaults on for subscribed devices; messages already read, blocked participants and inactive accounts are rechecked before delivery. Only new messages create push events; expiry, retries and daily quotas match forum push.
 
 ## Local verification and rollout
 
+Conversation navigation stays inside the mounted React island with History API support. The inbox and navigation badge share in-flight requests; unchanged rows retain their data references. Drafts remain in memory per conversation and are cleared on lock/logout/key changes. Stale loads cannot replace the selected conversation.
+
 Apply `npx wrangler d1 migrations apply caledon-forum-db --local`, run `node scripts/seed-local.mjs`, and use `npm run dev` (Astro background mode). The seed creates dedicated local-only DM users and signed QA sessions. `tests/dm.test.ts` covers ciphertext, authorization, blocks, stale keys, retries and vault journals. `tests/worker.ts` exercises actual Better Auth password change/reset in workerd. `tests/browser/messages.spec.ts` covers remembered access, another browser, avatars, conversation details, sharing and activity privacy.
 
-Deploy only after applying migration 0013 to the intended database and validating the build. No production deployment is performed by local setup or tests.
+Deploy only after applying migrations through 0014 to the intended database and validating the build. No production deployment is performed by local setup or tests.

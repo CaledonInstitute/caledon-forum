@@ -36,9 +36,9 @@ export async function dispatchPush() {
       db()
         .prepare(
           `INSERT OR IGNORE INTO push_deliveries(notification_id,subscription_id)
-    SELECT o.notification_id,s.id FROM push_outbox o JOIN notifications n ON n.id=o.notification_id
-    JOIN push_subscriptions s ON s.user_id=n.recipient_id LEFT JOIN push_preferences p ON p.user_id=n.recipient_id
-    WHERE o.notification_id IN (SELECT value FROM json_each(?)) AND o.expires_at>? AND o.created_at>=s.created_at AND n.read_at IS NULL AND CASE n.kind WHEN 'reply' THEN COALESCE(p.reply,1) WHEN 'mention' THEN COALESCE(p.mention,1) ELSE COALESCE(p."like",1) END=1`
+    SELECT o.notification_id,s.id FROM push_outbox o JOIN push_sources n ON n.notification_id=o.notification_id
+    JOIN user u ON u.id=n.recipient_id JOIN push_subscriptions s ON s.user_id=n.recipient_id LEFT JOIN push_preferences p ON p.user_id=n.recipient_id
+    WHERE o.notification_id IN (SELECT value FROM json_each(?)) AND o.expires_at>? AND o.created_at>=s.created_at AND n.read_at IS NULL AND n.eligible=1 AND u.suspended=0 AND CASE n.kind WHEN 'reply' THEN COALESCE(p.reply,1) WHEN 'mention' THEN COALESCE(p.mention,1) WHEN 'dm' THEN COALESCE(p.dm,1) ELSE COALESCE(p."like",1) END=1`
         )
         .bind(ids, Date.now()),
       db().prepare("UPDATE push_outbox SET expanded=1 WHERE notification_id IN (SELECT value FROM json_each(?))").bind(ids),
@@ -88,11 +88,11 @@ export async function processPushBatch(batch: MessageBatch) {
       continue;
     }
     const delivery = await one<any>(
-      `SELECT d.state,d.attempts,o.expires_at,n.kind,n.recipient_id,n.read_at,s.endpoint,s.p256dh,s.auth,pa.id AS public_id,u.suspended,p.deleted,
-      CASE n.kind WHEN 'reply' THEN COALESCE(pref.reply,1) WHEN 'mention' THEN COALESCE(pref.mention,1) ELSE COALESCE(pref."like",1) END AS enabled
-      FROM push_deliveries d JOIN push_outbox o ON o.notification_id=d.notification_id JOIN notifications n ON n.id=o.notification_id
+      `SELECT d.state,d.attempts,o.expires_at,n.kind,n.recipient_id,n.read_at,s.endpoint,s.p256dh,s.auth,n.public_id,n.conversation_id,u.suspended,n.eligible,
+      CASE n.kind WHEN 'reply' THEN COALESCE(pref.reply,1) WHEN 'mention' THEN COALESCE(pref.mention,1) WHEN 'dm' THEN COALESCE(pref.dm,1) ELSE COALESCE(pref."like",1) END AS enabled
+      FROM push_deliveries d JOIN push_outbox o ON o.notification_id=d.notification_id JOIN push_sources n ON n.notification_id=o.notification_id
       JOIN push_subscriptions s ON s.id=d.subscription_id AND s.user_id=n.recipient_id JOIN user u ON u.id=n.recipient_id
-      JOIN posts p ON p.id=n.post_id JOIN post_addresses pa ON pa.post_id=p.id LEFT JOIN push_preferences pref ON pref.user_id=u.id
+      LEFT JOIN push_preferences pref ON pref.user_id=u.id
       WHERE d.notification_id=? AND d.subscription_id=?`,
       ...args
     );
@@ -100,7 +100,7 @@ export async function processPushBatch(batch: MessageBatch) {
       message.ack();
       continue;
     }
-    if (delivery.expires_at <= Date.now() || delivery.suspended || delivery.deleted || delivery.read_at || !delivery.enabled || delivery.attempts >= 3) {
+    if (delivery.expires_at <= Date.now() || delivery.suspended || !delivery.eligible || delivery.read_at || !delivery.enabled || delivery.attempts >= 3) {
       await run("UPDATE push_deliveries SET state='skipped' WHERE notification_id=? AND subscription_id=?", ...args);
       message.ack();
       continue;
@@ -137,8 +137,15 @@ export async function processPushBatch(batch: MessageBatch) {
         { endpoint: delivery.endpoint, keys: { p256dh: delivery.p256dh, auth: delivery.auth } },
         JSON.stringify({
           title: "Caledon Forum",
-          body: delivery.kind === "like" ? "Someone liked your post." : delivery.kind === "mention" ? "Someone mentioned you." : "You have a new reply.",
-          url: `/p/${delivery.public_id}`,
+          body:
+            delivery.kind === "dm"
+              ? "You have a new direct message."
+              : delivery.kind === "like"
+                ? "Someone liked your post."
+                : delivery.kind === "mention"
+                  ? "Someone mentioned you."
+                  : "You have a new reply.",
+          url: delivery.kind === "dm" ? `/dm/${delivery.conversation_id}` : `/p/${delivery.public_id}`,
           tag: `caledon-${item.notification_id}`,
         }),
         {

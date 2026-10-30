@@ -62,6 +62,9 @@ test("push is opt-in, preferences persist, and this device can unsubscribe", asy
     await panel.getByLabel("Likes", { exact: true }).uncheck();
     await expect(panel.locator("[data-push-status]")).toHaveText("Notification preferences saved.");
     expect((await (await context.request.get("/api/push")).json()).preferences.like).toBe(0);
+    await panel.getByLabel("Direct messages", { exact: true }).uncheck();
+    await expect(panel.locator("[data-push-status]")).toHaveText("Notification preferences saved.");
+    expect((await (await context.request.get("/api/push")).json()).preferences.dm).toBe(0);
     await panel.getByRole("button", { name: "Disable on this device", exact: true }).click();
     await expect(panel.locator("[data-push-status]")).toHaveText("Notifications disabled on this device.");
     expect((await (await context.request.get("/api/push")).json()).deviceSubscribed).toBe(false);
@@ -69,7 +72,7 @@ test("push is opt-in, preferences persist, and this device can unsubscribe", asy
     await context.request.delete("/api/push", { headers: { origin: "http://localhost:4321" }, data: { endpoint } });
     await context.request.patch("/api/push", {
       headers: { origin: "http://localhost:4321" },
-      data: { reply: !!config.preferences.reply, mention: !!config.preferences.mention, like: !!config.preferences.like },
+      data: { reply: !!config.preferences.reply, mention: !!config.preferences.mention, like: !!config.preferences.like, dm: !!config.preferences.dm },
     });
   }
 });

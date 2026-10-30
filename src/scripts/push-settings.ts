@@ -89,6 +89,7 @@ if (panel) {
   for (const field of fields)
     field.onchange = async () => {
       fields.forEach((f) => (f.disabled = true));
+      status.textContent = "Saving notification preferences…";
       try {
         await api("PATCH", Object.fromEntries(fields.map((f) => [f.name, f.checked])));
         status.textContent = "Notification preferences saved.";

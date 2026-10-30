@@ -1,13 +1,22 @@
+function notificationUrl(raw) {
+  try {
+    const target = new URL(typeof raw === "string" ? raw : "/notifications", self.location.origin);
+    return target.origin === self.location.origin &&
+      (/^\/p\/[1-9][0-9]{0,18}$/.test(target.pathname) || /^\/dm\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(target.pathname))
+      ? target.pathname
+      : "/notifications";
+  } catch {
+    return "/notifications";
+  }
+}
 self.addEventListener("push", (event) => {
   let data;
   try {
-    data = event.data.json();
+    data = event.data.json() || {};
   } catch {
     data = {};
   }
-  const raw = typeof data.url === "string" ? data.url : "/notifications";
-  const target = new URL(raw, self.location.origin);
-  const url = target.origin === self.location.origin && /^\/p\/[1-9][0-9]{0,18}$/.test(target.pathname) ? target.pathname : "/notifications";
+  const url = notificationUrl(data?.url);
   event.waitUntil(
     self.registration.showNotification("Caledon Forum", {
       body: typeof data.body === "string" ? data.body.slice(0, 120) : "You have a new notification.",
@@ -19,7 +28,6 @@ self.addEventListener("push", (event) => {
 });
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = new URL(event.notification.data?.url || "/notifications", self.location.origin);
-  const target = url.origin === self.location.origin ? url.href : new URL("/notifications", self.location.origin).href;
+  const target = new URL(notificationUrl(event.notification.data?.url), self.location.origin).href;
   event.waitUntil(self.clients.openWindow(target));
 });

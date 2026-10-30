@@ -49,6 +49,7 @@ it("prevents outsiders reading messages and keeps retries idempotent", async () 
   await dmAction(alice, "send", input, true);
   await dmAction(alice, "send", input, true);
   expect(row("SELECT COUNT(*) AS n FROM dm_messages").n).toBe(1);
+  expect(row("SELECT COUNT(*) AS n FROM push_outbox WHERE dm_message_id=?", input.id).n).toBe(1);
   await expect(dmAction(charlie, "messages", { conversationId: c.id }, false)).rejects.toMatchObject({ status: 404 });
   await expect(
     dmAction(alice, "send", { ...input, envelopes: { ...input.envelopes, sender: { ...input.envelopes.sender, ct: input.envelopes.sender.ct + "A" } } }, true)
