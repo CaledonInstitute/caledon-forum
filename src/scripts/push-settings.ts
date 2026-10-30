@@ -24,7 +24,7 @@ if (panel) {
     }
     try {
       const response = await fetch("/api/push", { cache: "no-store" });
-      if (!response.ok) throw new Error("Sign in to manage notifications.");
+      if (!response.ok) throw new Error(response.status === 401 ? "Sign in to manage notifications." : "Unable to load notification settings. Please try again later.");
       const data = (await response.json()) as any;
       publicKey = data.publicKey;
       panel!.querySelector<HTMLFieldSetElement>("[data-push-preferences]")!.disabled = false;
