@@ -3,6 +3,7 @@ import Layout from "../layouts/Layout.astro";
 import ModerationQueue from "../components/ModerationQueue.astro";
 import ProfilePage from "../components/ProfilePage.astro";
 import PageHeader from "../components/PageHeader.astro";
+import ActivitySettings from "../components/ActivitySettings.astro";
 import AccountPanel from "../components/AccountPanel";
 import { env } from "cloudflare:workers";
 import { authReady, googleReady } from "../lib/auth";
@@ -106,19 +107,22 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
       </nav>
     )}
     {["login", "register", "verify", "forgot-password", "reset-password", "onboarding", "settings"].includes(page) && !(page === "settings" && category === "notifications") && (
-      <AccountPanel
-        client:load
-        mode={page}
-        category={category}
-        currentEmail={currentEmail}
-        enabled={authReady()}
-        googleEnabled={googleReady()}
-        hasGoogle={accounts.some((a) => a.provider_id === "google")}
-        siteKey={env.TURNSTILE_SITE_KEY}
-        user={user}
-        hasGithub={accounts.some((a) => a.provider_id === "github")}
-        hasPassword={accounts.some((a) => a.provider_id === "credential")}
-      />
+      <>
+        {page === "settings" && category === "profile" && <ActivitySettings />}
+        <AccountPanel
+          client:load
+          mode={page}
+          category={category}
+          currentEmail={currentEmail}
+          enabled={authReady()}
+          googleEnabled={googleReady()}
+          hasGoogle={accounts.some((a) => a.provider_id === "google")}
+          siteKey={env.TURNSTILE_SITE_KEY}
+          user={user}
+          hasGithub={accounts.some((a) => a.provider_id === "github")}
+          hasPassword={accounts.some((a) => a.provider_id === "credential")}
+        />
+      </>
     )}
     {page === "notifications" && (
       <div data-notification-list>
@@ -201,6 +205,12 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
           We store your username, display name, email, profile information, and the interactions needed to operate the forum. Passwords are hashed. Email is used for verification
           and password recovery, not marketing or discussion notifications.
         </p>
+        <h2>Direct messages and activity</h2>
+        <p>
+          Direct messages are encrypted in your browser. We retain participants, timestamps, ciphertext and unread state. Resetting your password removes access to your previous
+          message keys; copies held by the other participant remain available to them. Remembered DM access is stored on your device until you lock DM or sign out.
+        </p>
+        <p>Your online status and last activity are public by default. You can hide both using Show activity status in Settings.</p>
         <h2>GitHub and bluechecks</h2>
         <p>
           Connecting GitHub shares account identity, verified email information, and read access to organization membership. Active CaledonInstitute membership is shown publicly as

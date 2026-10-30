@@ -54,11 +54,20 @@ export async function enhancePost(element: HTMLElement) {
   } catch {
     /* Keep original link when offline. */
   }
-  const rendered = element.dataset.richLong ? excerpt(body, 600) : body;
-  const html = await markdown(rendered, links, quote?.sourceUrl);
+  const html = await markdown(body, links, quote?.sourceUrl, element.closest(".post-detail") ? undefined : 600);
   if (!element.isConnected || element.dataset.richDeleted === "true") return;
   element.innerHTML = html;
   element.dataset.richReady = "true";
+  const cut = !!element.querySelector("[data-content-truncated]");
+  const more = element.parentElement?.querySelector<HTMLElement>(".read-more");
+  if (more) more.hidden = !cut;
+  else if (cut) {
+    const link = document.createElement("a");
+    link.className = "read-more";
+    link.href = element.closest<HTMLElement>("[data-post-url]")?.dataset.postUrl || "#";
+    link.textContent = "Read more";
+    element.parentNode?.insertBefore(link, element.nextSibling);
+  }
   const host = element.parentElement?.querySelector<HTMLElement>("[data-rich-quote]");
   if (host && body.includes("p/")) quoteBodies.set(host, body);
   if (host && quote) host.replaceChildren(quoteElement(quote));

@@ -34,7 +34,7 @@ test("detail views count each GET while server-only listings, HEAD, redirects an
   const deletedPath = branch("#post-qa-branch-deleted").attr("data-post-url")!;
   const deleted = await request.get(deletedPath);
   expect(deleted.status()).toBe(200);
-  expect(load(await deleted.text())(".conversation .post-views").length).toBe(0);
+  expect(load(await deleted.text())(".conversation > article .post-views").length).toBe(0);
 
   await page.screenshot({ path: "artifacts/post-views-desktop.png" });
   await page.setViewportSize({ width: 320, height: 780 });

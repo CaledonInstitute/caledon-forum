@@ -8,6 +8,9 @@ import profileExtrasSql from "../migrations/0007_profile_location_shares.sql";
 import directRepliesSql from "../migrations/0006_direct_replies_index.sql";
 import viewsSql from "../migrations/0008_post_views.sql";
 import mentionsSql from "../migrations/0009_mentions.sql";
+import messagingSql from "../migrations/0013_messages_reposts_activity.sql";
+import { createIdentity, wrapPrivate, unlockPrivate } from "../src/lib/dm-crypto";
+import { dmAction } from "../src/lib/dm-service";
 import { markdown } from "../src/lib/markdown";
 import { createAuth } from "../src/lib/auth";
 import { POST as forum } from "../src/pages/api/forum/[action]";
@@ -89,8 +92,15 @@ export default {
       if (!postColumns.results.some((c) => c.name === "views")) await env.DB.exec(viewsSql.trim());
       const notificationTable = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE name='notifications'").first<{ sql: string }>();
       if (!notificationTable?.sql.includes("'mention'")) await env.DB.exec(mentionsSql.replace(/\s+/g, " ").trim());
+      if (!columns.results.some((c) => c.name === "show_activity")) await env.DB.exec(messagingSql.replace(/\s+/g, " ").trim());
       await env.DB.batch(
         [
+          "dm_reads",
+          "dm_messages",
+          "dm_conversations",
+          "dm_blocks",
+          "dm_vaults",
+          "reposts",
           "api_keys",
           "notifications",
           "post_links",
@@ -268,6 +278,30 @@ export default {
       const replacement = await issueKey(user.id, true);
       check((await apiCall(key.key)).status === 401, "Worker rejects rotated key");
       check((await apiCall(replacement.key)).ok, "Worker accepts regenerated key");
+      const dm = await createIdentity(user.id, 1, "A-new-test-password-456");
+      await dmAction(user, "vault", { password: "A-new-test-password-456", version: 1, publicKey: dm.identity.publicKey, vault: dm.vault }, true);
+      const rewrapped = await wrapPrivate(dm.identity.privateKey, "Changed-password-with-DM-123");
+      response = await auth.handler(
+        new Request("http://localhost:8789/api/auth/change-password", {
+          method: "POST",
+          headers: { origin: "http://localhost:8789", cookie: existingCookie, "Content-Type": "application/json", "x-dm-vault": JSON.stringify(rewrapped) },
+          body: JSON.stringify({ currentPassword: "A-new-test-password-456", newPassword: "Changed-password-with-DM-123", revokeOtherSessions: false }),
+        })
+      );
+      check(response.ok, `Password change preserves DM vault: ${response.status}`);
+      const changed = (await dmAction(user, "vault", {}, false)) as any;
+      check(
+        JSON.stringify(await crypto.subtle.exportKey("jwk", await unlockPrivate(changed.vault, "Changed-password-with-DM-123"))) ===
+          JSON.stringify(await crypto.subtle.exportKey("jwk", dm.identity.privateKey)),
+        "Changed password unlocks original private key"
+      );
+      response = await call("request-password-reset", { email: "researcher@caledon.test", redirectTo: "/reset-password" });
+      check(response.ok, "DM reset email requested");
+      const dmResetToken = new URL(verifyUrl).pathname.split("/").pop();
+      response = await call("reset-password", { token: dmResetToken, newPassword: "Reset-password-with-new-DM-456" });
+      check(response.ok, `Password reset with active DM: ${response.status}`);
+      const reset = (await dmAction(user, "vault", {}, false)) as any;
+      check(reset.version === 2 && reset.vault === null && reset.publicKey === null, "Password reset invalidates previous DM key");
       return Response.json({ passed });
     } catch (error) {
       return Response.json({ passed, error: error instanceof Error ? error.message : "Worker test failed" }, { status: 500 });

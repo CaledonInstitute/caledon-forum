@@ -1,0 +1,12 @@
+ALTER TABLE user ADD COLUMN show_activity INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE user ADD COLUMN last_active_at INTEGER;
+CREATE TABLE reposts (user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE, post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE, created_at INTEGER NOT NULL, PRIMARY KEY(user_id,post_id));
+CREATE INDEX reposts_post ON reposts(post_id);
+CREATE TABLE dm_vaults (user_id TEXT PRIMARY KEY REFERENCES user(id) ON DELETE CASCADE, version INTEGER NOT NULL, public_key TEXT NOT NULL, vault TEXT NOT NULL, pending_vault TEXT, pending_password_hash TEXT, pending_at INTEGER, invalidated INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE dm_conversations (id TEXT PRIMARY KEY, user_a TEXT NOT NULL REFERENCES user(id), user_b TEXT NOT NULL REFERENCES user(id), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE(user_a,user_b), CHECK(user_a<user_b));
+CREATE INDEX dm_conversations_a ON dm_conversations(user_a,updated_at);
+CREATE INDEX dm_conversations_b ON dm_conversations(user_b,updated_at);
+CREATE TABLE dm_messages (seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, conversation_id TEXT NOT NULL REFERENCES dm_conversations(id), sender_id TEXT NOT NULL REFERENCES user(id), sender_version INTEGER NOT NULL, recipient_version INTEGER NOT NULL, sender_public_key TEXT NOT NULL, envelopes TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE INDEX dm_messages_conversation ON dm_messages(conversation_id,seq);
+CREATE TABLE dm_reads (conversation_id TEXT NOT NULL REFERENCES dm_conversations(id), user_id TEXT NOT NULL REFERENCES user(id), seq INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(conversation_id,user_id));
+CREATE TABLE dm_blocks (user_id TEXT NOT NULL REFERENCES user(id), blocked_id TEXT NOT NULL REFERENCES user(id), PRIMARY KEY(user_id,blocked_id), CHECK(user_id<>blocked_id));

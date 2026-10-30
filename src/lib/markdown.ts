@@ -27,7 +27,7 @@ export function extractUrls(body: string): string[] {
   return extractLinks(body).filter((url) => /^https:\/\//.test(url));
 }
 const linkParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(remarkRehype, { allowDangerousHtml: true }).use(rehypeRaw).freeze();
-type RenderData = { images: Map<string, LinkPreview>; quoteSource?: string };
+type RenderData = { images: Map<string, LinkPreview>; quoteSource?: string; limit?: number };
 function imageFor(images: RenderData["images"], value: string) {
   try {
     const url = new URL(value);
@@ -97,6 +97,54 @@ const processor = unified()
       }
     });
   })
+  .use(() => (tree: any, file: any) => {
+    let remaining = (file.data as RenderData).limit;
+    if (remaining === undefined) return;
+    const textLength = (node: any): number =>
+      node.type === "text" ? Array.from(node.value as string).length : (node.children || []).reduce((n: number, c: any) => n + textLength(c), 0);
+    if (textLength(tree) > remaining) remaining = Math.max(0, remaining - 1);
+    let truncated = false;
+    function prune(parent: any) {
+      const kept: any[] = [];
+      for (const node of parent.children || []) {
+        const math = node.properties?.className?.some((c: string) => c === "math-inline" || c === "math-display");
+        if (math) {
+          const value = node.children?.map((n: any) => n.value || "").join("") || "";
+          if (Array.from(value).length > remaining!) {
+            truncated = true;
+            remaining = 0;
+            break;
+          }
+          remaining! -= Array.from(value).length;
+          kept.push(node);
+          continue;
+        }
+        if (node.type === "text") {
+          const chars = Array.from(node.value as string);
+          if (chars.length > remaining!) {
+            kept.push({ ...node, value: chars.slice(0, remaining).join("") });
+            remaining = 0;
+            truncated = true;
+            break;
+          }
+          remaining! -= chars.length;
+          kept.push(node);
+        } else {
+          if (remaining! <= 0) {
+            truncated = true;
+            break;
+          }
+          if (node.children) prune(node);
+          kept.push(node);
+          if (truncated) break;
+        }
+      }
+      parent.children = kept;
+    }
+    prune(tree);
+    if (truncated)
+      tree.children.push({ type: "element", tagName: "span", properties: { dataContentTruncated: "true", ariaHidden: "true" }, children: [{ type: "text", value: "…" }] });
+  })
   .use(rehypeKatex, { trust: false, strict: "ignore", maxExpand: 1000, maxSize: 20 })
   .use(rehypeHighlight, { detect: false, ignoreMissing: true })
   .use(() => (tree: any) => {
@@ -120,6 +168,6 @@ const processor = unified()
   })
   .use(rehypeStringify)
   .freeze();
-export async function markdown(body: string, previews: LinkPreview[] = [], quoteSource?: string): Promise<string> {
-  return String(await processor.process({ value: body, data: { images: new Map(previews.filter((p) => p.kind === "image").map((p) => [p.url, p])), quoteSource } }));
+export async function markdown(body: string, previews: LinkPreview[] = [], quoteSource?: string, limit?: number): Promise<string> {
+  return String(await processor.process({ value: body, data: { images: new Map(previews.filter((p) => p.kind === "image").map((p) => [p.url, p])), quoteSource, limit } }));
 }

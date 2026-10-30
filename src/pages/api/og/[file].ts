@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { publicPost, previews } from "../../../lib/db";
 import { postCardData, postCardKey } from "../../../lib/og-card";
-import { normalizePreviews } from "../../../lib/previews";
+import { normalizePreviews } from "../../../lib/preview-normalization";
 
 async function fallback(short = false) {
   const asset = await env.ASSETS.fetch(new URL("/social.png", env.SITE_URL));

@@ -24,14 +24,17 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
   private sockets() {
     return this.ctx.getWebSockets();
   }
-  private online(users: string[]) {
+  private async online(users: string[]) {
     const active = new Set(
       this.sockets()
         .map((ws) => ws.deserializeAttachment() as Attachment)
         .filter((a) => a.expires > Date.now())
         .map((a) => a.username)
     );
-    return Object.fromEntries(users.map((name) => [name, active.has(name)]));
+    const visible = await this.env.DB.prepare("SELECT username,last_active_at AS lastActiveAt FROM user WHERE show_activity=1 AND username IN (SELECT value FROM json_each(?))")
+      .bind(JSON.stringify(users))
+      .all<{ username: string; lastActiveAt: number | null }>();
+    return Object.fromEntries(visible.results.map((u) => [u.username, { online: active.has(u.username), lastActiveAt: u.lastActiveAt }]));
   }
   private send(ws: WebSocket, value: unknown) {
     if (!this.daily("events", 20000)) {
@@ -44,8 +47,8 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
       /* Disconnected. */
     }
   }
-  private presence(ws: WebSocket, a: Attachment) {
-    const users = this.env.PRESENCE_ENABLED === "true" ? this.online(a.users) : {};
+  private async presence(ws: WebSocket, a: Attachment) {
+    const users = this.env.PRESENCE_ENABLED === "true" ? await this.online(a.users) : {};
     const serialized = JSON.stringify(users);
     if (serialized === a.lastPresence) return;
     a.lastPresence = serialized;
@@ -54,6 +57,20 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
   }
   async fetch(request: Request) {
     const path = new URL(request.url).pathname;
+    if (path === "/dm-change") {
+      const { users } = (await request.json()) as { users: string[] };
+      for (const ws of this.sockets()) {
+        const a = ws.deserializeAttachment() as Attachment;
+        if (!a.sessionId || !a.username) continue;
+        const session = await this.env.DB.prepare(
+          "SELECT u.id FROM session s JOIN user u ON u.id=s.user_id WHERE s.id=? AND s.expires_at>? AND u.suspended=0 AND u.email_verified=1"
+        )
+          .bind(a.sessionId, Date.now())
+          .first<{ id: string }>();
+        if (session && users.includes(session.id)) this.send(ws, { type: "dm-refresh" });
+      }
+      return new Response(null, { status: 204 });
+    }
     if (path === "/push-delivery") {
       const { processPushBatch } = await import("../lib/push");
       let retry = false;
@@ -134,7 +151,11 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
       a.users = [...new Set(value.users as string[])];
       a.expires = Date.now() + 60000;
       ws.serializeAttachment(a);
-      this.presence(ws, a);
+      if (a.sessionId)
+        await this.env.DB.prepare("UPDATE user SET last_active_at=? WHERE username=? AND (last_active_at IS NULL OR last_active_at<?)")
+          .bind(Date.now(), a.username, Date.now() - 60000)
+          .run();
+      await this.presence(ws, a);
     } catch {
       ws.close(1008, "Invalid message");
     }
@@ -150,7 +171,7 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
         continue;
       }
       if (dirty) this.send(ws, { type: "refresh" });
-      if (this.env.PRESENCE_ENABLED === "true") this.presence(ws, a);
+      if (this.env.PRESENCE_ENABLED === "true") await this.presence(ws, a);
     }
     if (this.sockets().length) await this.ctx.storage.setAlarm(Date.now() + 30000);
   }

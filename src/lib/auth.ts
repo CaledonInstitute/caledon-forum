@@ -4,6 +4,8 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/d1";
 import { username, captcha } from "better-auth/plugins";
 import * as schema from "../db/schema";
+import { stagePasswordVault, reconcileVault } from "./dm-vault";
+import { createAuthMiddleware } from "better-auth/api";
 import { run } from "./db";
 import { isValidUsername } from "./usernames";
 export function authReady() {
@@ -54,6 +56,17 @@ function buildAuth() {
     baseURL: env.SITE_URL,
     secret: env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(drizzle(env.DB, { schema }), { provider: "sqlite", schema, transaction: false }),
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === "/reset-password") {
+          const token = ctx.body?.token || ctx.query?.token;
+          if (token) {
+            const record = await ctx.context.internalAdapter.findVerificationValue(`reset-password:${token}`);
+            if (record && record.expiresAt > new Date()) (ctx.context as any).dmResetUser = record.value;
+          }
+        }
+      }),
+    },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
@@ -122,6 +135,21 @@ function buildAuth() {
     advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
     session: { expiresIn: 60 * 60 * 24 * 14, updateAge: 60 * 60 * 24 },
     databaseHooks: {
+      account: {
+        update: {
+          before: async (account, ctx) => {
+            if (!account.password || !ctx) return;
+            const reset = ctx.path === "/reset-password";
+            const userId = reset ? (ctx.context as any).dmResetUser : ctx.context.session?.user.id;
+            if (!userId) throw new Error("Unable to coordinate password and message keys.");
+            const header = ctx.headers?.get("x-dm-vault");
+            await stagePasswordVault(userId, account.password, header ? JSON.parse(header) : undefined, reset);
+          },
+          after: async (account) => {
+            if (account.userId && account.password) await reconcileVault(account.userId);
+          },
+        },
+      },
       session: {
         create: {
           after: async (s) => {

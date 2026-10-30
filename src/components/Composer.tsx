@@ -27,6 +27,10 @@ export default function Composer({
     [links, setLinks] = useState<LinkPreview[]>([]),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const quote = new URLSearchParams(location.search).get("quote");
+    if (quote && /^\/p\/[1-9][0-9]*$/.test(quote) && !parentId && !editId) setBody(new URL(quote, location.origin).href);
+  }, []);
   const pending = useRef(false);
   const [threadState, setThreadState] = useState({ locked: false, deleted: false });
   useEffect(() => {
@@ -173,25 +177,10 @@ export default function Composer({
           {quoteStatus}
         </p>
       )}
-      <details className="composer-guide">
-        <summary>Formatting help</summary>
-        <pre>
-          <code>
-            {
-              '**Bold** and *italic*\n<a href="https://example.com">Link</a>\n\n```python\nprint("Hello, Caledon")\n```\n\nInline math: $E = mc^2$\n\n$$\n\\int_0^1 x^2\\,dx = \\frac{1}{3}\n$$'
-            }
-          </code>
-        </pre>
-        <p>
-          Type @username to mention someone. Paste a Caledon post or reply link to quote it. Use a language after the opening code fence for syntax highlighting. Basic HTML is
-          supported; scripts and embedded content are removed.
-        </p>
-      </details>
       <p className="error" role="alert">
         {error}
       </p>
       <div className="composer-foot">
-        <span className="composer-hint">Markdown, HTML, code & LaTeX</span>
         <span className="counter" aria-live="polite">
           {count.toLocaleString("en")} / 25,000
         </span>

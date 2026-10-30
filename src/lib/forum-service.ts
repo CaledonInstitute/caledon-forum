@@ -24,13 +24,18 @@ function mentionNotifications(body: string, postId: string, actorId: string, now
 }
 export async function forumAction(user: Viewer, action: string, data: any): Promise<Response> {
   const response = await forumActionImpl(user, action, data);
-  if (response.ok && ["publish", "edit", "delete", "like", "read", "moderate", "profile"].includes(action)) {
+  if (response.ok && ["publish", "edit", "delete", "like", "read", "moderate", "profile", "repost", "activity"].includes(action)) {
     await signalChange();
   }
   return response;
 }
 async function forumActionImpl(user: Viewer, action: string, data: any): Promise<Response> {
   if (user.suspended) return Response.json({ error: "Your account is suspended." }, { status: 403 });
+  if (action === "activity") {
+    const input = z.object({ visible: z.boolean() }).parse(data);
+    await run("UPDATE user SET show_activity=? WHERE id=?", input.visible ? 1 : 0, user.id);
+    return Response.json({ ok: true });
+  }
   if (action === "membership") return Response.json({ isCaledonMember: await refreshMembership(user.id, true) });
   if (action === "profile") {
     const imageInput = z.string().trim().max(2048).nullable().optional();
@@ -180,6 +185,12 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
         db().prepare("DELETE FROM notifications WHERE post_id=? AND actor_id=? AND kind='like'").bind(input.id, user.id),
       ]);
     return Response.json({ ok: true, liked: input.liked, ...(await one("SELECT COUNT(*) AS likes FROM likes WHERE post_id=?", input.id)) });
+  }
+  if (action === "repost") {
+    const input = z.object({ id, reposted: z.boolean() }).parse(data);
+    if (input.reposted) await run("INSERT OR IGNORE INTO reposts(user_id,post_id,created_at) SELECT ?,id,? FROM posts WHERE id=? AND deleted=0", user.id, Date.now(), input.id);
+    else await run("DELETE FROM reposts WHERE user_id=? AND post_id=?", user.id, input.id);
+    return Response.json({ ok: true, reposted: input.reposted, ...(await one("SELECT COUNT(*) AS reposts FROM reposts WHERE post_id=?", input.id)) });
   }
   if (action === "report") {
     const input = z.object({ id, reason: z.string().trim().min(5).max(1000) }).parse(data);

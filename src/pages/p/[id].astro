@@ -5,10 +5,10 @@ import PageHeader from "../../components/PageHeader.astro";
 import Post from "../../components/Post.astro";
 import ComposeGate from "../../components/ComposeGate.astro";
 import Pagination from "../../components/Pagination.astro";
-import { publicPost, posts, previews, post, recordPostView } from "../../lib/db";
+import { publicPost, posts, previews, post, recordPostView, ancestors } from "../../lib/db";
 import { PAGE_SIZE, pageNumber, threadTitle, excerpt } from "../../lib/content";
 import { preparePostContent } from "../../lib/post-content";
-import { normalizePreviews } from "../../lib/previews";
+import { normalizePreviews } from "../../lib/preview-normalization";
 const p = await publicPost(Astro.params.id!, Astro.locals.user?.id);
 const root = p?.rootId ? await post(p.rootId, Astro.locals.user?.id) : p;
 if (p && Astro.params.id !== String(p.publicId)) return Astro.redirect(`/p/${p.publicId}${Astro.url.search}`, 301);
@@ -19,7 +19,8 @@ if (!missing) await recordPostView(p!, Astro.request.method);
 const page = pageNumber(Astro.url);
 const replies = p ? await posts("p.parent_id=?", [p.id], Astro.locals.user?.id, "p.created_at ASC,p.id ASC", page) : [];
 const links = p && !p.deleted ? normalizePreviews(await previews(p.id)) : [];
-const prepared = await preparePostContent(p ? [p, ...replies.slice(0, PAGE_SIZE)] : [], new Set(p ? [p.id] : []));
+const chain = p ? await ancestors(p.id, Astro.locals.user?.id) : [];
+const prepared = await preparePostContent(p ? [...chain, p, ...replies.slice(0, PAGE_SIZE)] : [], new Set(p ? [p.id] : []));
 const title = missing ? "Thread unavailable" : p!.deleted ? "Conversation" : threadTitle(p!.body, links.find((l) => l.kind !== "image")?.title, p!.name);
 const origin = env.SITE_URL;
 const schema = !missing
@@ -76,6 +77,11 @@ const schema = !missing
   ) : (
     <>
       <section class="conversation" aria-label="Conversation">
+        {chain.map((ancestor) => (
+          <div class="thread-ancestor">
+            <Post post={ancestor} prepared={prepared.get(ancestor.id)} />
+          </div>
+        ))}
         <Post post={p!} full prepared={prepared.get(p!.id)} />
       </section>
       <ComposeGate parentId={p!.id} locked={!!root?.locked} unavailable={!!p!.deleted} />

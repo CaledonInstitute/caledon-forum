@@ -147,17 +147,16 @@ describe("previews", () => {
       '<title>Photo</title><meta property="og:title" content="SEO card"><meta property="og:description" content="Should not win"><meta property="og:image" content="/thumb.png">';
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const accept = String(new Headers(init?.headers).get("Accept") || "");
-      if (accept.includes("image/")) return new Response(jpeg, { headers: { "Content-Type": "image/jpeg" } });
+      if (accept === "image/webp,image/png,image/jpeg,image/gif") return new Response(jpeg, { headers: { "Content-Type": "image/jpeg" } });
       return new Response(html, { headers: { "Content-Type": "text/html" } });
     });
     vi.stubGlobal("fetch", fetcher);
     const preview = await inspectLink("https://cdn.example.com/attachments/1/2/photo.jpg?ex=sig");
     expect(preview).toMatchObject({ kind: "image", image: "https://cdn.example.com/attachments/1/2/photo.jpg?ex=sig", title: "" });
-    expect(fetcher.mock.calls.every(([, init]) => String(new Headers(init?.headers).get("Accept") || "").includes("image/"))).toBe(true);
+    expect(fetcher.mock.calls.every(([, init]) => String(new Headers(init?.headers).get("Accept") || "") === "image/webp,image/png,image/jpeg,image/gif")).toBe(true);
   });
   it("never turns video or audio attachment URLs into SEO cards", async () => {
-    const html =
-      '<title>Clip</title><meta property="og:title" content="Video page"><meta property="og:description" content="Clip"><meta property="og:image" content="/thumb.png">';
+    const html = '<title>Clip</title><meta property="og:title" content="Video page"><meta property="og:description" content="Clip"><meta property="og:image" content="/thumb.png">';
     const fetcher = vi.fn(async () => new Response(html, { headers: { "Content-Type": "text/html" } }));
     vi.stubGlobal("fetch", fetcher);
     expect(await inspectLink("https://cdn.example.com/clip.mp4")).toBeNull();
@@ -190,7 +189,7 @@ describe("previews", () => {
     const jpeg = new Uint8Array([255, 216, 255, 225, 0, 16]);
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const accept = String(new Headers(init?.headers).get("Accept") || "");
-      if (accept.includes("image/")) return new Response(jpeg, { headers: { "Content-Type": "image/jpeg" } });
+      if (accept === "image/webp,image/png,image/jpeg,image/gif") return new Response(jpeg, { headers: { "Content-Type": "image/jpeg" } });
       return new Response('<meta property="og:title" content="SEO card">', { headers: { "Content-Type": "text/html" } });
     });
     vi.stubGlobal("fetch", fetcher);

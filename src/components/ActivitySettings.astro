@@ -1,0 +1,31 @@
+---
+import { one } from "../lib/db";
+const state = Astro.locals.user ? await one<{ show_activity: number }>("SELECT show_activity FROM user WHERE id=?", Astro.locals.user.id) : null;
+---
+
+{state && (
+  <section class="settings-group">
+    <h3>Activity status</h3>
+    <label>
+      <input type="checkbox" data-activity-toggle checked={!!state.show_activity} /> Show activity status
+    </label>
+    <p class="help">Your online status and last activity are public when enabled.</p>
+    <p data-activity-status role="status"></p>
+  </section>
+)}
+<script>
+  document.querySelector<HTMLInputElement>("[data-activity-toggle]")?.addEventListener("change", async (event) => {
+    const input = event.target as HTMLInputElement;
+    input.disabled = true;
+    try {
+      const r = await fetch("/api/forum/activity", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ visible: input.checked }) });
+      if (!r.ok) throw new Error();
+      document.querySelector("[data-activity-status]")!.textContent = "Activity visibility updated.";
+    } catch {
+      input.checked = !input.checked;
+      document.querySelector("[data-activity-status]")!.textContent = "Could not save. Try again.";
+    } finally {
+      input.disabled = false;
+    }
+  });
+</script>

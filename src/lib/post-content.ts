@@ -1,6 +1,6 @@
 import { all } from "./db";
 import { exceedsCharacters, excerpt } from "./content";
-import { normalizePreviews } from "./previews";
+import { normalizePreviews } from "./preview-normalization";
 import type { ForumPost, LinkPreview } from "./types";
 export interface PostContent {
   links: LinkPreview[];

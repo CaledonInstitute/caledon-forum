@@ -1,4 +1,4 @@
-export {};
+import { postTime } from "../lib/post-time";
 let socket: WebSocket | undefined;
 let heartbeat: ReturnType<typeof setInterval> | undefined;
 let retries = 0,
@@ -7,18 +7,25 @@ let retries = 0,
   refreshing = false,
   resyncRequested = false;
 let reconnect: ReturnType<typeof setTimeout> | undefined;
-const statuses = new Map<string, boolean>();
+const statuses = new Map<string, { online: boolean; lastActiveAt: number | null }>();
 const visible = (element: Element) => {
   const r = element.getBoundingClientRect();
   return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
 };
 function paint(unknown = false) {
   document.querySelectorAll<HTMLElement>("[data-presence-for]").forEach((dot) => {
-    const online = unknown ? undefined : statuses.get(dot.dataset.presenceFor!);
+    const online = unknown ? undefined : statuses.get(dot.dataset.presenceFor!)?.online;
     dot.dataset.online = String(online === true);
     const label = online === undefined ? "Status unavailable" : online ? "Online" : "Offline";
     dot.setAttribute("aria-label", label);
     dot.title = label;
+    if (dot.classList.contains("profile-activity")) {
+      const last = statuses.get(dot.dataset.presenceFor!)?.lastActiveAt;
+      dot.textContent = online ? "Online" : last ? `Last active at ${postTime(last)}` : "";
+      dot.title = last ? new Date(last).toLocaleString("en-GB", { timeZone: "Asia/Jakarta" }) + " GMT+7" : label;
+    }
+    if (online === undefined) dot.hidden = true;
+    else dot.hidden = false;
   });
 }
 function beat() {
@@ -112,6 +119,10 @@ async function refresh() {
     for (const item of result.items) {
       for (const card of cards.filter((c) => c.dataset.postId === item.id)) {
         if (item.deleted) {
+          if (card.querySelector(".repost-context")) {
+            card.remove();
+            continue;
+          }
           const content = card.querySelector<HTMLElement>(".post-content");
           if (content) {
             content.dataset.richDeleted = "true";
@@ -125,7 +136,15 @@ async function refresh() {
           const response = await fetch(`/api/forum/card/${item.publicId}${card.classList.contains("post-detail") ? "?full=1" : ""}`, { cache: "no-store" });
           if (response.ok) {
             const replacement = new DOMParser().parseFromString(await response.text(), "text/html").querySelector("article.post");
-            if (replacement) card.replaceWith(replacement);
+            if (replacement) {
+              const repostContext = card.querySelector(".repost-context");
+              if (repostContext) {
+                replacement.insertBefore(repostContext.cloneNode(true), replacement.firstChild);
+                replacement.id = card.id;
+                (replacement as HTMLElement).dataset.ownRepost = card.dataset.ownRepost;
+              }
+              card.replaceWith(replacement);
+            }
           }
           continue;
         }
@@ -137,7 +156,13 @@ async function refresh() {
           if (e) e.textContent = text;
         };
         set("[data-like] span", String(item.likes || "Like"));
-        set("[data-share] span", String(item.shares));
+        set("[data-share] span", String(item.reposts || "Share"));
+        const share = card.querySelector<HTMLElement>("[data-share]");
+        if (share) {
+          share.dataset.reposted = String(item.reposted);
+          share.dataset.reposts = String(item.reposts);
+          share.setAttribute("aria-label", `Share post, ${item.reposts} reposts`);
+        }
         set("[data-reply-count]", String(item.directReplies || "Reply"));
         set(".post-views span", Number(item.views).toLocaleString("en-US"));
         card.querySelector(".post-views")?.setAttribute("aria-label", `${item.views} ${item.views === 1 ? "view" : "views"}`);
@@ -168,6 +193,7 @@ function connect() {
   if (stopped || document.visibilityState !== "visible" || document.body.dataset.realtime !== "true") return;
   socket = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/live/connect`);
   socket.onopen = () => {
+    document.body.dataset.realtimeConnected = "true";
     retries = 0;
     beat();
     clearInterval(heartbeat);
@@ -177,15 +203,17 @@ function connect() {
   socket.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      if (data.type === "refresh") void refresh();
+      if (data.type === "dm-refresh") document.dispatchEvent(new Event("forum:dm-updated"));
+      else if (data.type === "refresh") void refresh();
       else if (data.type === "presence") {
         statuses.clear();
-        for (const [name, online] of Object.entries(data.users)) statuses.set(name, online === true);
+        for (const [name, online] of Object.entries(data.users)) statuses.set(name, online as { online: boolean; lastActiveAt: number | null });
         paint();
       }
     } catch {}
   };
   socket.onclose = (event) => {
+    document.body.dataset.realtimeConnected = "false";
     clearInterval(heartbeat);
     paint(true);
     if (event.code === 1013 || event.code === 1008) stopped = true;

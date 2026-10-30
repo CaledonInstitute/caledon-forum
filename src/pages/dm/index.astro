@@ -1,0 +1,9 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import DirectMessages from "../../components/DirectMessages";
+if (!Astro.locals.user) return Astro.redirect("/login");
+---
+
+<Layout title="Direct messages" noindex>
+  <DirectMessages client:only="react" />
+</Layout>

@@ -142,12 +142,12 @@ async function firstReplyPath(page: import("@playwright/test").Page) {
   return (await page.locator("#post-qa-reply-00 .post-time").getAttribute("href"))!;
 }
 
-test("reply navigation reveals one level at a time without expanding ancestors", async ({ page, browser }) => {
+test("reply navigation includes the full ancestry and keeps sibling branches separate", async ({ page, browser }) => {
   const replyPath = await firstReplyPath(page);
   await expect(page.locator("#post-qa-branch-a")).toHaveCount(0);
   await page.goto(replyPath);
   await expect(page.locator(".conversation > article")).toHaveCount(1);
-  await expect(page.locator("#post-qa-notebook")).toHaveCount(0);
+  await expect(page.locator(".conversation #post-qa-notebook")).toHaveCount(1);
   await expect(page.getByRole("link", { name: "Back to parent" })).toHaveAttribute("href", notebookPath);
   await expect(page.locator("#post-qa-reply-00")).not.toHaveAttribute("data-post-url");
   await expect(page.locator("#post-qa-reply-00 .post-content")).toContainText("pagination testing.");
@@ -157,7 +157,7 @@ test("reply navigation reveals one level at a time without expanding ancestors",
   await page.locator("#post-qa-branch-a .post-content").click();
   await expect(page).toHaveURL(branchPath);
   await expect(page.locator("#post-qa-branch-b")).toHaveCount(0);
-  await expect(page.locator("#post-qa-reply-00")).toHaveCount(0);
+  await expect(page.locator(".conversation #post-qa-reply-00")).toHaveCount(1);
   await expect(page.locator("#post-qa-branch-leaf")).toHaveCount(0);
   await expect(page.locator(".conversation > article")).toHaveCount(1);
   const selectedBounds = (await page.locator(".conversation > article").boundingBox())!;
@@ -173,7 +173,7 @@ test("reply navigation reveals one level at a time without expanding ancestors",
   const leafPath = (await page.locator("#post-qa-branch-leaf .post-time").getAttribute("href"))!;
   await page.goto(leafPath);
   await expect(page.locator(".conversation > article")).toHaveCount(1);
-  await expect(page.locator("#post-qa-branch-deleted")).toHaveCount(0);
+  await expect(page.locator(".conversation #post-qa-branch-deleted")).toHaveCount(1);
   await expect(page.locator(".reply-list > article")).toHaveCount(0);
   await expect(page.locator("#post-qa-branch-b")).toHaveCount(0);
   await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", "http://localhost:4321" + leafPath);

@@ -1,4 +1,4 @@
-import { BadgeCheck } from "lucide-react";
+import { memberBadgeMarkup } from "../lib/member-badge";
 import type { QuotedPost } from "../lib/types";
 import { postTime } from "../lib/post-time";
 import UserAvatar from "./UserAvatar";
@@ -22,7 +22,7 @@ export default function QuoteCard({ quote: q }: { quote: QuotedPost }) {
           <a className="quote-profile" href={`/${q.username}`}>
             <strong>{q.name}</strong>
           </a>
-          {q.isCaledonMember && <BadgeCheck size={14} className="quote-badge" aria-label="Verified Caledon member" />}
+          {q.isCaledonMember && <span dangerouslySetInnerHTML={{ __html: memberBadgeMarkup() }} />}
           <span className="quote-handle">@{q.username}</span>
         </div>
       </div>

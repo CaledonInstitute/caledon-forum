@@ -16,10 +16,11 @@ test("public presence follows an authenticated tab and an anonymous viewer recei
     await anonymous.goto("/qa_caledon");
     test.skip((await anonymous.locator('body[data-realtime="true"]').count()) === 0, "Run with scripts/test-live-local.mjs");
     await expect(anonymous.locator('[data-presence-for="qa_caledon"]').first()).toHaveAttribute("data-online", "true", { timeout: 40000 });
-    const before = Number(await anonymous.locator("#post-qa-notebook [data-share] span").textContent());
-    const response = await signedIn.request.post("/api/forum/share", { headers: { origin: "http://localhost:4321" }, data: { id: "qa-notebook" } });
+    const before = Number(await anonymous.locator("#post-qa-notebook [data-share]").getAttribute("data-reposts"));
+    const response = await signedIn.request.post("/api/forum/repost", { headers: { origin: "http://localhost:4321" }, data: { id: "qa-notebook", reposted: true } });
     expect(response.ok()).toBe(true);
     await expect(anonymous.locator("#post-qa-notebook [data-share] span")).toHaveText(String(before + 1), { timeout: 20000 });
+    await signedIn.request.post("/api/forum/repost", { headers: { origin: "http://localhost:4321" }, data: { id: "qa-notebook", reposted: false } });
     await signedIn.close();
     await expect(anonymous.locator('[data-presence-for="qa_caledon"]').first()).toHaveAttribute("data-online", "false", { timeout: 60000 });
   } finally {

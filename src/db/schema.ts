@@ -12,6 +12,8 @@ export const user = sqliteTable("user", {
   displayUsername: text("display_username"),
   bio: text("bio").notNull().default(""),
   location: text("location").notNull().default(""),
+  showActivity: integer("show_activity", { mode: "boolean" }).notNull().default(true),
+  lastActiveAt: integer("last_active_at", { mode: "timestamp_ms" }),
   role: text("role").notNull().default("user"),
   suspended: integer("suspended", { mode: "boolean" }).notNull().default(false),
 });

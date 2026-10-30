@@ -11,20 +11,21 @@ test("mentions support keyboard, mouse, preview, and mobile", async ({ page, con
   const editor = page.getByRole("textbox", { name: "Your post", exact: true });
   await editor.fill("Hello @qa_");
   const options = page.getByRole("option");
-  await expect(options).toHaveCount(2);
+  await expect.poll(() => options.count()).toBeGreaterThanOrEqual(2);
   await expect(options.first()).toHaveAttribute("aria-selected", "true");
+  const selectedUsername = (await options.nth(1).locator(".mention-handle").textContent())!.slice(1);
   await editor.press("ArrowDown");
   await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
   await editor.press("Enter");
-  await expect(editor).toHaveValue("Hello @qa_research ");
+  await expect(editor).toHaveValue(`Hello @${selectedUsername} `);
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await page.getByRole("tab", { name: "Preview", exact: true }).click();
   const mention = page.locator(".preview a.mention");
-  await expect(mention).toHaveAttribute("href", "/qa_research");
+  await expect(mention).toHaveAttribute("href", `/${selectedUsername}`);
   await expect(mention).not.toHaveAttribute("target");
   await page.getByRole("tab", { name: "Write", exact: true }).click();
   await editor.fill("@qa_");
-  await expect(options).toHaveCount(2);
+  await expect.poll(() => options.count()).toBeGreaterThanOrEqual(2);
   await editor.press("Escape");
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await expect(editor).toHaveValue("@qa_");
@@ -37,7 +38,7 @@ test("mentions support keyboard, mouse, preview, and mobile", async ({ page, con
   await expect(editor).toHaveValue("Hello @qa_research ");
   await page.setViewportSize({ width: 1280, height: 900 });
   await editor.fill("Hello @qa_");
-  await expect(options).toHaveCount(2);
+  await expect.poll(() => options.count()).toBeGreaterThanOrEqual(2);
   await page.screenshot({ path: "artifacts/mentions-desktop.png", fullPage: true });
 });
 

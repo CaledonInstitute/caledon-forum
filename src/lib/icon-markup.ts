@@ -23,7 +23,7 @@ export const postIcons = {
   reply: iconMarkup("message-circle", 17, 1.6),
   like: iconMarkup("heart", 17, 1.6),
   liked: iconMarkup("heart", 17, 1.6, true),
-  link: iconMarkup("link", 16, 1.6),
+  link: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>',
   eye: iconMarkup("eye", 17, 1.6),
   more: iconMarkup("ellipsis", 19, 1.6),
 };

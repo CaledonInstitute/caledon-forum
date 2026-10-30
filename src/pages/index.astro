@@ -5,11 +5,11 @@ import Post from "../components/Post.astro";
 import ComposeGate from "../components/ComposeGate.astro";
 import Pagination from "../components/Pagination.astro";
 import Icon from "../components/Icon.astro";
-import { posts } from "../lib/db";
+import { timeline } from "../lib/db";
 import { PAGE_SIZE, pageNumber } from "../lib/content";
 import { preparePostContent } from "../lib/post-content";
 const page = pageNumber(Astro.url);
-const items = await posts("p.root_id IS NULL AND (p.deleted=0 OR EXISTS(SELECT 1 FROM posts r WHERE r.root_id=p.id AND r.deleted=0))", [], Astro.locals.user?.id, undefined, page);
+const items = await timeline(Astro.locals.user?.id, page);
 const prepared = await preparePostContent(items.slice(0, PAGE_SIZE));
 ---
 

@@ -1,3 +1,4 @@
+import { hashPassword } from "better-auth/crypto";
 import { createHmac, randomUUID } from "node:crypto";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
@@ -7,6 +8,19 @@ const statements = [
   `INSERT OR IGNORE INTO user(id,name,email,email_verified,username,created_at,updated_at,bio) VALUES('qa-alice','Caledon QA','qa-alice@caledon.invalid',1,'qa_caledon',${now},${now},'Local regression-test profile. Not published to production.')`,
   `INSERT OR IGNORE INTO user(id,name,email,email_verified,username,created_at,updated_at) VALUES('qa-bob','Research QA','qa-bob@caledon.invalid',1,'qa_research',${now},${now})`,
 ];
+// Dedicated encrypted-DM browser fixtures; credentials never leave the local D1 database.
+for (const [id, username] of [
+  ["qa-dm-sender", "qa_dm_sender"],
+  ["qa-dm-recipient", "qa_dm_recipient"],
+]) {
+  statements.push(
+    `INSERT OR IGNORE INTO user(id,name,email,email_verified,username,created_at,updated_at) VALUES(${q(id)},${q(username)},${q(username + "@caledon.invalid")},1,${q(username)},${now},${now})`
+  );
+  statements.push(
+    `INSERT OR IGNORE INTO account(id,account_id,provider_id,user_id,password,created_at,updated_at) VALUES(${q(id + "-password")},${q(id)},'credential',${q(id)},${q(await hashPassword("Local-DM-browser-password-123"))},${now},${now})`
+  );
+}
+statements.push("UPDATE user SET image='https://avatars.githubusercontent.com/u/9919?v=4' WHERE id IN ('qa-dm-sender','qa-dm-recipient')");
 // Dedicated profile-card fixtures; these do not change the signed-in QA accounts.
 for (const [username, name, bio, image, cover] of [
   [
@@ -76,6 +90,8 @@ if (variable("AUTH_ENABLED") === "true" && variable("BETTER_AUTH_SECRET")) {
   for (const [userId, sessionId, filename] of [
     ["qa-alice", "qa-browser-session", "qa-session.json"],
     ["qa-bob", "qa-mention-session", "qa-mention-session.json"],
+    ["qa-dm-sender", "qa-dm-sender-session", "qa-dm-sender-session.json"],
+    ["qa-dm-recipient", "qa-dm-recipient-session", "qa-dm-recipient-session.json"],
   ]) {
     const token = randomUUID();
     statements.push(

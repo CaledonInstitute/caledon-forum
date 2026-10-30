@@ -2,6 +2,7 @@
 import Avatar from "./Avatar.astro";
 import Badge from "./Badge.astro";
 import LinkCard from "./LinkCard.astro";
+import Icon from "./Icon.astro";
 import { preparePostContent, type PostContent } from "../lib/post-content";
 import { postTime } from "../lib/post-time";
 import type { ForumPost } from "../lib/types";
@@ -21,13 +22,20 @@ const time = postTime(p.createdAt);
 
 <article
   class:list={["post", { reply, "post-detail": full }]}
-  id={`post-${p.id}`}
+  id={`post-${p.id}${p.repostedBy ? `-repost-${p.repostedBy}` : ""}`}
   data-post-id={p.id}
+  data-own-repost={p.repostedBy === viewer?.username ? "true" : undefined}
   data-public-id={p.publicId}
   data-updated-at={p.updatedAt}
   data-post-url={!full ? permalink : undefined}
   data-view-post={!full && !p.deleted ? p.id : undefined}
 >
+  {p.repostedBy && (
+    <p class="repost-context">
+      <Icon name="repeat-2" size={14} strokeWidth={1.7} />
+      <a href={`/${p.repostedBy}`}>{p.repostedName} reposted</a>
+    </p>
+  )}
   <div class="post-grid">
     <a class="post-avatar-link" href={`/${p.username}`} aria-label={`${p.name}'s profile`}>
       <Avatar name={p.name} image={p.image} username={p.username} />
@@ -59,12 +67,12 @@ const time = postTime(p.createdAt);
         <>
           <div class="post-content" data-rich-content data-rich-previews={JSON.stringify(links)} data-rich-long={long ? "true" : undefined}>
             <span class="plain-post">{body}</span>
-            <template data-rich-source>{long && !p.body.includes("p/") ? body : p.body}</template>
+            <template data-rich-source>{p.body}</template>
           </div>
           <div data-rich-quote></div>
           {long && (
             <a class="read-more" href={permalink}>
-              Read full {p.rootId ? "reply" : "thread"}
+              Read more
             </a>
           )}
           {links
@@ -89,6 +97,8 @@ const time = postTime(p.createdAt);
               likes: p.likes,
               liked: !!p.liked,
               shares: p.shares,
+              reposts: p.reposts || 0,
+              reposted: !!p.reposted,
               views: p.views,
               signedIn: !!viewer,
               owner: viewer?.id === p.authorId,

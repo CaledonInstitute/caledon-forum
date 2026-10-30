@@ -1,3 +1,4 @@
+import { memberBadgeMarkup } from "./member-badge";
 import type { QuotedPost } from "./types";
 import { postTime } from "./post-time";
 export function quoteElement(q: QuotedPost) {
@@ -35,12 +36,9 @@ export function quoteElement(q: QuotedPost) {
   aside.querySelector("strong")!.textContent = q.name;
   aside.querySelector(".quote-handle")!.textContent = `@${q.username}`;
   if (q.isCaledonMember) {
-    const badge = document.createElement("span");
-    badge.className = "quote-badge";
-    badge.setAttribute("role", "img");
-    badge.setAttribute("aria-label", "Verified Caledon member");
-    badge.textContent = "✓";
-    aside.querySelector(".quote-author")!.insertBefore(badge, aside.querySelector(".quote-handle"));
+    const wrap = document.createElement("span");
+    wrap.innerHTML = memberBadgeMarkup();
+    aside.querySelector(".quote-author")!.insertBefore(wrap.firstElementChild!, aside.querySelector(".quote-handle"));
   }
   const link = aside.querySelector<HTMLAnchorElement>(".quote-source")!;
   link.href = q.url;

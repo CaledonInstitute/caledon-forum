@@ -18,10 +18,13 @@ function enhanceTools() {
     like.setAttribute("aria-label", p.liked ? "Unlike" : "Like");
     like.querySelector("span")!.textContent = String(p.likes || "Like");
     const share = host.querySelector<HTMLButtonElement>("[data-ui-share]")!;
-    share.dataset.copy = p.url;
+    share.dataset.shareMenu = p.url;
+    share.dataset.reposted = String(p.reposted);
+    share.dataset.reposts = String(p.reposts);
+    share.dataset.signedIn = String(p.signedIn);
     share.dataset.share = p.id;
-    share.setAttribute("aria-label", `Copy post link, ${p.shares} shares`);
-    share.querySelector("span")!.textContent = String(p.shares);
+    share.setAttribute("aria-label", `Share post, ${p.reposts} reposts`);
+    share.querySelector("span")!.textContent = String(p.reposts || "Share");
     const views = host.querySelector<HTMLElement>(".post-views")!;
     const number = Number(p.views).toLocaleString("en-US");
     views.setAttribute("aria-label", `${number} ${p.views === 1 ? "view" : "views"}`);

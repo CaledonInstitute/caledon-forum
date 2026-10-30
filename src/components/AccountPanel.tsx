@@ -53,10 +53,10 @@ function Challenge({ siteKey, onToken }: { siteKey: string; onToken: (token: str
   }, [siteKey]);
   return <div ref={ref} />;
 }
-async function send(path: string, data: unknown, token?: string) {
+async function send(path: string, data: unknown, token?: string, extraHeaders: Record<string, string> = {}) {
   const response = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { "x-captcha-response": token } : {}) },
+    headers: { "Content-Type": "application/json", ...extraHeaders, ...(token ? { "x-captcha-response": token } : {}) },
     body: JSON.stringify(data),
   });
   const result = (await response.json()) as any;
@@ -142,7 +142,8 @@ export default function AccountPanel({
       }
       if (mode === "reset-password") {
         await send("/api/auth/reset-password", { newPassword: value("password"), token: new URL(location.href).searchParams.get("token") });
-        setMessage("Password updated. You can now sign in.");
+        await (await import("../lib/dm-crypto")).forgetIdentity();
+        setMessage("Password updated. Previous DM history can no longer be unlocked with this account. You can now sign in.");
       }
       if (mode === "verify") {
         await send("/api/auth/send-verification-email", { email: value("email"), callbackURL: "/verify" }, token);
@@ -348,7 +349,13 @@ export default function AccountPanel({
                   e.preventDefault();
                   const f = new FormData(e.currentTarget);
                   perform(async () => {
-                    await send("/api/auth/change-password", { currentPassword: f.get("currentPassword"), newPassword: f.get("newPassword"), revokeOtherSessions: true });
+                    const wrapped = await (await import("../lib/dm-crypto")).rewrapAccountPassword(String(f.get("currentPassword")), String(f.get("newPassword")));
+                    await send(
+                      "/api/auth/change-password",
+                      { currentPassword: f.get("currentPassword"), newPassword: f.get("newPassword"), revokeOtherSessions: true },
+                      undefined,
+                      wrapped ? { "x-dm-vault": JSON.stringify(wrapped) } : {}
+                    );
                     setMessage("Password updated. Other sessions were signed out.");
                   });
                 }}
@@ -381,6 +388,7 @@ export default function AccountPanel({
             disabled={busy}
             onClick={() =>
               perform(async () => {
+                await (await import("../lib/dm-crypto")).forgetIdentity();
                 await send("/api/auth/sign-out", {});
                 location.assign("/");
               })
@@ -489,6 +497,7 @@ export default function AccountPanel({
           </button>
         </form>
       )}
+      {mode === "reset-password" && <p className="notice">Resetting your password removes access to your previous encrypted DM history.</p>}
       <p className="error" role="alert">
         {error}
       </p>

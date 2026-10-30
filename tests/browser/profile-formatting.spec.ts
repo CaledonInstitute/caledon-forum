@@ -1,17 +1,18 @@
 import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 
-test("anonymous shares persist, clipboard failures do not count, and recording failures preserve copy feedback", async ({ page }) => {
+test("Share opens without recording, copying records only after clipboard succeeds", async ({ page }) => {
   await page.goto("/");
-  const post = page.locator("#post-qa-notebook"),
-    button = post.locator("[data-share]");
-  const initial = Number(await button.locator("span").textContent());
-  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {} } }));
+  let calls = 0;
+  await page.route("**/api/forum/share", (route) => {
+    calls++;
+    return route.fulfill({ status: 200, json: { ok: true } });
+  });
+  const button = page.locator("#post-qa-notebook [data-share-menu]");
   await button.click();
-  await expect(button.locator("span")).toHaveText(String(initial + 1));
-  await expect(post.locator("[data-post-status]")).toHaveText("Link copied.");
-  await page.reload();
-  await expect(button.locator("span")).toHaveText(String(initial + 1));
+  const menu = page.getByRole("dialog", { name: "Share post" });
+  await expect(menu).toBeVisible();
+  expect(calls).toBe(0);
   await page.evaluate(() =>
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -22,14 +23,18 @@ test("anonymous shares persist, clipboard failures do not count, and recording f
       },
     })
   );
-  await button.click();
-  await expect(post.locator("[data-post-status]")).toHaveText("Clipboard unavailable");
-  await expect(button.locator("span")).toHaveText(String(initial + 1));
+  await menu.getByRole("button", { name: "Copy link" }).click();
+  await expect(menu.locator("[data-share-status]")).toHaveText("Could not copy. Try again.");
+  expect(calls).toBe(0);
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {} } }));
-  await page.route("**/api/forum/share", (route) => route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"Unavailable"}' }));
-  await button.click();
-  await expect(post.locator("[data-post-status]")).toHaveText("Link copied, but the share count could not be updated.");
-  await expect(button.locator("span")).toHaveText(String(initial + 1));
+  await menu.getByRole("button", { name: "Copy link" }).click();
+  await expect(menu.locator("[data-share-status]")).toHaveText("Link copied.");
+  await expect.poll(() => calls).toBe(1);
+  await page.route("**/api/forum/share", (route) => route.fulfill({ status: 500, json: { error: "Unavailable" } }));
+  await menu.getByRole("button", { name: "Copy link" }).click();
+  await expect(menu.locator("[data-share-status]")).toHaveText("Link copied, but the share count could not be updated.");
+  await page.keyboard.press("Escape");
+  await expect(button).toBeFocused();
 });
 
 test("profile composer previews and publishes HTML, highlighted code and LaTeX with public Likes", async ({ page, context, browser }) => {

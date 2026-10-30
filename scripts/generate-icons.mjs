@@ -1,5 +1,22 @@
 import { writeFile } from "node:fs/promises";
-const names = ["home", "search", "bell", "user-round", "settings", "shield", "pen-line", "message-circle", "arrow-up-right", "map-pin", "heart", "eye", "link", "ellipsis", "play"];
+const names = [
+  "home",
+  "search",
+  "bell",
+  "user-round",
+  "settings",
+  "shield",
+  "pen-line",
+  "message-circle",
+  "arrow-up-right",
+  "map-pin",
+  "heart",
+  "eye",
+  "link",
+  "ellipsis",
+  "play",
+  "repeat-2",
+];
 const icons = {};
 for (const name of names) {
   const { __iconData } = await import(`lucide-react/icons/${name === "home" ? "house" : name}`);

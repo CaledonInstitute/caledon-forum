@@ -34,10 +34,20 @@ const analyticsAllowed =
   (path === "/" || /^\/p\/[1-9][0-9]{0,18}$/.test(path) || isValidUsername(path.slice(1))) && [...Astro.url.searchParams.keys()].every((key) => key === "page" || key === "tab");
 const nav = [
   { label: "Home", href: "/", icon: "home" },
+  { label: "DM", href: "/dm", icon: "message-circle" },
   { label: "Search", href: "/search", icon: "search" },
   { label: "Notifications", href: "/notifications", icon: "bell" },
   { label: "Profile", href: viewer?.username ? `/${viewer.username}` : "/login", icon: "user-round" },
 ] as const;
+const dmUnread = viewer
+  ? await one<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM dm_messages m JOIN dm_conversations c ON c.id=m.conversation_id LEFT JOIN dm_reads r ON r.conversation_id=c.id AND r.user_id=? WHERE (c.user_a=? OR c.user_b=?) AND m.sender_id<>? AND m.seq>COALESCE(r.seq,0)",
+      viewer.id,
+      viewer.id,
+      viewer.id,
+      viewer.id
+    )
+  : null;
 const unread = viewer ? await one<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE recipient_id=? AND read_at IS NULL", viewer.id) : null;
 const active = (href: string) => (href === "/" ? path === "/" : path === href);
 const fullTitle = title === "Caledon Forum" ? title : `${title} | Caledon Forum`;
@@ -91,20 +101,30 @@ const siteSchema = {
     <script type="application/ld+json" set:html={JSON.stringify(siteSchema).replace(/</g, "\\u003c")} />
     {schema && <script type="application/ld+json" set:html={JSON.stringify(schema).replace(/</g, "\\u003c")} />}
   </head>
-  <body data-realtime={env.REALTIME_ENABLED === "true" ? "true" : undefined} data-presence={env.PRESENCE_ENABLED === "true" ? "true" : undefined}>
+  <body
+    data-dm-conversation={path.startsWith("/dm/") ? "true" : undefined}
+    data-viewer-id={viewer?.id}
+    data-realtime={env.REALTIME_ENABLED === "true" ? "true" : undefined}
+    data-presence={env.PRESENCE_ENABLED === "true" ? "true" : undefined}
+  >
     <a class="skip-link" href="#main">
       Skip to content
     </a>
-    <header class="mobile-header">
+    <header class="mobile-header" hidden={path.startsWith("/dm/")}>
       <a class="brand" href="/" aria-label="Caledon Forum home">
         <Mark small />
         <span>
           Caledon<span>Forum</span>
         </span>
       </a>
-      <a href="/settings" aria-label="Settings">
-        <Icon name="settings" size={19} />
-      </a>
+      <div class="mobile-header-actions">
+        <a href="/search" aria-label="Search">
+          <Icon name="search" size={19} />
+        </a>
+        <a href="/settings" aria-label="Settings">
+          <Icon name="settings" size={19} />
+        </a>
+      </div>
     </header>
     <div class="shell">
       <aside class="sidebar">
@@ -119,6 +139,7 @@ const siteSchema = {
             <a href={item.href} class:list={{ active: active(item.href) }} aria-current={active(item.href) ? "page" : undefined}>
               <Icon name={item.icon} size={21} strokeWidth={1.6} />
               {item.label}
+              {item.label === "DM" && !!dmUnread?.n && <span class="dot" data-dm-unread aria-label={`${dmUnread.n} unread messages`} />}
               {item.label === "Notifications" && !!unread?.n && <span class="dot" aria-label={`${unread.n} unread notifications`} />}
             </a>
           ))}
@@ -169,12 +190,15 @@ const siteSchema = {
       </main>
     </div>
     <nav class="mobile-nav" aria-label="Mobile navigation">
-      {nav.map((item) => (
-        <a href={item.href} class:list={{ active: active(item.href) }} aria-label={item.label} aria-current={active(item.href) ? "page" : undefined}>
-          <Icon name={item.icon} size={22} strokeWidth={active(item.href) ? 2 : 1.6} />
-          {item.label === "Notifications" && !!unread?.n && <span class="dot" role="img" aria-label={`${unread.n} unread notifications`} />}
-        </a>
-      ))}
+      {nav
+        .filter((item) => item.label !== "Search")
+        .map((item) => (
+          <a href={item.href} class:list={{ active: active(item.href) }} aria-label={item.label} aria-current={active(item.href) ? "page" : undefined}>
+            <Icon name={item.icon} size={22} strokeWidth={active(item.href) ? 2 : 1.6} />
+            {item.label === "DM" && !!dmUnread?.n && <span class="dot" data-dm-unread aria-label={`${dmUnread.n} unread messages`} />}
+            {item.label === "Notifications" && !!unread?.n && <span class="dot" role="img" aria-label={`${unread.n} unread notifications`} />}
+          </a>
+        ))}
     </nav>
     <script>
       import "../scripts/interactions";

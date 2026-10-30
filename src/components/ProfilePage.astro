@@ -11,6 +11,7 @@ import { profilePosts } from "../lib/db";
 import { PAGE_SIZE, pageNumber } from "../lib/content";
 import type { PublicProfile } from "../lib/types";
 import { preparePostContent } from "../lib/post-content";
+import { postTime } from "../lib/post-time";
 import { profileCardData, profileCardKey } from "../lib/og-card";
 interface Props {
   person: PublicProfile | null;
@@ -71,12 +72,27 @@ const schema = person
               Edit profile
             </a>
           )}
+          {Astro.locals.user && person.id !== Astro.locals.user.id && (
+            <a class="button secondary" href={`/dm?to=${encodeURIComponent(person.username)}`}>
+              Message
+            </a>
+          )}
         </div>
         <h1>
           {person.name}
           {!!person.isCaledonMember && <Badge />}
         </h1>
         <span class="muted small">@{person.username}</span>
+        {!!person.isCaledonMember && <p class="profile-membership small">Official Member of Caledon Institute.</p>}
+        {person.lastActiveAt && (
+          <p
+            class="profile-activity muted small"
+            data-presence-for={person.username}
+            title={`${new Date(person.lastActiveAt).toLocaleString("en-GB", { timeZone: "Asia/Jakarta" })} GMT+7`}
+          >
+            Last active at {postTime(person.lastActiveAt)}
+          </p>
+        )}
         {person.bio && <p>{person.bio}</p>}
         {person.location && (
           <p class="profile-location muted small">

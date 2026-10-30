@@ -1,0 +1,21 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import DirectMessages from "../../components/DirectMessages";
+import { one } from "../../lib/db";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+const id = Astro.params.conversationId!;
+const conversation = await one("SELECT id FROM dm_conversations WHERE id=? AND (user_a=? OR user_b=?)", id, user.id, user.id);
+if (!conversation) Astro.response.status = 404;
+---
+
+<Layout title="Direct messages" noindex>
+  {conversation ? (
+    <DirectMessages conversationId={id} client:only="react" />
+  ) : (
+    <section class="empty">
+      <h1>Conversation unavailable</h1>
+      <a href="/dm">Back to inbox</a>
+    </section>
+  )}
+</Layout>

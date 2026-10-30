@@ -19,6 +19,7 @@ export interface PublicProfile {
   bio: string;
   location: string;
   created_at: number;
+  lastActiveAt?: number | null;
   isCaledonMember: number;
 }
 export interface ForumPost {
@@ -40,6 +41,11 @@ export interface ForumPost {
   hasChildren: number;
   parentUsername?: string;
   parentPublicId?: string;
+  reposts?: number;
+  reposted?: number;
+  repostedBy?: string;
+  repostedName?: string;
+  eventId?: string;
   shares: number;
   views: number;
   likes: number;

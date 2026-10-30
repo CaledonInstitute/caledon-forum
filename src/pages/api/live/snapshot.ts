@@ -12,10 +12,11 @@ export const GET: APIRoute = async (ctx) => {
         parent
       )
     : null;
-  const latest = await one<{ id: string }>(
-    `SELECT id FROM posts WHERE deleted=0 AND ${parent ? "parent_id=?" : "root_id IS NULL"} ORDER BY created_at DESC,id DESC LIMIT 1`,
-    ...(parent ? [parent] : [])
-  );
+  const latest = parent
+    ? await one<{ id: string }>("SELECT id FROM posts WHERE deleted=0 AND parent_id=? ORDER BY created_at DESC,id DESC LIMIT 1", parent)
+    : await one<{ id: string }>(
+        "SELECT 'post-'||id AS id,created_at AS time FROM posts WHERE deleted=0 AND root_id IS NULL UNION ALL SELECT 'repost-'||r.user_id||'-'||r.post_id,r.created_at FROM reposts r JOIN posts p ON p.id=r.post_id WHERE p.deleted=0 ORDER BY time DESC,id DESC LIMIT 1"
+      );
   const unread =
     ctx.locals.user && !ctx.locals.user.suspended
       ? await one<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE recipient_id=? AND read_at IS NULL", ctx.locals.user.id)
@@ -31,6 +32,8 @@ export const GET: APIRoute = async (ctx) => {
         likes: p.likes,
         liked: !!p.liked,
         shares: p.shares,
+        reposts: p.reposts || 0,
+        reposted: !!p.reposted,
         views: p.views,
         directReplies: p.directReplies,
         updatedAt: p.updatedAt,
