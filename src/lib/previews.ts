@@ -28,6 +28,27 @@ export function mediaPathKind(value: string): "image" | "video_audio" | null {
   }
   return null;
 }
+/** Drop/coerce previews misclassified before image Accept / media-path checks. */
+export function normalizePreview(p: LinkPreview): LinkPreview | null {
+  const pathKind = mediaPathKind(p.url);
+  if (pathKind === "video_audio") return null;
+  if (pathKind === "image" && p.kind !== "image") {
+    return { ...p, kind: "image", image: p.url, title: "", description: "" };
+  }
+  return p;
+}
+export function normalizePreviews(list: LinkPreview[]) {
+  return list.flatMap((p) => {
+    const n = normalizePreview(p);
+    return n ? [n] : [];
+  });
+}
+function previewUsable(p: LinkPreview, url: string) {
+  const pathKind = mediaPathKind(url);
+  if (pathKind === "video_audio") return false;
+  if (pathKind === "image") return p.kind === "image";
+  return true;
+}
 async function inspectImage(url: string, p: LinkPreview): Promise<LinkPreview | null> {
   const response = await safeFetch(url, IMAGE_ACCEPT);
   const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
@@ -60,7 +81,7 @@ export async function inspectLink(value: string): Promise<LinkPreview | null> {
     if (localPostId(value)) return null;
     const url = publicUrl(value).href;
     const cached = await one<LinkPreview>(query, url);
-    if (cached && cached.checkedAt > Date.now() - 86400000) return cached;
+    if (cached && cached.checkedAt > Date.now() - 86400000 && previewUsable(cached, url)) return cached;
     let p: LinkPreview = {
       id: cached?.id || crypto.randomUUID(),
       url,
@@ -79,7 +100,7 @@ export async function inspectLink(value: string): Promise<LinkPreview | null> {
     } catch {
       /* D1/fetch remain available. */
     }
-    if (shared?.url === url && shared.checkedAt > Date.now() - 86400000) {
+    if (shared?.url === url && shared.checkedAt > Date.now() - 86400000 && previewUsable(shared, url)) {
       p = { ...shared, id: cached?.id || shared.id };
     } else {
       const vid = youtubeId(url);

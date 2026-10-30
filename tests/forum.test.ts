@@ -3,7 +3,7 @@ import { resetDatabase, seedUser, execute, row, env } from "./runtime";
 import { POST } from "../src/pages/api/forum/[action]";
 import { refreshMembership } from "../src/lib/membership";
 import { symmetricEncrypt } from "better-auth/crypto";
-import { inspectLink, inspectBody } from "../src/lib/previews";
+import { inspectLink, inspectBody, normalizePreview } from "../src/lib/previews";
 import { posts, replyLocation, post } from "../src/lib/db";
 let alice: any, bob: any;
 async function act(action: string, data: any, user: any = alice, origin = "http://localhost:4321") {
@@ -173,6 +173,34 @@ describe("previews", () => {
         })
     );
     expect(await inspectLink("https://news.example.com/story")).toMatchObject({ kind: "link", title: "Article" });
+  });
+  it("reclassifies stale SEO cards for image paths like Imgur instead of serving the 24h cache", async () => {
+    const url = "https://i.imgur.com/MEJbf21.png";
+    execute(
+      "INSERT INTO link_previews(id,url,kind,title,description,site,image,checked_at) VALUES(?,?,?,?,?,?,?,?)",
+      "stale-imgur",
+      url,
+      "link",
+      "SEO card",
+      "Should not stick",
+      "imgur.com",
+      "https://i.imgur.com/MEJbf21.png",
+      Date.now()
+    );
+    const jpeg = new Uint8Array([255, 216, 255, 225, 0, 16]);
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const accept = String(new Headers(init?.headers).get("Accept") || "");
+      if (accept.includes("image/")) return new Response(jpeg, { headers: { "Content-Type": "image/jpeg" } });
+      return new Response('<meta property="og:title" content="SEO card">', { headers: { "Content-Type": "text/html" } });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    expect(await inspectLink(url)).toMatchObject({ id: "stale-imgur", kind: "image", image: url, title: "" });
+    expect(row("SELECT kind,title FROM link_previews WHERE id=?", "stale-imgur")).toMatchObject({ kind: "image", title: "" });
+    expect(normalizePreview({ id: "x", url, kind: "link", title: "SEO", description: "nope", site: "imgur.com", image: url, videoId: null, checkedAt: 1 })).toMatchObject({
+      kind: "image",
+      image: url,
+      title: "",
+    });
   });
 });
 describe("membership", () => {

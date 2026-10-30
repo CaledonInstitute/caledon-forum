@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { publicPost, previews } from "../../../lib/db";
 import { postCardData, postCardKey } from "../../../lib/og-card";
+import { normalizePreviews } from "../../../lib/previews";
 
 async function fallback(short = false) {
   const asset = await env.ASSETS.fetch(new URL("/social.png", env.SITE_URL));
@@ -21,7 +22,7 @@ export const GET: APIRoute = async (ctx) => {
   const inPageObject = (ctx.locals.cfContext?.props as { forumPages?: boolean } | undefined)?.forumPages === true;
   if (env.POST_OG_ENABLED !== "true" || env.SERVER_DO_ENABLED !== "true" || !inPageObject) return fallback();
   try {
-    const data = postCardData(p, await previews(p.id), env.SITE_URL);
+    const data = postCardData(p, normalizePreviews(await previews(p.id)), env.SITE_URL);
     const key = await postCardKey(data, env.SITE_URL);
     let cache: Cache | undefined;
     try {

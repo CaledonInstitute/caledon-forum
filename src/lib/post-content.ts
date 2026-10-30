@@ -1,5 +1,6 @@
 import { all } from "./db";
 import { exceedsCharacters, excerpt } from "./content";
+import { normalizePreviews } from "./previews";
 import type { ForumPost, LinkPreview } from "./types";
 export interface PostContent {
   links: LinkPreview[];
@@ -18,7 +19,14 @@ export async function preparePostContent(items: ForumPost[], fullIds: Set<string
   return new Map(
     items.map((p) => {
       const long = !fullIds.has(p.id) && exceedsCharacters(p.body, 600);
-      return [p.id, { links: metadata.filter((l) => l.postId === p.id), body: p.deleted ? "" : long ? excerpt(p.body, 600) : p.body, long }];
+      return [
+        p.id,
+        {
+          links: normalizePreviews(metadata.filter((l) => l.postId === p.id)),
+          body: p.deleted ? "" : long ? excerpt(p.body, 600) : p.body,
+          long,
+        },
+      ];
     })
   );
 }
