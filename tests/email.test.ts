@@ -75,6 +75,24 @@ it.each(["EAUTH", "ETIMEDOUT", "ESOCKET"])("reports %s without exposing SMTP cre
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
   sendMail.mockRejectedValueOnce(Object.assign(new Error("private SMTP response member@example.com token=secret password=abcdefghijklmnop"), { code, responseCode: 535 }));
   await expect(sendAuthEmail("member@example.com", "https://forum.example/?token=secret", "Verify your email")).rejects.toThrow("Email could not be sent");
-  expect(log).toHaveBeenCalledWith("Authentication email delivery failed", { code, status: 535 });
+  expect(log).toHaveBeenCalledWith("Authentication email delivery failed", { code, status: 535, port: 465, secure: true });
   expect(close).toHaveBeenCalledOnce();
+});
+
+it.each([
+  ["ECONNRESET", "CONN", "ECONNRESET", "CONN"],
+  ["ERR_OPTION_NOT_IMPLEMENTED", "STARTTLS", "ERR_OPTION_NOT_IMPLEMENTED", "STARTTLS"],
+  ["private password=secret", "AUTH member@example.com token=secret", "OTHER", "OTHER"],
+])("logs only allowed socket diagnostics for %s", async (originalCode, command, expectedCode, stage) => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  sendMail.mockRejectedValueOnce(Object.assign(new Error("private response token=secret"), { code: "ESOCKET", originalCode, command }));
+  await expect(sendAuthEmail("member@example.com", "https://forum.example/?token=secret", "Verify your email")).rejects.toThrow("Email could not be sent");
+  expect(log).toHaveBeenCalledWith("Authentication email delivery failed", {
+    code: "ESOCKET",
+    status: undefined,
+    originalCode: expectedCode,
+    stage,
+    port: 465,
+    secure: true,
+  });
 });
