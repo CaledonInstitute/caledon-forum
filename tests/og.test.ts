@@ -69,6 +69,10 @@ it("fingerprints content, identity, media and reply context", async () => {
   for (const change of [{ name: "Changed" }, { avatar: "https://cdn.public.com/b.png" }, { member: false }, { text: "edited" }, { parent: "carol" }, { media: null }]) {
     expect((await postCardKey({ ...data, ...change }, env.SITE_URL)).url).not.toBe(key);
   }
+  const plain = postCardData({ ...p, body: "Hello" }, [], env.SITE_URL);
+  const bold = postCardData({ ...p, body: "**Hello**" }, [], env.SITE_URL);
+  expect(plain.text).toBe(bold.text);
+  expect((await postCardKey(plain, env.SITE_URL)).url).not.toBe((await postCardKey(bold, env.SITE_URL)).url);
 });
 it("keeps the site and disabled/untrusted runtime static without rendering", async () => {
   expect(await (await get("site.png")).text()).toBe("static");

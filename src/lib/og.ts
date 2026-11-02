@@ -1,7 +1,10 @@
 import layoutWasm from "satori/layout.wasm?module";
 import type { ReactElement } from "react";
+import type { SatoriNode } from "satori";
 import satori, { init } from "../../.astro/satori-worker.mjs";
-import { cardText, truncateCardText, type PostCardData, type ProfileCardData } from "./og-card";
+import { truncateCardText, type PostCardData, type ProfileCardData } from "./og-card";
+import { cardMarkdown } from "./og-markdown";
+import { postTime } from "./post-time";
 let engine: Promise<void> | undefined;
 const node = (type: string, style: Record<string, unknown>, children?: unknown, extra = {}) => ({ type, props: { style, children, ...extra } });
 async function initializeLayout() {
@@ -12,10 +15,48 @@ async function initializeLayout() {
   await engine;
 }
 type CardFonts = { regular: ArrayBuffer; bold: ArrayBuffer; emoji: ArrayBuffer };
+const fontOptions = (fonts: CardFonts) => [
+  { name: "Manrope", data: fonts.regular, weight: 400 as const, style: "normal" as const },
+  { name: "Manrope", data: fonts.bold, weight: 700 as const, style: "normal" as const },
+  { name: "NotoEmoji", data: fonts.emoji, weight: 400 as const, style: "normal" as const },
+];
+async function fitMarkdown(fonts: CardFonts, data: PostCardData, limit: number, size: number, width: number, height: number) {
+  const formatted = cardMarkdown(data.markdown ?? data.text, limit, size, data.omittedImage);
+  if (!formatted.hasContent) return formatted;
+  const content = formatted.content as ReactElement<{ style: Record<string, unknown>; children: ReactElement[] }>;
+  const blocks = content.props.children.map((child, i) => ({ ...child, key: `markdown-${i}` }));
+  const bottoms = new Map<string, number>();
+  // Measure actual line wrapping before selecting whole blocks for the small card.
+  await satori(
+    { ...content, props: { ...content.props, style: { ...content.props.style, width, fontFamily: "Manrope, NotoEmoji" }, children: blocks } },
+    {
+      width,
+      fonts: fontOptions(fonts),
+      embedFont: false,
+      onNodeDetected: (n: SatoriNode) => {
+        if (typeof n.key === "string" && n.key.startsWith("markdown-")) bottoms.set(n.key, n.top + n.height);
+      },
+    }
+  );
+  if (blocks.every((block) => (bottoms.get(String(block.key)) || 0) <= height)) return formatted;
+  const overflow = blocks.findIndex((block) => (bottoms.get(String(block.key)) || 0) > height - size * 1.4 - 12);
+  if (overflow < 0) return formatted;
+  const kept = blocks.slice(0, overflow);
+  if (!kept.length) {
+    // A single long paragraph still gets a useful excerpt with inline styles intact.
+    const first = blocks[0] as ReactElement<{ style: Record<string, unknown>; children: unknown }>;
+    kept.push({
+      ...first,
+      props: { ...first.props, style: { ...first.props.style, lineClamp: Math.max(1, Math.floor((height - 48) / (size * 1.5))), maxHeight: height - 48, overflow: "hidden" } },
+    } as (typeof blocks)[number]);
+  }
+  kept.push(node("div", { display: "flex", fontSize: size, color: "#595959", flexShrink: 0 }, "…") as (typeof blocks)[number]);
+  return { ...formatted, content: { ...content, props: { ...content.props, children: kept } }, truncated: true };
+}
 export async function storySvg(fonts: CardFonts, data: PostCardData, avatar?: string, media?: string) {
   await initializeLayout();
-  const text = truncateCardText(data.text, media ? 650 : 1400);
-  const date = new Date(data.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+  const formatted = await fitMarkdown(fonts, data, media ? 650 : 1400, data.text.length > 600 ? 32 : 40, 920, media ? 640 : 1140);
+  const date = postTime(data.createdAt);
   return satori(
     node(
       "div",
@@ -67,16 +108,16 @@ export async function storySvg(fonts: CardFonts, data: PostCardData, avatar?: st
             "div",
             {
               display: "flex",
+              flexDirection: "column",
               fontSize: data.text.length > 600 ? 32 : 40,
               lineHeight: 1.45,
-              lineClamp: media ? 12 : 23,
               width: 920,
               maxHeight: media ? 640 : 1140,
               flexShrink: 0,
               overflow: "hidden",
               wordBreak: "break-word",
             },
-            text || (media ? "" : "View this post on Caledon Forum.")
+            formatted.hasContent ? formatted.content : media ? "" : "View this post on Caledon Forum."
           ),
           media ? node("img", { width: 920, height: 480, objectFit: "contain", marginTop: 36, flexShrink: 0 }, undefined, { src: media }) : null,
         ]),
@@ -99,7 +140,7 @@ export async function storySvg(fonts: CardFonts, data: PostCardData, avatar?: st
             node("div", { display: "flex", marginBottom: 12 }, date),
             node("div", { display: "flex", color: "#1d70e8" }, `${data.host}/p/${data.id}`),
             data.member ? node("div", { display: "flex", marginTop: 12 }, "Member of Caledon Institute") : null,
-            text !== data.text ? node("div", { display: "flex", marginTop: 12 }, "Continue reading on Caledon Forum") : null,
+            formatted.truncated ? node("div", { display: "flex", marginTop: 12 }, "Continue reading on Caledon Forum") : null,
           ]
         ),
       ]
@@ -118,7 +159,8 @@ export async function storySvg(fonts: CardFonts, data: PostCardData, avatar?: st
 export async function socialSvg(fonts: CardFonts, data: PostCardData, avatar?: string, media?: string) {
   await initializeLayout();
   const name = Array.from(data.name).slice(0, 26).join("") + (Array.from(data.name).length > 26 ? "…" : "");
-  const date = new Date(data.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" });
+  const date = postTime(data.createdAt);
+  const formatted = await fitMarkdown(fonts, data, media ? 240 : 540, 32, media ? 652 : 1104, 330);
   return satori(
     node(
       "div",
@@ -164,8 +206,8 @@ export async function socialSvg(fonts: CardFonts, data: PostCardData, avatar?: s
         node("div", { display: "flex", position: "absolute", top: 180, left: 48, width: 1104, height: 330, gap: 32, overflow: "hidden", flexShrink: 0 }, [
           node(
             "div",
-            { display: "flex", width: media ? 652 : 1104, fontSize: 32, lineHeight: 1.14, overflow: "hidden", lineClamp: media ? 7 : 9 },
-            cardText(data.text, !!media) || (media ? "" : "View this post on Caledon Forum.")
+            { display: "flex", flexDirection: "column", width: media ? 652 : 1104, fontSize: 32, lineHeight: 1.4, overflow: "hidden" },
+            formatted.hasContent ? formatted.content : media ? "" : "View this post on Caledon Forum."
           ),
           media ? node("img", { width: 420, height: 330, borderRadius: 12, objectFit: "cover", objectPosition: "center", flexShrink: 0 }, undefined, { src: media }) : null,
         ]),
