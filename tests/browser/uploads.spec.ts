@@ -41,7 +41,7 @@ test("uploads multiple files, previews them and preserves IDs when publishing an
   });
   await composer.getByRole("button", { name: "Post", exact: true }).click();
   await expect(composer.getByRole("alert")).toHaveText("Review fixture");
-  expect(payload.body).toBe("");
+  expect(payload.body).toMatch(/\[research\.png\]\(attachment:[0-9a-f-]{36}\)\n\[notes\.txt\]\(attachment:[0-9a-f-]{36}\)/);
   expect(payload.attachmentIds).toHaveLength(2);
   await page.screenshot({ path: "artifacts/uploads-composer-desktop.png", fullPage: true });
 });

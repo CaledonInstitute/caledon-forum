@@ -1,3 +1,8 @@
+import { Fragment, useLayoutEffect } from "react";
+import { splitAttachments } from "../lib/attachment-markers";
+import { useAttachmentEditor } from "../lib/use-attachment-editor";
+import { dayKey, dayLabel, clockTime, postTime } from "../lib/post-time";
+import MessageMenu from "./MessageMenu";
 import { memo, useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 
 import FileUpload from "./FileUpload";
@@ -58,6 +63,38 @@ function MessageText({ text }: { text: string }) {
           part
         )
       )}
+    </>
+  );
+}
+
+export function MessageContent({ text = "", files = [] }: { text?: string; files?: PrivateAttachment[] }) {
+  const used = new Set<string>();
+  const content = splitAttachments(text).map((part, i) => {
+    if (part.type === "text")
+      return (
+        <p key={i} className="dm-message-text">
+          <MessageText text={part.text} />
+        </p>
+      );
+    const file = files.find((file) => file.id === part.id);
+    if (!file)
+      return (
+        <p key={i} className="small">
+          File unavailable.
+        </p>
+      );
+    if (used.has(file.id)) return null;
+    used.add(file.id);
+    return <PrivateFile key={i} file={file} />;
+  });
+  return (
+    <>
+      {content}
+      {files
+        .filter((file) => !used.has(file.id))
+        .map((file) => (
+          <PrivateFile key={file.id} file={file} />
+        ))}
     </>
   );
 }
@@ -146,6 +183,8 @@ export default function DirectMessages({ conversationId: initialConversationId }
   const [attachments, setAttachments] = useState<PrivateAttachment[]>([]),
     [uploading, setUploading] = useState(false);
 
+  const editor = useRef<HTMLTextAreaElement>(null);
+  const scrollAnchor = useRef<{ height: number; top: number } | null>(null);
   const [route, setRoute] = useState(() =>
     typeof location === "undefined" ? `/dm${initialConversationId ? "/" + initialConversationId : ""}` : location.pathname + location.search
   );
@@ -219,6 +258,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
     setText(id ? drafts.current.get(id) || "" : "");
     setLoading(!!id);
     follow.current = true;
+    scrollAnchor.current = null;
     if (push) history.pushState(null, "", target.pathname + target.search);
     setRoute(target.pathname + target.search);
   }, []);
@@ -253,8 +293,10 @@ export default function DirectMessages({ conversationId: initialConversationId }
     detailsRef.current?.close();
   }
 
+  const operationPending = useRef(false);
   async function perform(work: () => Promise<void>) {
-    if (busy) return;
+    if (operationPending.current) return;
+    operationPending.current = true;
     const operationEpoch = epoch.current;
     setBusy(true);
     setError("");
@@ -263,6 +305,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
     } catch (e) {
       if (operationEpoch === epoch.current) setError(e instanceof Error ? e.message : "Please try again.");
     } finally {
+      operationPending.current = false;
       setBusy(false);
     }
   }
@@ -317,6 +360,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
       setFingerprint(fp);
       setKeyChanged(!!pinned && pinned !== fp);
       if (!pinned) localStorage.setItem(`dm-peer-${key.userId}-${result.peer.id}`, fp);
+      if (older && historyRef.current) scrollAnchor.current = { height: historyRef.current.scrollHeight, top: historyRef.current.scrollTop };
       setMessages((previous) => {
         const deleted = new Set(result.deletedIds || []);
         const merged = new Map(
@@ -436,8 +480,13 @@ export default function DirectMessages({ conversationId: initialConversationId }
     };
   }, [query]);
 
-  useEffect(() => {
-    if (follow.current && historyRef.current) historyRef.current.scrollTop = historyRef.current.scrollHeight;
+  useLayoutEffect(() => {
+    const el = historyRef.current;
+    if (!el) return;
+    if (scrollAnchor.current) {
+      el.scrollTop = scrollAnchor.current.top + el.scrollHeight - scrollAnchor.current.height;
+      scrollAnchor.current = null;
+    } else if (follow.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
   useEffect(() => {
     let active = true;
@@ -506,6 +555,16 @@ export default function DirectMessages({ conversationId: initialConversationId }
   useEffect(() => {
     setAttachments([]);
   }, [conversationId, identity]);
+
+  const attachmentEditor = useAttachmentEditor(
+    text,
+    (next) => {
+      setText(next);
+      drafts.current.set(conversationId!, next);
+      pendingMessages.current.delete(conversationId!);
+    },
+    editor
+  );
 
   async function send() {
     if (uploading) return;
@@ -656,68 +715,61 @@ export default function DirectMessages({ conversationId: initialConversationId }
                       Load earlier messages
                     </button>
                   )}
-                  {messages.map((m) => (
-                    <article key={m.id} className={`dm-message ${m.sender_id === identity.userId ? "dm-sent" : "dm-received"}`}>
-                      <span className="sr-only">{m.sender_id === identity.userId ? "You" : peer?.name}</span>
-                      <div className="dm-message-row">
-                        {m.sender_id !== identity.userId && peer && (
-                          <a className="dm-message-avatar" href={`/${peer.username}`} aria-label={`${peer.name}'s profile`}>
-                            <UserAvatar name={peer.name} username={peer.username} image={peer.image} />
-                          </a>
-                        )}
-                        <div className="dm-message-stack">
-                          <div className="dm-bubble">
-                            {m.deleted ? (
-                              <p>This message was deleted.</p>
-                            ) : m.unavailable ? (
-                              <p>This message could not be opened. Its key may have changed.</p>
-                            ) : (
-                              <>
-                                {m.payload.text && (
-                                  <p className="dm-message-text">
-                                    <MessageText text={m.payload.text} />
-                                  </p>
-                                )}
-                                {m.payload.post && <SharedPost path={m.payload.post} />}
-                                {m.payload.attachments?.map((file: PrivateAttachment) => (
-                                  <PrivateFile key={file.id} file={file} />
-                                ))}
-                              </>
+                  {messages.map((m, index) => (
+                    <Fragment key={m.id}>
+                      {(index === 0 || dayKey(messages[index - 1].created_at) !== dayKey(m.created_at)) && (
+                        <div className="dm-day">
+                          <time dateTime={dayKey(m.created_at)}>{dayLabel(m.created_at)}</time>
+                        </div>
+                      )}
+                      <article key={m.id} className={`dm-message ${m.sender_id === identity.userId ? "dm-sent" : "dm-received"}`}>
+                        <span className="sr-only">{m.sender_id === identity.userId ? "You" : peer?.name}</span>
+                        <div className="dm-message-row">
+                          {m.sender_id !== identity.userId && peer && (
+                            <a className="dm-message-avatar" href={`/${peer.username}`} aria-label={`${peer.name}'s profile`}>
+                              <UserAvatar name={peer.name} username={peer.username} image={peer.image} />
+                            </a>
+                          )}
+                          <div className="dm-message-stack">
+                            <div className="dm-bubble">
+                              {m.deleted ? (
+                                <p>This message was deleted.</p>
+                              ) : m.unavailable ? (
+                                <p>This message could not be opened. Its key may have changed.</p>
+                              ) : (
+                                <>
+                                  <MessageContent text={m.payload.text} files={m.payload.attachments} />
+                                  {m.payload.post && <SharedPost path={m.payload.post} />}
+                                </>
+                              )}
+                            </div>
+                            <time className="small muted" dateTime={new Date(m.created_at).toISOString()} title={`${postTime(m.created_at)} GMT+7`}>
+                              {clockTime(m.created_at)}
+                            </time>
+                            {m.sender_id === identity.userId && !m.deleted && (
+                              <MessageMenu
+                                key={`${conversationId}:${m.id}`}
+                                disabled={busy}
+                                onDelete={() => {
+                                  if (!confirm("Delete this message for everyone?")) return;
+                                  const current = conversationId;
+                                  void perform(async () => {
+                                    await dmRequest("delete", { conversationId: current, id: m.id }, true);
+                                    if (selected.current === current) {
+                                      loadSerial.current++;
+                                      setMessages((items) =>
+                                        items.map((item) => (item.id === m.id ? { ...item, deleted: 1, payload: null, envelopes: "{}", sender_public_key: "" } : item))
+                                      );
+                                    }
+                                    await refresh();
+                                  });
+                                }}
+                              />
                             )}
                           </div>
-                          <time
-                            className="small muted"
-                            dateTime={new Date(m.created_at).toISOString()}
-                            title={`${new Date(m.created_at).toLocaleString("en-GB", { timeZone: "Asia/Jakarta" })} GMT+7`}
-                          >
-                            {new Date(m.created_at).toLocaleTimeString("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" })}
-                          </time>
-                          {m.sender_id === identity.userId && !m.deleted && (
-                            <button
-                              type="button"
-                              className="text-button small"
-                              disabled={busy}
-                              onClick={() => {
-                                if (!confirm("Delete this message for everyone?")) return;
-                                const current = conversationId;
-                                void perform(async () => {
-                                  await dmRequest("delete", { conversationId: current, id: m.id }, true);
-                                  if (selected.current === current) {
-                                    loadSerial.current++;
-                                    setMessages((items) =>
-                                      items.map((item) => (item.id === m.id ? { ...item, deleted: 1, payload: null, envelopes: "{}", sender_public_key: "" } : item))
-                                    );
-                                  }
-                                  await refresh();
-                                });
-                              }}
-                            >
-                              Delete message
-                            </button>
-                          )}
                         </div>
-                      </div>
-                    </article>
+                      </article>
+                    </Fragment>
                   ))}
                   {!messages.length && <p className="muted">Start your conversation.</p>}
                 </div>
@@ -742,6 +794,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
                     Message
                   </label>
                   <textarea
+                    ref={editor}
                     id="dm-message"
                     value={text}
                     onChange={(e) => {
@@ -757,6 +810,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
                   <FileUpload
                     key={conversationId}
                     purpose="dm"
+                    {...attachmentEditor}
                     conversationId={conversationId}
                     value={attachments}
                     onChange={(files) => {

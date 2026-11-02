@@ -1,4 +1,5 @@
 ---
+import { postTime } from "../lib/post-time";
 import Pagination from "./Pagination.astro";
 import { excerpt } from "../lib/content";
 interface Report {
@@ -33,12 +34,7 @@ interface Props {
   hasMore: boolean;
 }
 const { reports, audit, page, hasMore } = Astro.props;
-const date = (value: number) =>
-  new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(new Date(value)) + " UTC";
+const date = postTime;
 const preview = (body: string) =>
   excerpt(
     body.replace(/https?:\/\/\S+/g, (value) => {

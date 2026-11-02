@@ -10,6 +10,11 @@ export default function FileUpload({
   onBusy,
   disabled = false,
   conversationId,
+  onUploadStart,
+  onUploadComplete,
+  onUploadCancel,
+  onInsert,
+  onRemove,
 }: {
   purpose: UploadPurpose;
   value: (Attachment | PrivateAttachment)[];
@@ -17,6 +22,11 @@ export default function FileUpload({
   onBusy?: (busy: boolean) => void;
   disabled?: boolean;
   conversationId?: string;
+  onUploadStart?: (files: { key: string; file: File }[]) => void;
+  onUploadComplete?: (key: string, file: Attachment | PrivateAttachment) => void;
+  onUploadCancel?: (key: string) => void;
+  onInsert?: (file: Attachment) => void;
+  onRemove?: (file: Attachment) => void;
 }) {
   const [items, setItems] = useState<Item[]>([]),
     [error, setError] = useState(""),
@@ -53,6 +63,7 @@ export default function FileUpload({
     if (alive.current) setItems((list) => list.map((i) => (i.key === key ? { ...i, ...patch } : i)));
   };
   function removeItem(item: Item) {
+    onUploadCancel?.(item.key);
     item.controller.abort();
     if (item.preview) URL.revokeObjectURL(item.preview);
     if (item.assetId) void uploadRequest(`/${item.assetId}`, "DELETE").catch(() => {});
@@ -78,6 +89,7 @@ export default function FileUpload({
       const next = single ? [result] : [...values.current, result];
       values.current = next;
       change.current(next);
+      onUploadComplete?.(item.key, result);
       if (item.preview) URL.revokeObjectURL(item.preview);
       setItems((list) => list.filter((i) => i.key !== item.key));
     } catch (e) {
@@ -103,6 +115,7 @@ export default function FileUpload({
       progress: 0,
       controller: new AbortController(),
     }));
+    onUploadStart?.(next);
     setItems((list) => [...list, ...next]);
     // Serialize files; multiple widgets/devices are still limited server-side.
     void (async () => {
@@ -124,8 +137,25 @@ export default function FileUpload({
         choose(files);
       }
     };
+    const dragover = (event: Event) => {
+      if ((event as DragEvent).dataTransfer?.types.includes("Files") && enabled) event.preventDefault();
+    };
+    const drop = (event: Event) => {
+      if (root.current?.contains(event.target as Node) || !enabled) return;
+      const files = Array.from((event as DragEvent).dataTransfer?.files || []);
+      if (files.length) {
+        event.preventDefault();
+        choose(files);
+      }
+    };
     host?.addEventListener("paste", paste);
-    return () => host?.removeEventListener("paste", paste);
+    host?.addEventListener("dragover", dragover);
+    host?.addEventListener("drop", drop);
+    return () => {
+      host?.removeEventListener("paste", paste);
+      host?.removeEventListener("dragover", dragover);
+      host?.removeEventListener("drop", drop);
+    };
   });
   const working = items.some((i) => !i.error);
   useEffect(() => {
@@ -184,12 +214,20 @@ export default function FileUpload({
                 <strong>{file.name}</strong>
                 <small>{(file.size / 1048576).toFixed(1)} MB</small>
               </span>
+              {onInsert && (
+                <button type="button" className="text-button small" disabled={disabled || working} onClick={() => onInsert(file)}>
+                  Insert
+                </button>
+              )}
               <button
                 type="button"
                 className="icon-button"
                 disabled={disabled || working}
                 aria-label={`Remove ${file.name}`}
-                onClick={() => onChange(value.filter((v) => v.id !== file.id))}
+                onClick={() => {
+                  onRemove?.(file);
+                  onChange(value.filter((v) => v.id !== file.id));
+                }}
               >
                 <X size={17} />
               </button>

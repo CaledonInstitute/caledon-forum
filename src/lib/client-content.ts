@@ -1,3 +1,4 @@
+import type { Attachment } from "./upload-policy";
 import { quoteElement } from "./quote-dom";
 import { markdown, extractLinks } from "./markdown";
 import { excerpt } from "./content";
@@ -39,9 +40,9 @@ async function quoteFromSource(source: NonNullable<ReturnType<typeof sourceLink>
     parentUsername: p.parentUsername,
   };
 }
-export async function clientRender(body: string, links: LinkPreview[]) {
+export async function clientRender(body: string, links: LinkPreview[], attachments: Attachment[] = []) {
   const quote = await clientQuote(body);
-  return { html: await markdown(body, links, quote?.sourceUrl), quote };
+  return { html: await markdown(body, links, quote?.sourceUrl, undefined, attachments), quote };
 }
 export async function enhancePost(element: HTMLElement) {
   const source = element.querySelector<HTMLTemplateElement>("template[data-rich-source]");
@@ -54,9 +55,10 @@ export async function enhancePost(element: HTMLElement) {
   } catch {
     /* Keep original link when offline. */
   }
-  const html = await markdown(body, links, quote?.sourceUrl, element.closest(".post-detail") ? undefined : 600);
+  const html = await markdown(body, links, quote?.sourceUrl, element.closest(".post-detail") ? undefined : 600, JSON.parse(element.dataset.richAttachments || "[]"));
   if (!element.isConnected || element.dataset.richDeleted === "true") return;
   element.innerHTML = html;
+  element.parentElement?.querySelector(".post-attachments")?.setAttribute("hidden", "");
   element.dataset.richReady = "true";
   const cut = !!element.querySelector("[data-content-truncated]");
   const more = element.parentElement?.querySelector<HTMLElement>(".read-more");

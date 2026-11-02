@@ -1,5 +1,5 @@
 import FileUpload from "./FileUpload";
-import Attachments from "./Attachments";
+import { useAttachmentEditor } from "../lib/use-attachment-editor";
 import type { Attachment } from "../lib/upload-policy";
 import UserAvatar from "./UserAvatar";
 import MentionEditor from "./MentionEditor";
@@ -34,6 +34,8 @@ export default function Composer({
     [links, setLinks] = useState<LinkPreview[]>([]),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const editor = useRef<HTMLTextAreaElement>(null);
+  const attachmentEditor = useAttachmentEditor(body, setBody, editor);
   useEffect(() => {
     const quote = new URLSearchParams(location.search).get("quote");
     if (quote && /^\/p\/[1-9][0-9]*$/.test(quote) && !parentId && !editId) setBody(new URL(quote, location.origin).href);
@@ -86,9 +88,9 @@ export default function Composer({
     setBusy(true);
     setError("");
     try {
-      if (body.trim()) {
-        const r = await request("preview-data", { body });
-        const rendered = await (await import("../lib/client-content")).clientRender(body, r.links);
+      if (body.trim() || attachments.length) {
+        const r = body.trim() ? await request("preview-data", { body }) : { links: [] };
+        const rendered = await (await import("../lib/client-content")).clientRender(body, r.links, attachments);
         setHtml(rendered.html);
         setLinks(r.links);
         setQuote(rendered.quote);
@@ -160,11 +162,11 @@ export default function Composer({
         </div>
       </div>
       {tab === "write" ? (
-        <MentionEditor value={body} onChange={setBody} disabled={busy} reply={!!parentId} />
+        <MentionEditor editorRef={editor} value={body} onChange={setBody} disabled={busy} reply={!!parentId} />
       ) : (
         <div className="preview">
           <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />
-          {!body.trim() && <p className="muted small">Your preview will appear here.</p>}
+          {!body.trim() && !attachments.length && <p className="muted small">Your preview will appear here.</p>}
           {links
             .filter((p) => p.kind !== "image")
             .map((p) => (
@@ -179,7 +181,7 @@ export default function Composer({
             ))}
         </div>
       )}
-      {tab === "write" ? <FileUpload purpose="post" value={attachments} onChange={setAttachments} onBusy={setUploading} disabled={busy} /> : <Attachments files={attachments} />}
+      {tab === "write" ? <FileUpload purpose="post" value={attachments} onChange={setAttachments} onBusy={setUploading} disabled={busy} {...attachmentEditor} /> : null}
       {quote && <QuoteCard quote={quote} />}
       {quoteStatus && (
         <p className="quote-status" role="status">

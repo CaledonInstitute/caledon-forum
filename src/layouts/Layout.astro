@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import { postTime } from "../lib/post-time";
 import Icon from "../components/Icon.astro";
 import { env } from "cloudflare:workers";
 import Mark from "../components/Mark.astro";
@@ -33,9 +34,7 @@ const path = Astro.url.pathname;
 const lastUpdated = __SITE_LAST_UPDATED__;
 const commitHash = __SITE_COMMIT_HASH__;
 const commitUrl = commitHash ? `https://github.com/CaledonInstitute/caledon-forum/commit/${commitHash}` : null;
-const lastUpdatedLabel = lastUpdated
-  ? `${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" }).format(new Date(lastUpdated))} WIB`
-  : null;
+const lastUpdatedLabel = lastUpdated ? postTime(Date.parse(lastUpdated)) : null;
 const analyticsAllowed =
   (path === "/" || /^\/p\/[1-9][0-9]{0,18}$/.test(path) || isValidUsername(path.slice(1))) && [...Astro.url.searchParams.keys()].every((key) => key === "page" || key === "tab");
 const nav = [

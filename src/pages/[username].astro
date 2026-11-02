@@ -1,4 +1,5 @@
 ---
+import { postTime } from "../lib/post-time";
 import Layout from "../layouts/Layout.astro";
 import ModerationQueue from "../components/ModerationQueue.astro";
 import ProfilePage from "../components/ProfilePage.astro";
@@ -161,7 +162,7 @@ const auditRows = await Promise.all(audit.map(async (a) => ({ ...a, url: a.post_
                 <a class="notification-post" href={r.url}>
                   <span>{r.kind === "mention" ? "mentioned you in a post" : r.kind === "reply" ? "replied to your post" : "liked your post"}</span>
                   <p>{excerpt(r.body, 120)}</p>
-                  <time datetime={new Date(r.created_at).toISOString()}>{new Date(r.created_at).toLocaleDateString("en", { month: "short", day: "numeric" })}</time>
+                  <time datetime={new Date(r.created_at).toISOString()}>{postTime(r.created_at)}</time>
                 </a>
               </div>
             </article>

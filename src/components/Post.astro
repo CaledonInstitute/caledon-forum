@@ -68,7 +68,13 @@ const time = postTime(p.createdAt);
         <p class="muted small">This post was deleted.</p>
       ) : (
         <>
-          <div class="post-content" data-rich-content data-rich-previews={JSON.stringify(links)} data-rich-long={long ? "true" : undefined}>
+          <div
+            class="post-content"
+            data-rich-content
+            data-rich-attachments={JSON.stringify(p.attachments || [])}
+            data-rich-previews={JSON.stringify(links)}
+            data-rich-long={long ? "true" : undefined}
+          >
             <span class="plain-post">{body}</span>
             <template data-rich-source>{p.body}</template>
           </div>

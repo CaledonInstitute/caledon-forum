@@ -2063,7 +2063,7 @@ small,
 .dm-bubble {
   padding: 13px 16px;
   border-radius: 18px 18px 18px 3px;
-  background: #eef2f4;
+  background: var(--surface);
   color: #000;
   overflow-wrap: anywhere;
 }
@@ -2534,4 +2534,100 @@ small,
 }
 .attachment-draft .icon-button:hover {
   background: var(--line);
+}
+
+/* Files share the reading column, whether inline or retained below the text. */
+.post-attachments[hidden] {
+  display: none;
+}
+.post-content > .attachment-view {
+  margin: 16px 0;
+}
+.dm-bubble {
+  text-align: left;
+}
+.dm-bubble > .private-attachment {
+  margin: 10px 0;
+}
+.dm-day {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #595959;
+  font-size: 12px;
+  margin: 20px 0;
+}
+.dm-day::before,
+.dm-day::after {
+  content: "";
+  height: 1px;
+  background: #e5e5e5;
+  flex: 1;
+}
+.dm-message-stack {
+  position: relative;
+}
+.dm-sent .dm-message-stack {
+  max-width: calc(85% - 32px);
+  margin-left: 32px;
+}
+.dm-actions {
+  position: absolute;
+  left: -36px;
+  top: 8px;
+}
+.dm-menu-trigger {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+}
+.dm-menu-trigger:hover {
+  background: var(--surface);
+}
+.dm-sent .private-attachment > .text-button {
+  color: #fff;
+  text-decoration: underline;
+}
+.dm-message:hover .dm-menu-trigger,
+.dm-message:focus-within .dm-menu-trigger,
+.dm-menu-trigger[aria-expanded="true"] {
+  opacity: 1;
+}
+.dm-action-menu {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  top: -8px;
+  width: max-content;
+  max-width: 200px;
+  padding: 4px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fff;
+  color: #000;
+  box-shadow: 0 4px 16px #00000014;
+}
+.dm-action-menu button {
+  padding: 9px 12px;
+  border: 0;
+  background: #fff;
+  color: #000;
+  border-radius: 4px;
+  text-align: left;
+}
+.dm-action-menu button:hover,
+.dm-action-menu button:focus-visible {
+  background: #f7f7f7;
+}
+@media (hover: none), (pointer: coarse) {
+  .dm-menu-trigger {
+    opacity: 1;
+  }
 }

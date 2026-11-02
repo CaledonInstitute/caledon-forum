@@ -93,11 +93,7 @@ const schema = person
           </p>
         )}
         {person.lastActiveAt && (
-          <p
-            class="profile-activity muted small"
-            data-presence-for={person.username}
-            title={`${new Date(person.lastActiveAt).toLocaleString("en-GB", { timeZone: "Asia/Jakarta" })} GMT+7`}
-          >
+          <p class="profile-activity muted small" data-presence-for={person.username} title={`${postTime(person.lastActiveAt)} GMT+7`}>
             Last active at {postTime(person.lastActiveAt)}
           </p>
         )}
@@ -109,7 +105,7 @@ const schema = person
             {person.location}
           </p>
         )}
-        <p class="muted small">Joined {new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(new Date(person.created_at))}</p>
+        <p class="muted small">Joined {postTime(person.created_at)}</p>
       </header>
       <nav class="tabs" aria-label="Profile activity">
         <a href={`/${person.username}`} class:list={{ active: tab === "posts" }}>

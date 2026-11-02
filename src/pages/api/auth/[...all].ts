@@ -4,6 +4,7 @@ import { rateLimit } from "../../../lib/rate-limit";
 import { run } from "../../../lib/db";
 import { env } from "cloudflare:workers";
 import { readLimited } from "../../../lib/security";
+import { signalSessionEnded } from "../../../lib/control";
 // OAuth tokens and email sign-in are deliberately not exposed as browser capabilities.
 const allowed = new Set([
   "/sign-in/social",
@@ -97,6 +98,7 @@ export const ALL: APIRoute = async (ctx) => {
       return Response.json({ message: "We could not send the email. Please try again later. If this continues, contact the forum administrator." }, { status: 503 });
     }
     if (route === "/sign-out" && ctx.request.method === "POST" && response.ok && ctx.locals.user) {
+      if (ctx.locals.sessionId) await signalSessionEnded(ctx.locals.sessionId);
       const device = ctx.cookies?.get("push-device")?.value;
       if (device && /^[a-f0-9]{64}$/.test(device)) await run("DELETE FROM push_subscriptions WHERE id=? AND user_id=?", device, ctx.locals.user.id);
       ctx.cookies?.delete("push-device", { path: "/" });

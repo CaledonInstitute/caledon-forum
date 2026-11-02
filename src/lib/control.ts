@@ -10,6 +10,14 @@ export async function signalChange() {
     console.warn("Realtime signal unavailable");
   }
 }
+export async function signalSessionEnded(sessionId: string) {
+  if (env.REALTIME_ENABLED !== "true") return;
+  try {
+    await control()?.fetch("https://control/session-ended", { method: "POST", body: JSON.stringify({ sessionId }) });
+  } catch {
+    console.warn("Session presence signal unavailable");
+  }
+}
 export async function reserveBudget(kind: string, limit: number) {
   const stub = control();
   if (!stub) return false;

@@ -1,8 +1,20 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { activeMention, type MentionUser } from "../lib/mention-input";
 import UserAvatar from "./UserAvatar";
 
-export default function MentionEditor({ value, onChange, disabled, reply }: { value: string; onChange: (value: string) => void; disabled: boolean; reply: boolean }) {
+export default function MentionEditor({
+  value,
+  onChange,
+  disabled,
+  reply,
+  editorRef,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  reply: boolean;
+  editorRef?: RefObject<HTMLTextAreaElement | null>;
+}) {
   const editor = useRef<HTMLTextAreaElement>(null);
   const dismissed = useRef(false);
   const nextCaret = useRef<number | null>(null);
@@ -66,7 +78,10 @@ export default function MentionEditor({ value, onChange, disabled, reply }: { va
   return (
     <div className="mention-editor">
       <textarea
-        ref={editor}
+        ref={(el) => {
+          editor.current = el;
+          if (editorRef) editorRef.current = el;
+        }}
         disabled={disabled || !ready}
         aria-label={reply ? "Your reply" : "Your post"}
         placeholder={reply ? "Share a thought, ask a question…" : "An idea, a discovery, a question…"}

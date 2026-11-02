@@ -5,6 +5,8 @@ import { uploadApi, serveFile, cleanupUploads, parseRange } from "../src/lib/upl
 import { forumAction } from "../src/lib/forum-service";
 import { b2 } from "../src/lib/b2";
 import { post, ancestors } from "../src/lib/db";
+import { attachmentMarker } from "../src/lib/attachment-markers";
+import { markdown } from "../src/lib/markdown";
 vi.mock("../src/lib/b2", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/lib/b2")>()),
   uploadsReady: () => true,
@@ -90,6 +92,32 @@ describe("upload policy", () => {
   });
 });
 describe("private bucket upload lifecycle", () => {
+  it("keeps inline order through publishing, replying and editing with associated metadata", async () => {
+    const id = await upload();
+    const viewer = { id: "alice", username: "alice", name: "Alice", emailVerified: true } as any;
+    const marker = attachmentMarker({ id, name: "photo.png" });
+    const body = `Before\n${marker}\nAfter`;
+    const response = await forumAction(viewer, "publish", { body, attachmentIds: [id] });
+    const published = (await response.json()) as any;
+    let saved = (await post(published.id))!;
+    const preview = await markdown(body, [], undefined, undefined, saved.attachments);
+    expect(saved.body).toBe(body);
+    expect(await markdown(saved.body, [], undefined, undefined, saved.attachments)).toBe(preview);
+    const replyId = await upload("reply.png");
+    const replyBody = `Reply before\n${attachmentMarker({ id: replyId, name: "reply.png" })}\nReply after`;
+    const reply = (await (await forumAction(viewer, "publish", { body: replyBody, parentId: saved.id, attachmentIds: [replyId] })).json()) as any;
+    expect((await post(reply.id))?.body).toBe(replyBody);
+    await forumAction(viewer, "edit", { id: saved.id, body: `Changed before\n${marker}\nChanged after`, attachmentIds: [id] });
+    saved = (await post(saved.id))!;
+    const edited = await markdown(saved.body, [], undefined, undefined, saved.attachments);
+    expect(edited.indexOf("Changed before")).toBeLessThan(edited.indexOf("<figure"));
+    expect(edited.indexOf("<figure")).toBeLessThan(edited.indexOf("Changed after"));
+    expect(edited.match(/class="attachment-view"/g)).toHaveLength(1);
+    await forumAction(viewer, "edit", { id: saved.id, body: "Marker removed; keep the file.", attachmentIds: [id] });
+    saved = (await post(saved.id))!;
+    const legacy = await markdown(saved.body, [], undefined, undefined, saved.attachments);
+    expect(legacy.indexOf("Marker removed")).toBeLessThan(legacy.indexOf("<figure"));
+  });
   it("rejects CSRF, unverified users, bad bytes, incomplete parts, foreign sessions and expired sessions", async () => {
     await expect(req("", "POST", "{}", "alice", "https://evil.com")).rejects.toBeInstanceOf(Response);
     execute("UPDATE user SET email_verified=0 WHERE id=?", "bob");

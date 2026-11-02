@@ -207,7 +207,7 @@ test("encrypted personal DM, remembered access, cross-device unlock, blocking an
       .last()
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(sentColor).toBe("rgb(29, 112, 232)");
-    expect(receivedColor).toBe("rgb(238, 242, 244)");
+    expect(receivedColor).toBe("rgb(247, 247, 247)");
     await expect(b.locator(".dm-peer-avatar img")).toBeVisible();
     await expect(b.getByRole("button", { name: "Block", exact: true })).not.toBeVisible();
     await b.getByRole("button", { name: "Conversation details", exact: true }).click();
@@ -258,7 +258,12 @@ test("encrypted personal DM, remembered access, cross-device unlock, blocking an
     await a.getByRole("button", { name: "Unlock DM", exact: true }).click();
     const message = a.locator(".dm-sent").filter({ hasText: text });
     a.once("dialog", (dialog) => dialog.accept());
-    await message.getByRole("button", { name: "Delete message", exact: true }).click();
+    await message.getByRole("button", { name: "Message actions", exact: true }).click();
+    await expect(message.getByRole("menuitem", { name: "Delete message" })).toBeFocused();
+    await a.keyboard.press("Escape");
+    await expect(message.getByRole("button", { name: "Message actions", exact: true })).toBeFocused();
+    await message.getByRole("button", { name: "Message actions", exact: true }).click();
+    await message.getByRole("menuitem", { name: "Delete message", exact: true }).click();
     await expect(a.getByText(text, { exact: true })).toHaveCount(0);
     await expect(a.locator(".dm-sent").filter({ hasText: "This message was deleted." }).first()).toBeVisible();
     await b.reload();

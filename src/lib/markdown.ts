@@ -1,3 +1,6 @@
+import { splitAttachments } from "./attachment-markers";
+import { attachmentHtml } from "./attachment-html";
+import type { Attachment } from "./upload-policy";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
@@ -27,7 +30,7 @@ export function extractUrls(body: string): string[] {
   return extractLinks(body).filter((url) => /^https:\/\//.test(url));
 }
 const linkParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(remarkRehype, { allowDangerousHtml: true }).use(rehypeRaw).freeze();
-type RenderData = { images: Map<string, LinkPreview>; quoteSource?: string; limit?: number };
+type RenderData = { images: Map<string, LinkPreview>; quoteSource?: string; limit?: number; attachmentSlots?: Set<string> };
 function imageFor(images: RenderData["images"], value: string) {
   try {
     const url = new URL(value);
@@ -79,6 +82,27 @@ const processor = unified()
       a: ["href", "title", "rel", "target"],
     },
   })
+  .use(() => (tree: any, file: any) => {
+    const slots = (file.data as RenderData).attachmentSlots;
+    if (!slots?.size) return;
+    visit(tree, "element", (node: any) => {
+      const slotNode = (token: string) => ({ type: "element", tagName: "div", properties: { dataAttachmentSlot: token }, children: [] });
+      if (node.tagName === "p" && node.children?.length === 1 && node.children[0].type === "text" && slots.has(node.children[0].value)) {
+        Object.assign(node, slotNode(node.children[0].value));
+        return;
+      }
+      // Raw HTML containers can retain a generated slot as a text child.
+      node.children = node.children?.flatMap((child: any) => {
+        if (child.type !== "text") return [child];
+        const tokens = [...slots].filter((token) => child.value.includes(token));
+        if (!tokens.length) return [child];
+        return child.value
+          .split(new RegExp(`(${tokens.join("|")})`, "g"))
+          .filter(Boolean)
+          .map((value: string) => (slots.has(value) ? slotNode(value) : { type: "text", value }));
+      });
+    });
+  })
   .use(() => (tree: any) => transformMentions(tree))
   .use(() => (tree: any, file: any) => {
     const { quoteSource } = file.data as RenderData;
@@ -107,6 +131,10 @@ const processor = unified()
     function prune(parent: any) {
       const kept: any[] = [];
       for (const node of parent.children || []) {
+        if (node.properties?.dataAttachmentSlot) {
+          kept.push(node);
+          continue;
+        }
         const math = node.properties?.className?.some((c: string) => c === "math-inline" || c === "math-display");
         if (math) {
           const value = node.children?.map((n: any) => n.value || "").join("") || "";
@@ -168,6 +196,36 @@ const processor = unified()
   })
   .use(rehypeStringify)
   .freeze();
-export async function markdown(body: string, previews: LinkPreview[] = [], quoteSource?: string, limit?: number): Promise<string> {
-  return String(await processor.process({ value: body, data: { images: new Map(previews.filter((p) => p.kind === "image").map((p) => [p.url, p])), quoteSource, limit } }));
+export async function markdown(body: string, previews: LinkPreview[] = [], quoteSource?: string, limit?: number, attachments: Attachment[] = []): Promise<string> {
+  const slots = new Map<string, { id: string; html: string }>();
+  const referenced = new Set<string>();
+  const nonce = crypto.randomUUID().replaceAll("-", "");
+  // Parse the whole Markdown document once so references and other document-wide
+  // syntax keep working across file blocks. Slots are generated, never user HTML.
+  const source = splitAttachments(body)
+    .map((part) => {
+      if (part.type === "text") return part.text;
+      const token = `caledonattachment${nonce}${slots.size}`;
+      const file = attachments.find((file) => file.id === part.id);
+      const html = !file ? '<p class="muted small">File unavailable.</p>' : referenced.has(file.id) ? "" : attachmentHtml(file);
+      if (file) referenced.add(file.id);
+      slots.set(token, { id: part.id, html });
+      return `\n\n${token}\n\n`;
+    })
+    .join("");
+  let html = String(
+    await processor.process({
+      value: source,
+      data: { images: new Map(previews.filter((p) => p.kind === "image").map((p) => [p.url, p])), quoteSource, limit, attachmentSlots: new Set(slots.keys()) },
+    })
+  );
+  const rendered = new Set<string>();
+  for (const [token, slot] of slots) {
+    const placeholder = `<div data-attachment-slot="${token}"></div>`;
+    if (!html.includes(placeholder)) continue;
+    html = html.replace(placeholder, () => slot.html);
+    rendered.add(slot.id);
+  }
+  for (const file of attachments) if (!rendered.has(file.id)) html += "\n" + attachmentHtml(file);
+  return html;
 }

@@ -22,7 +22,7 @@ function paint(unknown = false) {
     if (dot.classList.contains("profile-activity")) {
       const last = statuses.get(dot.dataset.presenceFor!)?.lastActiveAt;
       dot.textContent = online ? "Online" : last ? `Last active at ${postTime(last)}` : "";
-      dot.title = last ? new Date(last).toLocaleString("en-GB", { timeZone: "Asia/Jakarta" }) + " GMT+7" : label;
+      dot.title = last ? postTime(last) + " GMT+7" : label;
     }
     if (online === undefined) dot.hidden = true;
     else dot.hidden = false;
@@ -198,9 +198,15 @@ async function refresh() {
   }
 }
 function connect() {
-  if (stopped || document.visibilityState !== "visible" || document.body.dataset.realtime !== "true") return;
+  if (stopped || (socket && socket.readyState < WebSocket.CLOSING) || document.body.dataset.realtime !== "true") return;
+  clearTimeout(reconnect);
   socket = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/live/connect`);
+  const connection = socket;
   socket.onopen = () => {
+    if (socket !== connection || stopped) {
+      connection.close(1000);
+      return;
+    }
     document.body.dataset.realtimeConnected = "true";
     retries = 0;
     beat();
@@ -209,6 +215,7 @@ function connect() {
     void refresh();
   };
   socket.onmessage = (event) => {
+    if (socket !== connection || stopped) return;
     try {
       const data = JSON.parse(event.data);
       if (data.type === "dm-refresh") document.dispatchEvent(new Event("forum:dm-updated"));
@@ -221,23 +228,36 @@ function connect() {
     } catch {}
   };
   socket.onclose = (event) => {
+    if (socket !== connection) return;
     document.body.dataset.realtimeConnected = "false";
     clearInterval(heartbeat);
     paint(true);
     if (event.code === 1013 || event.code === 1008) stopped = true;
-    if (!stopped && document.visibilityState === "visible" && retries < 6) reconnect = setTimeout(connect, Math.min(60000, 1000 * 2 ** retries++) + Math.random() * 1000);
+    if (!stopped) reconnect = setTimeout(connect, Math.min(60000, 1000 * 2 ** retries++) + Math.random() * 1000);
   };
 }
 document.addEventListener("visibilitychange", () => {
-  clearTimeout(reconnect);
-  if (document.visibilityState !== "visible") {
-    clearInterval(heartbeat);
-    socket?.close(1000);
-    paint(true);
-  } else connect();
+  if (document.visibilityState === "visible") {
+    connect();
+    void refresh();
+    document.dispatchEvent(new Event("forum:dm-updated"));
+  }
+});
+window.addEventListener("online", () => {
+  retries = 0;
+  connect();
+});
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    stopped = false;
+    connect();
+    void refresh();
+    document.dispatchEvent(new Event("forum:dm-updated"));
+  }
 });
 document.addEventListener("forum:posts-updated", () => paint());
 window.addEventListener("pagehide", () => {
+  stopped = true;
   clearTimeout(reconnect);
   clearInterval(heartbeat);
   socket?.close(1000);

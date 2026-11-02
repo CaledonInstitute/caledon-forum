@@ -1,3 +1,4 @@
+import { postTime } from "../lib/post-time";
 import { useEffect, useState } from "react";
 import type { KeyMetadata } from "../lib/api-keys";
 
@@ -80,9 +81,9 @@ export default function ApiKeyPanel({ eligible }: { eligible: boolean }) {
                 <code>{metadata.prefix}…</code>
               </dd>
               <dt>Created</dt>
-              <dd>{new Date(metadata.createdAt).toLocaleString()}</dd>
+              <dd>{postTime(metadata.createdAt)}</dd>
               <dt>Last used</dt>
-              <dd>{metadata.lastUsedAt ? new Date(metadata.lastUsedAt).toLocaleString() : "Never"}</dd>
+              <dd>{metadata.lastUsedAt ? postTime(metadata.lastUsedAt) : "Never"}</dd>
               <dt>Expires</dt>
               <dd>Valid until revoked or regenerated</dd>
             </dl>

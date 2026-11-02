@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-type Attachment = { ip: string; username: string | null; sessionId: string | null; expires: number; users: string[]; lastMessage: number; lastPresence?: string };
+type Attachment = { ip: string; username: string | null; sessionId: string | null; users: string[]; lastMessage: number; lastPresence?: string };
 export class ForumControl extends DurableObject<Cloudflare.Env> {
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
@@ -25,12 +25,15 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
     return this.ctx.getWebSockets();
   }
   private async online(users: string[]) {
-    const active = new Set(
-      this.sockets()
-        .map((ws) => ws.deserializeAttachment() as Attachment)
-        .filter((a) => a.expires > Date.now())
-        .map((a) => a.username)
-    );
+    const connections = this.sockets()
+      .filter((ws) => ws.readyState === WebSocket.OPEN)
+      .map((ws) => ws.deserializeAttachment() as Attachment);
+    const valid = await this.env.DB.prepare(
+      "SELECT s.id,u.username FROM session s JOIN user u ON u.id=s.user_id WHERE s.id IN (SELECT value FROM json_each(?)) AND s.expires_at>? AND u.suspended=0 AND u.email_verified=1"
+    )
+      .bind(JSON.stringify(connections.map((a) => a.sessionId).filter(Boolean)), Date.now())
+      .all<{ id: string; username: string }>();
+    const active = new Set(valid.results.map((session) => session.username));
     const visible = await this.env.DB.prepare("SELECT username,last_active_at AS lastActiveAt FROM user WHERE show_activity=1 AND username IN (SELECT value FROM json_each(?))")
       .bind(JSON.stringify(users))
       .all<{ username: string; lastActiveAt: number | null }>();
@@ -57,6 +60,14 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
   }
   async fetch(request: Request) {
     const path = new URL(request.url).pathname;
+    if (path === "/session-ended") {
+      const { sessionId } = (await request.json()) as { sessionId: string };
+      for (const ws of this.sockets()) {
+        if ((ws.deserializeAttachment() as Attachment).sessionId === sessionId) ws.close(1008, "Session ended");
+      }
+      for (const ws of this.sockets()) if (ws.readyState === WebSocket.OPEN) await this.presence(ws, ws.deserializeAttachment() as Attachment);
+      return new Response(null, { status: 204 });
+    }
     if (path === "/dm-change") {
       const { users } = (await request.json()) as { users: string[] };
       for (const ws of this.sockets()) {
@@ -109,7 +120,6 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
       ip,
       username: request.headers.get("x-live-user"),
       sessionId: request.headers.get("x-live-session"),
-      expires: Date.now() + 60000,
       users: [],
       lastMessage: 0,
     };
@@ -149,7 +159,6 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
       )
         throw new Error();
       a.users = [...new Set(value.users as string[])];
-      a.expires = Date.now() + 60000;
       ws.serializeAttachment(a);
       if (a.sessionId)
         await this.env.DB.prepare("UPDATE user SET last_active_at=? WHERE username=? AND (last_active_at IS NULL OR last_active_at<?)")
@@ -166,9 +175,17 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
     this.ctx.storage.sql.exec("DELETE FROM counters WHERE reset_at<?", Date.now());
     for (const ws of this.sockets()) {
       const a = ws.deserializeAttachment() as Attachment;
-      if (a.expires <= Date.now()) {
-        ws.close(1000, "Inactive");
-        continue;
+      if (a.sessionId) {
+        const session = await this.env.DB.prepare("SELECT id FROM session WHERE id=? AND expires_at>? AND user_id IN (SELECT id FROM user WHERE suspended=0 AND email_verified=1)")
+          .bind(a.sessionId, Date.now())
+          .first();
+        if (!session) {
+          ws.close(1008, "Session ended");
+          continue;
+        }
+        await this.env.DB.prepare("UPDATE user SET last_active_at=? WHERE username=? AND (last_active_at IS NULL OR last_active_at<?)")
+          .bind(Date.now(), a.username, Date.now() - 60000)
+          .run();
       }
       if (dirty) this.send(ws, { type: "refresh" });
       if (this.env.PRESENCE_ENABLED === "true") await this.presence(ws, a);
@@ -179,6 +196,7 @@ export class ForumControl extends DurableObject<Cloudflare.Env> {
     try {
       ws.close(code);
     } catch {}
+    for (const other of this.sockets()) if (other !== ws && other.readyState === WebSocket.OPEN) await this.presence(other, other.deserializeAttachment() as Attachment);
   }
   async webSocketError(ws: WebSocket) {
     try {
