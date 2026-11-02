@@ -1,0 +1,26 @@
+---
+import { fileUrl, type Attachment } from "../lib/upload-policy";
+const { files } = Astro.props as { files: Attachment[] };
+---
+
+<div class="post-attachments">
+  {files.map((file) => (
+    <figure class="attachment-view">
+      {file.mime.startsWith("image/") ? (
+        <a href={fileUrl(file.id)} target="_blank" rel="noopener" aria-label={`Open ${file.name}`}>
+          <img src={fileUrl(file.id)} alt={file.name} loading="lazy" />
+        </a>
+      ) : file.mime.startsWith("video/") ? (
+        <video src={fileUrl(file.id)} controls preload="none" playsinline aria-label={file.name} />
+      ) : file.mime.startsWith("audio/") ? (
+        <audio src={fileUrl(file.id)} controls preload="none" aria-label={file.name} />
+      ) : null}
+      <figcaption>
+        <a href={fileUrl(file.id)} download={file.name}>
+          {file.name}
+        </a>
+        <span>{(file.size / 1048576).toFixed(1)} MB</span>
+      </figcaption>
+    </figure>
+  ))}
+</div>

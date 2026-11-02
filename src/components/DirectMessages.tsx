@@ -1,5 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 
+import FileUpload from "./FileUpload";
+import { PrivateFile } from "./Attachments";
+import type { PrivateAttachment } from "../lib/upload-policy";
 import { createIdentity, unlockPrivate, rememberIdentity, recalledIdentity, forgetIdentity, encryptMessage, decryptMessage, type Identity, type Payload } from "../lib/dm-crypto";
 
 import QuoteCard from "./QuoteCard";
@@ -140,6 +143,9 @@ const ConversationList = memo(function ConversationList({ inbox, conversationId,
 });
 
 export default function DirectMessages({ conversationId: initialConversationId }: { conversationId?: string }) {
+  const [attachments, setAttachments] = useState<PrivateAttachment[]>([]),
+    [uploading, setUploading] = useState(false);
+
   const [route, setRoute] = useState(() =>
     typeof location === "undefined" ? `/dm${initialConversationId ? "/" + initialConversationId : ""}` : location.pathname + location.search
   );
@@ -492,7 +498,12 @@ export default function DirectMessages({ conversationId: initialConversationId }
     await forgetIdentity(vault?.userId);
   }
 
+  useEffect(() => {
+    setAttachments([]);
+  }, [conversationId, identity]);
+
   async function send() {
+    if (uploading) return;
     if (!identity || !peer || !conversationId) return;
     const id = conversationId;
     const generation = epoch.current;
@@ -507,8 +518,8 @@ export default function DirectMessages({ conversationId: initialConversationId }
     let outgoing = pendingMessages.current.get(id);
     if (!outgoing) {
       const context = { id: crypto.randomUUID(), conversationId: id, senderId: key.userId, recipientId: peer.id, senderVersion: key.version, recipientVersion: peer.version };
-      const payload: Payload = { text: draft, ...(sharedPost ? { post: sharedPost } : {}) };
-      outgoing = { ...context, envelopes: await encryptMessage(key, JSON.parse(peer.publicKey), context, payload) };
+      const payload: Payload = { text: draft, ...(sharedPost ? { post: sharedPost } : {}), ...(attachments.length ? { attachments } : {}) };
+      outgoing = { ...context, attachmentIds: attachments.map((a) => a.id), envelopes: await encryptMessage(key, JSON.parse(peer.publicKey), context, payload) };
       if (identityRef.current !== key) return;
       pendingMessages.current.set(id, outgoing);
     }
@@ -518,6 +529,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
     if (drafts.current.get(id) === draft) drafts.current.delete(id);
     if (selected.current === id) {
       setText((current) => (current === draft ? "" : current));
+      setAttachments([]);
       if (sharedPost && generation === epoch.current) {
         history.replaceState(null, "", location.pathname);
         setRoute(location.pathname);
@@ -660,6 +672,9 @@ export default function DirectMessages({ conversationId: initialConversationId }
                                   </p>
                                 )}
                                 {m.payload.post && <SharedPost path={m.payload.post} />}
+                                {m.payload.attachments?.map((file: PrivateAttachment) => (
+                                  <PrivateFile key={file.id} file={file} />
+                                ))}
                               </>
                             )}
                           </div>
@@ -709,12 +724,25 @@ export default function DirectMessages({ conversationId: initialConversationId }
                     maxLength={10000}
                     disabled={loading || blocked || busy}
                   />
+                  <FileUpload
+                    key={conversationId}
+                    purpose="dm"
+                    conversationId={conversationId}
+                    value={attachments}
+                    onChange={(files) => {
+                      setAttachments(files as PrivateAttachment[]);
+                      pendingMessages.current.delete(conversationId!);
+                    }}
+                    onBusy={setUploading}
+                    disabled={loading || blocked || busy || keyChanged || !peer?.publicKey}
+                  />
                   <div className="composer-foot">
                     <span className="small muted">{Array.from(text).length} / 5,000</span>
                     <button
                       className="button"
                       disabled={
                         loading ||
+                        uploading ||
                         busy ||
                         blocked ||
                         keyChanged ||
@@ -722,7 +750,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
                         peer?.invalidated ||
                         peer?.suspended ||
                         !peer?.emailVerified ||
-                        (!text.trim() && !sharedPost) ||
+                        (!text.trim() && !sharedPost && !attachments.length) ||
                         Array.from(text).length > 5000
                       }
                     >

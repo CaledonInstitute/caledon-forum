@@ -184,7 +184,7 @@ test("encrypted personal DM, remembered access, cross-device unlock, blocking an
     await a.getByRole("button", { name: "Send", exact: true }).click();
     const request = await sent;
     expect(request.postData()).not.toContain(text);
-    await expect(a.getByText(text, { exact: true })).toBeVisible();
+    await expect(a.locator(".dm-sent .dm-message-text").filter({ hasText: text })).toBeVisible();
     await a.reload();
     await expect(a.getByText(text, { exact: true })).toBeVisible();
     await expect(a.getByLabel("Account password", { exact: true })).toHaveCount(0);
@@ -194,7 +194,8 @@ test("encrypted personal DM, remembered access, cross-device unlock, blocking an
     const reply = `Reply from recipient ${Date.now()}`;
     await b.getByLabel("Message", { exact: true }).fill(reply);
     await b.getByRole("button", { name: "Send", exact: true }).click();
-    await expect(b.getByText(reply, { exact: true })).toBeVisible();
+    // Wait for the persisted message bubble rather than the editable draft text.
+    await expect(b.locator(".dm-sent .dm-message-text").filter({ hasText: reply })).toBeVisible();
     await a.reload();
     await expect(a.getByText(reply, { exact: true })).toBeVisible();
     const sentColor = await a

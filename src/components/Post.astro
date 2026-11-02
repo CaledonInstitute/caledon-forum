@@ -1,4 +1,5 @@
 ---
+import PostAttachments from "./PostAttachments.astro";
 import Avatar from "./Avatar.astro";
 import Badge from "./Badge.astro";
 import LinkCard from "./LinkCard.astro";
@@ -37,18 +38,20 @@ const time = postTime(p.createdAt);
     </p>
   )}
   <div class="post-grid">
-    <a class="post-avatar-link" href={`/${p.username}`} aria-label={`${p.name}'s profile`}>
+    <a class="post-avatar-link" href={p.username ? `/${p.username}` : undefined} aria-label={`${p.name}'s profile`}>
       <Avatar name={p.name} image={p.image} username={p.username} />
     </a>
     <div>
       <div class="identity">
-        <a href={`/${p.username}`}>
+        <a href={p.username ? `/${p.username}` : undefined}>
           <strong>{p.name}</strong>
         </a>
         {!!p.isCaledonMember && <Badge />}
-        <a class="handle" href={`/${p.username}`}>
-          @{p.username}
-        </a>
+        {p.username && (
+          <a class="handle" href={`/${p.username}`}>
+            @{p.username}
+          </a>
+        )}
         <a class="post-time" href={permalink}>
           <time datetime={createdAt.toISOString()} title={`${time} GMT+7`}>
             {time}
@@ -58,7 +61,7 @@ const time = postTime(p.createdAt);
       </div>
       {p.parentId && (
         <div class="post-context">
-          Replying to <a href={`/p/${p.parentPublicId}`}>@{p.parentUsername}</a>
+          Replying to <a href={`/p/${p.parentPublicId}`}>{p.parentUsername ? `@${p.parentUsername}` : "Deleted account"}</a>
         </div>
       )}
       {p.deleted ? (
@@ -69,6 +72,7 @@ const time = postTime(p.createdAt);
             <span class="plain-post">{body}</span>
             <template data-rich-source>{p.body}</template>
           </div>
+          <PostAttachments files={p.attachments || []} />
           <div data-rich-quote></div>
           {long && (
             <a class="read-more" href={permalink}>

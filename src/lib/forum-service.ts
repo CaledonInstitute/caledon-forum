@@ -1,3 +1,6 @@
+import { activeAccount, validateAttachments, postAttachmentStatements, postAttachments, collectUnused, getAsset } from "./uploads";
+import { attachmentList } from "./upload-policy";
+import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { db, all, one, run, replyLocation, publishBatch } from "./db";
 import { extractMentions } from "./mentions";
@@ -23,6 +26,7 @@ function mentionNotifications(body: string, postId: string, actorId: string, now
     .bind(actorId, postId, now, JSON.stringify(extractMentions(body)), actorId, exclude, postId, actorId, postId);
 }
 export async function forumAction(user: Viewer, action: string, data: any): Promise<Response> {
+  if (!(await activeAccount(user.id))) return Response.json({ error: "This account is unavailable." }, { status: 403 });
   const response = await forumActionImpl(user, action, data);
   if (response.ok && ["publish", "edit", "delete", "like", "read", "moderate", "profile", "repost", "activity"].includes(action)) {
     await signalChange();
@@ -42,6 +46,8 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
     const input = z
       .object({ name: z.string().trim().min(1).max(80), bio: z.string().max(300), location: z.string().trim().max(100).optional(), image: imageInput, coverImage: imageInput })
       .parse(data);
+    const previousImages = await one<{ image: string | null; cover_image: string | null }>("SELECT image,cover_image FROM user WHERE id=?", user.id);
+    const managedIds: string[] = [];
     const fields = ["name=?", "bio=?", "updated_at=?"];
     const values: (string | number | null)[] = [input.name, input.bio, Date.now()];
     if (input.location !== undefined) {
@@ -53,12 +59,34 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
       ["coverImage", "cover_image", "Cover photo"],
     ] as const) {
       if (input[key] === undefined) continue;
-      const image = input[key] ? avatarUrl(input[key], label) : null;
-      if (image) await fetchAvatar(image, label);
+      let image = input[key] || null;
+      if (image) {
+        const parsed = new URL(image);
+        const managed = parsed.origin === new URL(env.SITE_URL).origin && /^\/api\/files\/([0-9a-f-]{36})$/.exec(parsed.pathname);
+        if (managed) {
+          managedIds.push(managed[1]);
+          const asset = await getAsset(managed[1]);
+          if (!asset || asset.owner_id !== user.id || asset.state !== "ready" || asset.purpose !== (key === "image" ? "avatar" : "cover") || parsed.search || parsed.hash)
+            throw new Error("Choose an available image uploaded to your account.");
+        } else {
+          image = avatarUrl(image, label);
+          await fetchAvatar(image, label);
+        }
+      }
       fields.push(`${column}=?`);
       values.push(image);
     }
-    await run(`UPDATE user SET ${fields.join(",")} WHERE id=?`, ...values, user.id);
+    const saved = await run(
+      `UPDATE user SET ${fields.join(",")} WHERE id=? AND deleting_at IS NULL AND NOT EXISTS(SELECT 1 FROM json_each(?) j WHERE NOT EXISTS(SELECT 1 FROM uploads a WHERE a.id=j.value AND a.state='ready'))`,
+      ...values,
+      user.id,
+      JSON.stringify(managedIds)
+    );
+    if (!saved.meta.changes) throw new Error("Your profile or uploaded image is no longer available. Refresh this page.");
+    const replaced = [previousImages?.image, previousImages?.cover_image].flatMap((url) =>
+      url && url.startsWith(new URL("/api/files/", env.SITE_URL).href) ? [url.split("/").pop()!] : []
+    );
+    await collectUnused(replaced);
     return Response.json({ ok: true });
   }
   if (action === "onboarding") {
@@ -67,7 +95,13 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
       .parse(data);
     if (user.username) throw new Error("Your username is already set.");
     try {
-      await run("UPDATE user SET username=?,display_username=?,updated_at=? WHERE id=? AND username IS NULL", input.username.toLowerCase(), input.username, Date.now(), user.id);
+      await run(
+        "UPDATE user SET username=?,display_username=?,updated_at=? WHERE id=? AND username IS NULL AND deleting_at IS NULL",
+        input.username.toLowerCase(),
+        input.username,
+        Date.now(),
+        user.id
+      );
     } catch {
       throw new Error("That username is already taken. Choose another.");
     }
@@ -108,7 +142,9 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
     return Response.json({ html: await markdown(body, links, quote?.sourceUrl), links, quote });
   }
   if (action === "publish") {
-    const body = validateBody(data.body);
+    const attachmentIds = attachmentList(data.attachmentIds);
+    await validateAttachments(user.id, attachmentIds, "post");
+    const body = attachmentIds.length && (data.body === undefined || (typeof data.body === "string" && !data.body.trim())) ? "" : validateBody(data.body);
     const parentId = data.parentId ? id.parse(data.parentId) : null;
     const parent = parentId
       ? await one<{ id: string; root_id: string | null; author_id: string; deleted: number }>("SELECT id,root_id,author_id,deleted FROM posts WHERE id=?", parentId)
@@ -121,12 +157,15 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
     const statement = rootId
       ? db()
           .prepare(
-            "INSERT INTO posts(id,author_id,root_id,parent_id,body,created_at,updated_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM posts WHERE id=? AND locked=0) AND EXISTS(SELECT 1 FROM posts WHERE id=? AND deleted=0)"
+            "INSERT INTO posts(id,author_id,root_id,parent_id,body,created_at,updated_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM posts WHERE id=? AND locked=0) AND EXISTS(SELECT 1 FROM posts WHERE id=? AND deleted=0) AND EXISTS(SELECT 1 FROM user WHERE id=? AND deleting_at IS NULL)"
           )
-          .bind(postId, user.id, rootId, parentId, body, now, now, rootId, parentId)
-      : db().prepare("INSERT INTO posts(id,author_id,body,created_at,updated_at) VALUES(?,?,?,?,?)").bind(postId, user.id, body, now, now);
+          .bind(postId, user.id, rootId, parentId, body, now, now, rootId, parentId, user.id)
+      : db()
+          .prepare("INSERT INTO posts(id,author_id,body,created_at,updated_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM user WHERE id=? AND deleting_at IS NULL)")
+          .bind(postId, user.id, body, now, now, user.id);
     const statements = [
       statement,
+      ...postAttachmentStatements(postId, attachmentIds),
       ...links.map((p, i) =>
         db().prepare("INSERT OR IGNORE INTO post_links(post_id,preview_id,position) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM posts WHERE id=?)").bind(postId, p.id, i, postId)
       ),
@@ -146,17 +185,25 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
     const postId = id.parse(data.id);
     const own = await one<{ deleted: number }>("SELECT deleted FROM posts WHERE id=? AND author_id=?", postId, user.id);
     if (!own || own.deleted) return Response.json({ error: "You cannot change this post." }, { status: 403 });
+    const previousAttachments = await postAttachments(postId);
     if (action === "delete") {
       await db().batch([
         db().prepare("UPDATE posts SET body='',deleted=1,updated_at=? WHERE id=? AND author_id=?").bind(Date.now(), postId, user.id),
         db().prepare("DELETE FROM post_links WHERE post_id=?").bind(postId),
+        db().prepare("DELETE FROM post_attachments WHERE post_id=?").bind(postId),
       ]);
     } else {
-      const body = validateBody(data.body);
+      const attachmentIds = data.attachmentIds === undefined ? previousAttachments.map((a) => a.id) : attachmentList(data.attachmentIds);
+      await validateAttachments(user.id, attachmentIds, "post", postId);
+      const body = attachmentIds.length && (data.body === undefined || (typeof data.body === "string" && !data.body.trim())) ? "" : validateBody(data.body);
       const links = await inspectBody(body);
       const now = Date.now();
       await db().batch([
-        db().prepare("UPDATE posts SET body=?,updated_at=? WHERE id=? AND author_id=? AND deleted=0").bind(body, now, postId, user.id),
+        db()
+          .prepare("UPDATE posts SET body=?,updated_at=? WHERE id=? AND author_id=? AND deleted=0 AND EXISTS(SELECT 1 FROM user WHERE id=posts.author_id AND deleting_at IS NULL)")
+          .bind(body, now, postId, user.id),
+        db().prepare("DELETE FROM post_attachments WHERE post_id=?").bind(postId),
+        ...postAttachmentStatements(postId, attachmentIds),
         db()
           .prepare("DELETE FROM notifications WHERE post_id=? AND kind='mention' AND recipient_id NOT IN (SELECT id FROM user WHERE username IN (SELECT value FROM json_each(?)))")
           .bind(postId, JSON.stringify(extractMentions(body))),
@@ -164,6 +211,7 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
       ]);
       await attachPreviews(postId, links);
     }
+    await collectUnused(previousAttachments.map((a) => a.id));
     return Response.json({ ok: true, url: await replyLocation(postId) });
   }
   if (action === "like") {
@@ -233,7 +281,10 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
         .prepare("INSERT INTO moderation_actions(id,admin_id,action,target_id,created_at) VALUES(?,?,?,?,?)")
         .bind(crypto.randomUUID(), user.id, input.operation, input.id, Date.now())
     );
+    const removedAttachments = input.operation === "delete" ? await postAttachments(input.id) : [];
+    if (input.operation === "delete") statements.push(db().prepare("DELETE FROM post_attachments WHERE post_id=?").bind(input.id));
     await db().batch(statements);
+    await collectUnused(removedAttachments.map((a) => a.id));
     return Response.json({ ok: true });
   }
   return Response.json({ error: "Action not found." }, { status: 404 });

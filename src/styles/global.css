@@ -2336,3 +2336,202 @@ small,
     gap: 10px;
   }
 }
+
+/* Attachments follow the forum's compact composer and readable content column. */
+.file-upload {
+  margin: 14px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.file-upload > .help {
+  flex: 1 1 210px;
+}
+.file-upload > .attachment-draft,
+.file-upload > .error,
+.attachment-list {
+  flex-basis: 100%;
+}
+.attachment-list {
+  display: grid;
+  gap: 8px;
+}
+.attachment-draft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+}
+.attachment-draft > img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.attachment-draft > span {
+  flex: 1;
+  min-width: 0;
+}
+.attachment-draft strong {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.attachment-draft small {
+  display: block;
+  font-size: 12px;
+}
+.attachment-draft progress {
+  width: 100%;
+  height: 5px;
+  accent-color: var(--blue);
+}
+.attachment-add {
+  white-space: nowrap;
+}
+.post-attachments {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+.post-attachments:empty {
+  display: none;
+}
+.attachment-view {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.attachment-view img,
+.attachment-view video {
+  display: block;
+  width: 100%;
+  max-height: 500px;
+  object-fit: contain;
+  background: var(--surface);
+}
+.attachment-view audio {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+.attachment-view figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+.attachment-view figcaption a {
+  color: var(--blue);
+  overflow-wrap: anywhere;
+}
+.attachment-view figcaption span {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.profile-upload-field {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 20px;
+}
+.profile-upload-avatar {
+  display: block;
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.profile-upload-cover {
+  display: block;
+  width: 100%;
+  max-height: 190px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.profile-upload-field details {
+  margin-top: 12px;
+}
+.profile-upload-field summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+}
+.profile-upload-field details label {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.delete-account p {
+  max-width: 65ch;
+}
+.button.danger-outline {
+  color: #b42318;
+  border: 1px solid #b42318;
+  background: #fff;
+}
+.button.danger {
+  background: #b42318;
+  color: #fff;
+  border-color: #b42318;
+}
+.delete-dialog {
+  width: min(480px, calc(100% - 32px));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+}
+.delete-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+.delete-dialog label {
+  display: grid;
+  gap: 8px;
+}
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+.private-attachment {
+  margin-top: 10px;
+}
+.dm-sent .attachment-view {
+  background: #fff;
+  color: #000;
+}
+@media (max-width: 540px) {
+  .file-upload > .help {
+    flex-basis: 100%;
+  }
+  .attachment-view figcaption {
+    flex-wrap: wrap;
+  }
+}
+
+.file-upload > .help,
+.delete-account .help,
+.delete-dialog .help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.attachment-draft .icon-button {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+}
+.attachment-draft .icon-button:hover {
+  background: var(--line);
+}

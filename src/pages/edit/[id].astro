@@ -16,6 +16,7 @@ if (!p || p.authorId !== Astro.locals.user.id || p.deleted || Astro.locals.user.
     <Composer
       client:load
       initial={p.body}
+      initialAttachments={p.attachments}
       editId={p.id}
       parentId={p.rootId || undefined}
       name={Astro.locals.user.name}

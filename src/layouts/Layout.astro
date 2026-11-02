@@ -202,6 +202,11 @@ const siteSchema = {
         </div>
       </aside>
       <main id="main" class="main" tabindex="-1">
+        {Astro.url.searchParams.get("account") === "deleted" && (
+          <p class="notice" role="status">
+            Your account is closed. Your content has been removed and file cleanup is in progress.
+          </p>
+        )}
         <slot />
         {lastUpdated && !path.startsWith("/dm/") && (
           <p class="site-updated site-updated-mobile">

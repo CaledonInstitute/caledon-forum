@@ -10,6 +10,12 @@ declare namespace App {
 }
 declare namespace Cloudflare {
   interface Env {
+    UPLOADS_ENABLED?: string;
+    B2_ENDPOINT?: string;
+    B2_REGION?: string;
+    B2_BUCKET?: string;
+    B2_ACCESS_KEY_ID?: string;
+    B2_SECRET_ACCESS_KEY?: string;
     STATIC_OG_ENABLED?: string;
     POST_OG_ENABLED?: string;
     PROFILE_OG_ENABLED?: string;

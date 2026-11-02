@@ -51,7 +51,9 @@ export function postCardData(p: ForumPost, links: LinkPreview[], origin: string)
     updatedAt: p.updatedAt,
     text,
     parent: p.parentUsername || null,
-    media: media?.image || media?.url || null,
+    media: p.attachments?.find((a) => a.mime.startsWith("image/"))
+      ? new URL(`/api/files/${p.attachments.find((a) => a.mime.startsWith("image/"))!.id}`, origin).href
+      : media?.image || media?.url || null,
     host: new URL(origin).host,
   };
 }

@@ -1,3 +1,6 @@
+import FileUpload from "./FileUpload";
+import Attachments from "./Attachments";
+import type { Attachment } from "../lib/upload-policy";
 import UserAvatar from "./UserAvatar";
 import MentionEditor from "./MentionEditor";
 import PublishToast from "./PublishToast";
@@ -7,6 +10,7 @@ import { showPublishedPost } from "../lib/published-post";
 import { countCharacters, MAX_CHARACTERS } from "../lib/content";
 import type { LinkPreview, QuotedPost } from "../lib/types";
 export default function Composer({
+  initialAttachments = [],
   parentId,
   initial = "",
   editId,
@@ -14,6 +18,7 @@ export default function Composer({
   username,
   image,
 }: {
+  initialAttachments?: Attachment[];
   parentId?: string;
   initial?: string;
   editId?: string;
@@ -21,6 +26,8 @@ export default function Composer({
   username?: string | null;
   image?: string | null;
 }) {
+  const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
+  const [uploading, setUploading] = useState(false);
   const [body, setBody] = useState(initial),
     [tab, setTab] = useState("write"),
     [html, setHtml] = useState(""),
@@ -99,17 +106,18 @@ export default function Composer({
     }
   }
   async function publish() {
-    if (pending.current || busy) return;
+    if (pending.current || busy || uploading) return;
     pending.current = true;
     setBusy(true);
     setError("");
     try {
-      const r = await request(editId ? "edit" : "publish", { body, parentId, id: editId });
+      const r = await request(editId ? "edit" : "publish", { body, parentId, id: editId, attachmentIds: attachments.map((a) => a.id) });
       if (editId) {
         location.assign(r.url || "/");
         return;
       }
       setBody("");
+      setAttachments([]);
       setHtml("");
       setLinks([]);
       setQuote(null);
@@ -143,10 +151,10 @@ export default function Composer({
         <UserAvatar name={name} username={username} image={image} />
         <strong>{editId ? "Edit your post" : parentId ? "Join the conversation" : "What are you exploring?"}</strong>
         <div className="composer-tabs" role="tablist">
-          <button role="tab" disabled={busy} aria-selected={tab === "write"} onClick={() => setTab("write")}>
+          <button role="tab" disabled={busy || uploading} aria-selected={tab === "write"} onClick={() => setTab("write")}>
             Write
           </button>
-          <button role="tab" disabled={busy} aria-selected={tab === "preview"} onClick={preview}>
+          <button role="tab" disabled={busy || uploading} aria-selected={tab === "preview"} onClick={preview}>
             Preview
           </button>
         </div>
@@ -171,6 +179,7 @@ export default function Composer({
             ))}
         </div>
       )}
+      {tab === "write" ? <FileUpload purpose="post" value={attachments} onChange={setAttachments} onBusy={setUploading} disabled={busy} /> : <Attachments files={attachments} />}
       {quote && <QuoteCard quote={quote} />}
       {quoteStatus && (
         <p className="quote-status" role="status">
@@ -184,7 +193,7 @@ export default function Composer({
         <span className="counter" aria-live="polite">
           {count.toLocaleString("en")} / 25,000
         </span>
-        <button className="button" disabled={busy || !body.trim() || count > MAX_CHARACTERS} onClick={publish}>
+        <button className="button" disabled={busy || uploading || (!body.trim() && !attachments.length) || count > MAX_CHARACTERS} onClick={publish}>
           {busy ? "Working…" : editId ? "Save changes" : parentId ? "Reply" : "Post"}
         </button>
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LogOut, RefreshCw } from "lucide-react";
-import UserAvatar from "./UserAvatar";
+import ProfileImageField from "./ProfileImageField";
+import DeleteAccount from "./DeleteAccount";
 import ApiKeyPanel from "./ApiKeyPanel";
 import type { Viewer } from "../lib/types";
 declare global {
@@ -86,6 +87,8 @@ export default function AccountPanel({
   hasGithub?: boolean;
   hasPassword?: boolean;
 }) {
+  const [avatarUploading, setAvatarUploading] = useState(false),
+    [coverUploading, setCoverUploading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [passwordSet, setPasswordSet] = useState(hasPassword);
   const [rememberMe, setRememberMe] = useState(false);
@@ -116,7 +119,12 @@ export default function AccountPanel({
       const r = await send(link ? "/api/auth/link-social" : "/api/auth/sign-in/social", {
         provider,
         ...(!link && mode === "login" ? { additionalData: { rememberMe } } : {}),
-        callbackURL: link ? `/settings?category=${provider === "github" ? "github" : "security"}` : "/onboarding",
+        callbackURL:
+          !link && new URL(location.href).searchParams.get("reauth") === "delete"
+            ? "/settings?category=security&delete=confirm"
+            : link
+              ? `/settings?category=${provider === "github" ? "github" : "security"}`
+              : "/onboarding",
         errorCallbackURL: link ? `/settings?category=${provider === "github" ? "github" : "security"}&error=oauth` : "/login?error=oauth",
       });
       if (r.url) location.assign(r.url);
@@ -129,7 +137,7 @@ export default function AccountPanel({
     perform(async () => {
       if (mode === "login") {
         await send("/api/auth/sign-in/username", { username: value("username"), password: value("password"), rememberMe }, token);
-        location.assign("/");
+        location.assign(new URL(location.href).searchParams.get("reauth") === "delete" ? "/settings?category=security&delete=confirm" : "/");
       }
       if (mode === "register") {
         const result = await send(
@@ -183,29 +191,15 @@ export default function AccountPanel({
               onSubmit={(e) => {
                 e.preventDefault();
                 const f = new FormData(e.currentTarget);
+                if (avatarUploading || coverUploading) return;
                 perform(async () => {
                   await send("/api/forum/profile", { name: f.get("name"), bio: f.get("bio"), location: f.get("location"), image: f.get("image"), coverImage: f.get("coverImage") });
                   location.reload();
                 }, true);
               }}
             >
-              <div className="profile-image-field">
-                <UserAvatar name={user?.name} username={user?.username} image={user?.image} large />
-                <label>
-                  Profile image URL
-                  <input type="url" name="image" defaultValue={user?.image || ""} maxLength={2048} placeholder="https://" aria-describedby="profile-image-help" />
-                  <span className="help" id="profile-image-help">
-                    Use a direct HTTPS image link. Leave blank to use your initials.
-                  </span>
-                </label>
-              </div>
-              <label>
-                Cover photo URL
-                <input type="url" name="coverImage" defaultValue={user?.coverImage || ""} maxLength={2048} placeholder="https://" aria-describedby="cover-photo-help" />
-                <span className="help" id="cover-photo-help">
-                  Use a direct HTTPS link to a JPEG, PNG, GIF, or WebP image (up to 2 MB). A wide image works best. Leave blank to remove your cover photo.
-                </span>
-              </label>
+              <ProfileImageField name="image" initial={user?.image} username={user?.username} onBusy={setAvatarUploading} disabled={busy} />
+              <ProfileImageField name="coverImage" initial={user?.coverImage} username={user?.username} onBusy={setCoverUploading} disabled={busy} />
               <label>
                 Username
                 <input value={user?.username || ""} readOnly />
@@ -227,7 +221,7 @@ export default function AccountPanel({
               <p className="error" role="alert">
                 {isProfileAction ? error : ""}
               </p>
-              <button className="button" disabled={busy || !hydrated}>
+              <button className="button" disabled={busy || !hydrated || avatarUploading || coverUploading}>
                 Save profile
               </button>
             </form>
@@ -281,137 +275,140 @@ export default function AccountPanel({
           </section>
         )}
         {category === "security" && (
-          <section className="settings-group">
-            <h2>Email & security</h2>
-            {(googleEnabled || hasGoogle) && (
-              <div className="form" style={{ marginBottom: 24 }}>
-                <h3>Google sign-in</h3>
-                <p>Connect Google to sign in to this account. Accounts are never automatically merged by email.</p>
-                {hasGoogle ? (
-                  <>
-                    <p>Google is connected.</p>
-                    {(passwordSet || hasGithub) && (
-                      <button
-                        className="button secondary"
-                        disabled={busy}
-                        onClick={() =>
-                          perform(async () => {
-                            await send("/api/auth/unlink-account", { providerId: "google" });
-                            location.reload();
-                          })
-                        }
-                      >
-                        Disconnect Google
-                      </button>
-                    )}
-                    {!passwordSet && !hasGithub && <p className="help">Add another sign-in method before disconnecting Google.</p>}
-                  </>
-                ) : (
-                  <button className="button secondary" disabled={busy || !enabled || !googleEnabled} onClick={() => social("google", true)}>
-                    <Google size={18} />
-                    Connect Google
-                  </button>
+          <>
+            <section className="settings-group">
+              <h2>Email & security</h2>
+              {(googleEnabled || hasGoogle) && (
+                <div className="form" style={{ marginBottom: 24 }}>
+                  <h3>Google sign-in</h3>
+                  <p>Connect Google to sign in to this account. Accounts are never automatically merged by email.</p>
+                  {hasGoogle ? (
+                    <>
+                      <p>Google is connected.</p>
+                      {(passwordSet || hasGithub) && (
+                        <button
+                          className="button secondary"
+                          disabled={busy}
+                          onClick={() =>
+                            perform(async () => {
+                              await send("/api/auth/unlink-account", { providerId: "google" });
+                              location.reload();
+                            })
+                          }
+                        >
+                          Disconnect Google
+                        </button>
+                      )}
+                      {!passwordSet && !hasGithub && <p className="help">Add another sign-in method before disconnecting Google.</p>}
+                    </>
+                  ) : (
+                    <button className="button secondary" disabled={busy || !enabled || !googleEnabled} onClick={() => social("google", true)}>
+                      <Google size={18} />
+                      Connect Google
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="current-email">
+                <h3>Current email</h3>
+                <p>{currentEmail || "No email address added."}</p>
+                {currentEmail && <span className="help">{user?.emailVerified ? "Verified" : "Not verified"}</span>}
+                {currentEmail && !user?.emailVerified && (
+                  <p>
+                    <a className="text-link" href="/verify">
+                      Verify your email
+                    </a>
+                  </p>
                 )}
               </div>
-            )}
-            <div className="current-email">
-              <h3>Current email</h3>
-              <p>{currentEmail || "No email address added."}</p>
-              {currentEmail && <span className="help">{user?.emailVerified ? "Verified" : "Not verified"}</span>}
-              {currentEmail && !user?.emailVerified && (
-                <p>
-                  <a className="text-link" href="/verify">
-                    Verify your email
-                  </a>
-                </p>
-              )}
-            </div>
-            <p>Email is only used for verification and password recovery.</p>
-            <form
-              className="form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const f = new FormData(e.currentTarget);
-                perform(async () => {
-                  await send("/api/forum/email", { email: f.get("email"), token });
-                  setMessage("Check your new email address to verify the change.");
-                });
-              }}
-            >
-              <label>
-                New email address
-                <input type="email" name="email" required autoComplete="email" />
-              </label>
-              <Challenge key={challenge} siteKey={siteKey} onToken={setToken} />
-              <button className="button secondary" disabled={busy || !token}>
-                Update email
-              </button>
-            </form>
-            {passwordSet ? (
+              <p>Email is only used for verification and password recovery.</p>
               <form
                 className="form"
-                style={{ marginTop: 24 }}
                 onSubmit={(e) => {
                   e.preventDefault();
                   const f = new FormData(e.currentTarget);
                   perform(async () => {
-                    const wrapped = await (await import("../lib/dm-crypto")).rewrapAccountPassword(String(f.get("currentPassword")), String(f.get("newPassword")));
-                    await send(
-                      "/api/auth/change-password",
-                      { currentPassword: f.get("currentPassword"), newPassword: f.get("newPassword"), revokeOtherSessions: true },
-                      undefined,
-                      wrapped ? { "x-dm-vault": JSON.stringify(wrapped) } : {}
-                    );
-                    setMessage("Password updated. Other sessions were signed out.");
+                    await send("/api/forum/email", { email: f.get("email"), token });
+                    setMessage("Check your new email address to verify the change.");
                   });
                 }}
               >
                 <label>
-                  Current password
-                  <input type="password" name="currentPassword" autoComplete="current-password" required />
+                  New email address
+                  <input type="email" name="email" required autoComplete="email" />
                 </label>
-                <label>
-                  New password
-                  <input type="password" name="newPassword" minLength={12} maxLength={128} autoComplete="new-password" required />
-                </label>
-                <button className="button secondary" disabled={busy}>
-                  Change password
+                <Challenge key={challenge} siteKey={siteKey} onToken={setToken} />
+                <button className="button secondary" disabled={busy || !token}>
+                  Update email
                 </button>
               </form>
-            ) : (
-              <form
-                className="form"
-                style={{ marginTop: 24 }}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const form = e.currentTarget;
-                  const f = new FormData(form);
-                  perform(async () => {
-                    if (f.get("newPassword") !== f.get("confirmPassword")) throw new Error("Passwords do not match.");
-                    await send("/api/auth/set-password", { newPassword: f.get("newPassword") });
-                    form.reset();
-                    setPasswordSet(true);
-                    setMessage("Password set. You can now sign in with your username and password.");
-                  });
-                }}
-              >
-                <h3>Set a password</h3>
-                <p>Add a password to sign in with your username. No recovery email is needed.</p>
-                <label>
-                  New password
-                  <input type="password" name="newPassword" minLength={12} maxLength={128} autoComplete="new-password" required />
-                  <span className="help">Use 12–128 characters.</span>
-                </label>
-                <label>
-                  Confirm password
-                  <input type="password" name="confirmPassword" minLength={12} maxLength={128} autoComplete="new-password" required />
-                </label>
-                <button className="button secondary" disabled={busy || !enabled || !hydrated}>
-                  {busy ? "Working…" : "Set password"}
-                </button>
-              </form>
-            )}
-          </section>
+              {passwordSet ? (
+                <form
+                  className="form"
+                  style={{ marginTop: 24 }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const f = new FormData(e.currentTarget);
+                    perform(async () => {
+                      const wrapped = await (await import("../lib/dm-crypto")).rewrapAccountPassword(String(f.get("currentPassword")), String(f.get("newPassword")));
+                      await send(
+                        "/api/auth/change-password",
+                        { currentPassword: f.get("currentPassword"), newPassword: f.get("newPassword"), revokeOtherSessions: true },
+                        undefined,
+                        wrapped ? { "x-dm-vault": JSON.stringify(wrapped) } : {}
+                      );
+                      setMessage("Password updated. Other sessions were signed out.");
+                    });
+                  }}
+                >
+                  <label>
+                    Current password
+                    <input type="password" name="currentPassword" autoComplete="current-password" required />
+                  </label>
+                  <label>
+                    New password
+                    <input type="password" name="newPassword" minLength={12} maxLength={128} autoComplete="new-password" required />
+                  </label>
+                  <button className="button secondary" disabled={busy}>
+                    Change password
+                  </button>
+                </form>
+              ) : (
+                <form
+                  className="form"
+                  style={{ marginTop: 24 }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const form = e.currentTarget;
+                    const f = new FormData(form);
+                    perform(async () => {
+                      if (f.get("newPassword") !== f.get("confirmPassword")) throw new Error("Passwords do not match.");
+                      await send("/api/auth/set-password", { newPassword: f.get("newPassword") });
+                      form.reset();
+                      setPasswordSet(true);
+                      setMessage("Password set. You can now sign in with your username and password.");
+                    });
+                  }}
+                >
+                  <h3>Set a password</h3>
+                  <p>Add a password to sign in with your username. No recovery email is needed.</p>
+                  <label>
+                    New password
+                    <input type="password" name="newPassword" minLength={12} maxLength={128} autoComplete="new-password" required />
+                    <span className="help">Use 12–128 characters.</span>
+                  </label>
+                  <label>
+                    Confirm password
+                    <input type="password" name="confirmPassword" minLength={12} maxLength={128} autoComplete="new-password" required />
+                  </label>
+                  <button className="button secondary" disabled={busy || !enabled || !hydrated}>
+                    {busy ? "Working…" : "Set password"}
+                  </button>
+                </form>
+              )}
+            </section>
+            <DeleteAccount username={user?.username} />
+          </>
         )}
         <section className="settings-group">
           <button

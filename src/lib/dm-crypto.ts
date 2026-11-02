@@ -1,3 +1,4 @@
+import { filePolicy, MAX_TOTAL } from "./upload-policy";
 import { CipherSuite, DhkemP256HkdfSha256, HkdfSha256, Aes256Gcm } from "@hpke/core";
 const suite = new CipherSuite({ kem: new DhkemP256HkdfSha256(), kdf: new HkdfSha256(), aead: new Aes256Gcm() });
 const encoder = new TextEncoder();
@@ -10,7 +11,7 @@ export const encode = (value: ArrayBuffer | Uint8Array) =>
 export const decode = (value: string) => Uint8Array.from(atob(value.replaceAll("-", "+").replaceAll("_", "/")), (c) => c.charCodeAt(0));
 export type WrappedKey = { salt: string; iv: string; ciphertext: string };
 export type Identity = { privateKey: CryptoKey; publicKey: JsonWebKey; version: number; userId: string };
-export type Payload = { text: string; post?: string };
+export type Payload = { text: string; post?: string; attachments?: import("./upload-policy").PrivateAttachment[] };
 export type MessageContext = { id: string; conversationId: string; senderId: string; recipientId: string; senderVersion: number; recipientVersion: number };
 const aad = (ctx: MessageContext) =>
   encoder.encode(JSON.stringify(["caledon-dm-v1", ctx.id, ctx.conversationId, ctx.senderId, ctx.recipientId, ctx.senderVersion, ctx.recipientVersion]));
@@ -76,6 +77,27 @@ export async function decryptMessage(identity: Identity, message: any, peerId: s
   );
   const payload = JSON.parse(decoder.decode(bytes));
   if (typeof payload.text !== "string" || Array.from(payload.text).length > 5000 || (payload.post && !/^\/p\/[1-9][0-9]*$/.test(payload.post))) throw new Error("Invalid message.");
+  if (payload.attachments !== undefined) {
+    if (!Array.isArray(payload.attachments) || payload.attachments.length > 4) throw new Error("Invalid attachments.");
+    let total = 0;
+    for (const file of payload.attachments) {
+      if (
+        !file ||
+        typeof file.name !== "string" ||
+        file.name.length > 255 ||
+        typeof file.id !== "string" ||
+        !/^[0-9a-f-]{36}$/.test(file.id) ||
+        typeof file.key !== "string" ||
+        !/^[A-Za-z0-9+/]{43}=$/.test(file.key) ||
+        typeof file.iv !== "string" ||
+        !/^[A-Za-z0-9+/]{16}$/.test(file.iv) ||
+        file.mime !== filePolicy(file.name, file.size, "dm")
+      )
+        throw new Error("Invalid attachment.");
+      total += file.size;
+    }
+    if (total > MAX_TOTAL) throw new Error("Invalid attachment size.");
+  }
   return payload;
 }
 const channel = typeof window !== "undefined" && "BroadcastChannel" in window ? new BroadcastChannel("caledon-dm-lock") : undefined;

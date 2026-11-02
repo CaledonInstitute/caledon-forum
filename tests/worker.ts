@@ -8,6 +8,7 @@ import profileExtrasSql from "../migrations/0007_profile_location_shares.sql";
 import directRepliesSql from "../migrations/0006_direct_replies_index.sql";
 import viewsSql from "../migrations/0008_post_views.sql";
 import mentionsSql from "../migrations/0009_mentions.sql";
+import uploadsSql from "../migrations/0015_uploads_account_deletion.sql";
 import messagingSql from "../migrations/0013_messages_reposts_activity.sql";
 import { createIdentity, wrapPrivate, unlockPrivate } from "../src/lib/dm-crypto";
 import { dmAction } from "../src/lib/dm-service";
@@ -96,6 +97,7 @@ export default {
       const notificationTable = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE name='notifications'").first<{ sql: string }>();
       if (!notificationTable?.sql.includes("'mention'")) await env.DB.exec(mentionsSql.replace(/\s+/g, " ").trim());
       if (!columns.results.some((c) => c.name === "show_activity")) await env.DB.exec(messagingSql.replace(/\s+/g, " ").trim());
+      if (!columns.results.some((c) => c.name === "deleting_at")) await env.DB.exec(uploadsSql.replace(/\s+/g, " ").trim());
       await env.DB.batch(
         [
           "dm_reads",

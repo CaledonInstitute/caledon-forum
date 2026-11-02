@@ -2,7 +2,7 @@
 
 The conversation screen has one header with the participant avatar and a details icon. Incoming bubbles are gray on the left; sent bubbles are Caledon blue on the right, with timestamps outside. Block, fingerprints and Lock DM are accessed through the details panel.
 
-DM v1 supports personal text conversations, encrypted post references, unread counts, blocking and chronological history in batches of 50. Accounts require a username, verified email and active status. Both participants must activate DM. New messages go directly into inbox; groups, attachments, typing, and sender read receipts are excluded.
+DM v1 supports personal text conversations, encrypted post references, unread counts, blocking and chronological history in batches of 50. Accounts require a username, verified email and active status. Both participants must activate DM. New messages go directly into inbox; encrypted file attachments are supported through the private B2 upload service (see [upload setup](uploads.md)); groups, typing, and sender read receipts remain excluded.
 
 ## Cryptography
 

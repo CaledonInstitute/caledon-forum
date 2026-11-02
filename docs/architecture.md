@@ -4,7 +4,7 @@ Astro serves lightweight public HTML, metadata, structured data and crawlable pa
 
 ## Product invariants
 
-- Never add uploads, a media write endpoint, or a media storage bucket. Images are references to validated external HTTPS URLs.
+- Uploads use a private Backblaze B2 bucket through the same-origin Worker, with 24-hour internal byte caching and authorization before cache access. External image URLs remain supported. DM attachments are encrypted before upload. See [uploads and deletion](uploads.md).
 - Main posts and individual replies each allow 25,000 Unicode code points of Markdown and sanitized HTML, with highlighted code and LaTeX. Entire conversations have no cumulative character budget.
 - Username is permanent; a GitHub organization badge grants no moderation privileges.
 - Never auto-link existing accounts by email. GitHub linking requires an authenticated session.

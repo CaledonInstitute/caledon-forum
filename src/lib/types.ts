@@ -24,6 +24,7 @@ export interface PublicProfile {
   isCaledonMember: number;
 }
 export interface ForumPost {
+  attachments?: import("./upload-policy").Attachment[];
   id: string;
   publicId: string;
   authorId: string;

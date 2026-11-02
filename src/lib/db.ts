@@ -21,7 +21,7 @@ export const run = (sql: string, ...args: any[]) =>
     .run();
 export const publicProfile = (username: string) =>
   one<PublicProfile>(
-    `SELECT u.id,u.name,u.username,u.image,u.cover_image AS coverImage,u.bio,u.location,u.created_at,CASE WHEN u.suspended=0 AND u.email_verified=1 AND EXISTS(SELECT 1 FROM dm_vaults v WHERE v.user_id=u.id AND v.invalidated=0) THEN 1 ELSE 0 END AS dmEnabled,CASE WHEN u.show_activity=1 THEN u.last_active_at ELSE NULL END AS lastActiveAt,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE`,
+    `SELECT u.id,u.name,u.username,u.image,u.cover_image AS coverImage,u.bio,u.location,u.created_at,CASE WHEN u.suspended=0 AND u.email_verified=1 AND EXISTS(SELECT 1 FROM dm_vaults v WHERE v.user_id=u.id AND v.invalidated=0) THEN 1 ELSE 0 END AS dmEnabled,CASE WHEN u.show_activity=1 THEN u.last_active_at ELSE NULL END AS lastActiveAt,CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account WHERE user_id=u.id AND provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember FROM user u LEFT JOIN memberships m ON m.user_id=u.id WHERE u.username=? COLLATE NOCASE AND u.deleting_at IS NULL`,
     Date.now() - 86400000,
     username
   );
@@ -34,7 +34,7 @@ export async function publishBatch(statements: D1PreparedStatement[]) {
     }
   }
 }
-const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_id AS rootId,p.parent_id AS parentId,p.body,p.created_at AS createdAt,p.updated_at AS updatedAt,p.shares,p.views,p.deleted,p.locked,u.name,u.username,u.image,
+const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_id AS rootId,p.parent_id AS parentId,p.body,(SELECT json_group_array(json_object('id',a.id,'name',a.name,'mime',a.mime,'size',a.size)) FROM (SELECT u.id,u.name,u.mime,u.size FROM post_attachments pa2 JOIN uploads u ON u.id=pa2.asset_id WHERE pa2.post_id=p.id AND u.state='ready' ORDER BY pa2.position) a) AS attachmentsJson,p.created_at AS createdAt,p.updated_at AS updatedAt,p.shares,p.views,p.deleted,p.locked,u.name,u.username,u.image,
  CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account a WHERE a.user_id=u.id AND a.provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember,
  (SELECT COUNT(*) FROM likes l WHERE l.post_id=p.id) AS likes,
  (SELECT COUNT(*) FROM posts r WHERE r.root_id=p.id AND r.deleted=0) AS replies,
@@ -48,16 +48,19 @@ const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_
  (SELECT a.id FROM post_addresses a WHERE a.post_id=p.parent_id) AS parentPublicId,
  (SELECT CASE WHEN pp.deleted=0 THEN substr(pp.body,1,120) ELSE 'Deleted post' END FROM posts pp WHERE pp.id=p.parent_id) AS parentBody
  FROM posts p JOIN post_addresses pa ON pa.post_id=p.id JOIN user u ON u.id=p.author_id LEFT JOIN memberships m ON m.user_id=u.id`;
-export const posts = (where: string, args: any[], viewer?: string, order = "p.created_at DESC,p.id DESC", page = 1) =>
-  all<ForumPost>(
-    `${selection} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
-    Date.now() - 86400000,
-    viewer || "",
-    viewer || "",
-    ...args,
-    PAGE_SIZE + 1,
-    (page - 1) * PAGE_SIZE
-  );
+const withAttachments = ({ attachmentsJson, ...p }: ForumPost & { attachmentsJson: string }): ForumPost => ({ ...p, attachments: JSON.parse(attachmentsJson || "[]") });
+export const posts = async (where: string, args: any[], viewer?: string, order = "p.created_at DESC,p.id DESC", page = 1): Promise<ForumPost[]> =>
+  (
+    await all<ForumPost & { attachmentsJson: string }>(
+      `${selection} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
+      Date.now() - 86400000,
+      viewer || "",
+      viewer || "",
+      ...args,
+      PAGE_SIZE + 1,
+      (page - 1) * PAGE_SIZE
+    )
+  ).map(withAttachments);
 export const post = async (id: string, viewer?: string) => (await posts("p.id=?", [id], viewer))[0] || null;
 export const incrementPostView = (id: string) => one<{ views: number }>("UPDATE posts SET views=views+1 WHERE id=? AND deleted=0 RETURNING views", id);
 export async function recordPostView(p: ForumPost, method: string) {
@@ -98,18 +101,20 @@ export function profilePosts(authorId: string, tab: ProfileTab, viewer?: string,
 }
 
 export async function ancestors(id: string, viewer?: string) {
-  return all<ForumPost>(
-    `WITH RECURSIVE chain(id,parent_id,seen,depth) AS (
+  return (
+    await all<ForumPost & { attachmentsJson: string }>(
+      `WITH RECURSIVE chain(id,parent_id,seen,depth) AS (
     SELECT id,parent_id,json_array(id),0 FROM posts WHERE id=?
     UNION ALL SELECT p.id,p.parent_id,json_insert(c.seen,'$[#]',p.id),c.depth+1 FROM posts p JOIN chain c ON p.id=c.parent_id
     WHERE NOT EXISTS(SELECT 1 FROM json_each(c.seen) WHERE value=p.id)
   ) ${selection} JOIN chain c ON c.id=p.id WHERE p.id<>? ORDER BY c.depth DESC`,
-    id,
-    Date.now() - 86400000,
-    viewer || "",
-    viewer || "",
-    id
-  );
+      id,
+      Date.now() - 86400000,
+      viewer || "",
+      viewer || "",
+      id
+    )
+  ).map(withAttachments);
 }
 export async function timeline(viewer?: string, page = 1, author?: string) {
   const events = await all<{ id: string; repostedBy?: string; repostedName?: string; eventId: string }>(

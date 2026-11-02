@@ -2,6 +2,7 @@ import { handle } from "@astrojs/cloudflare/handler";
 import { env } from "cloudflare:workers";
 import { consumePush } from "./lib/push";
 import { control } from "./lib/control";
+import { serveFile } from "./lib/uploads";
 export { ForumControl } from "./worker/control";
 export { ForumPages } from "./worker/pages";
 export default {
@@ -13,6 +14,8 @@ export default {
       return Response.redirect(url.href, 308);
     }
     const path = url.pathname;
+    const fileId = /^\/api\/files\/([0-9a-f-]{36})$/.exec(path)?.[1];
+    if (fileId) return serveFile(request, fileId, (p) => context.waitUntil(p));
     if (path.startsWith("/.internal/")) return new Response(null, { status: 404 });
     if (env.SERVER_DO_ENABLED !== "true") return handle(request, _env, context);
     if (!env.FORUM_PAGES) return new Response("Server temporarily unavailable.", { status: 503 });

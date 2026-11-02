@@ -32,6 +32,7 @@
     "@hpke/core": "^1.9.0",
     "@resvg/resvg-wasm": "^2.6.2",
     "astro": "^7.4.4",
+    "aws4fetch": "^1.0.20",
     "better-auth": "^1.7.14",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.4",

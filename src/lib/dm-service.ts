@@ -1,3 +1,5 @@
+import { activeAccount, validateAttachments } from "./uploads";
+import { attachmentList } from "./upload-policy";
 import { z } from "zod";
 import { all, one, run, db } from "./db";
 import { verifyPassword } from "better-auth/crypto";
@@ -34,7 +36,8 @@ export async function dmUnread(userId: string) {
 }
 
 export async function dmAction(user: Viewer, action: string, data: any, write: boolean) {
-  if (user.suspended || !user.emailVerified || !user.username) throw new Error("DM requires an active account with a verified email and username.");
+  if (!(await activeAccount(user.id)) || user.suspended || !user.emailVerified || !user.username)
+    throw new Error("DM requires an active account with a verified email and username.");
   await reconcileVault(user.id);
   const vault = await one<any>("SELECT * FROM dm_vaults WHERE user_id=?", user.id);
   if (action === "vault") {
@@ -156,6 +159,7 @@ export async function dmAction(user: Viewer, action: string, data: any, write: b
         envelopes: z.object({ sender: envelope, recipient: envelope }).strict(),
       })
       .parse(data);
+    const attachmentIds = attachmentList(data.attachmentIds);
     const previous = await one<any>("SELECT * FROM dm_messages WHERE id=?", input.id);
     if (previous) {
       if (
@@ -166,6 +170,8 @@ export async function dmAction(user: Viewer, action: string, data: any, write: b
         previous.recipient_version !== input.recipientVersion
       )
         throw new Error("Message ID already used.");
+      const used = await all<{ asset_id: string }>("SELECT asset_id FROM dm_attachments WHERE message_id=? ORDER BY asset_id", input.id);
+      if (JSON.stringify(used.map((a) => a.asset_id)) !== JSON.stringify([...attachmentIds].sort())) throw new Error("Message ID already used.");
       return { ok: true, id: input.id };
     }
     if (
@@ -181,11 +187,12 @@ export async function dmAction(user: Viewer, action: string, data: any, write: b
     )
       throw new Error("Encryption keys changed. Reload and unlock DM before sending.");
     if (await blocked(user.id, peerId)) throw new Error("Messaging is blocked.");
+    await validateAttachments(user.id, attachmentIds, "dm", conversation.id);
     const now = Date.now();
     const result = await db().batch([
       db()
         .prepare(
-          `INSERT INTO dm_messages(id,conversation_id,sender_id,sender_version,recipient_version,sender_public_key,envelopes,created_at) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM dm_vaults v JOIN user u ON u.id=v.user_id WHERE v.user_id=? AND v.version=? AND v.invalidated=0 AND v.pending_vault IS NULL AND u.suspended=0 AND u.email_verified=1 AND u.username IS NOT NULL) AND EXISTS(SELECT 1 FROM dm_vaults v JOIN user u ON u.id=v.user_id WHERE v.user_id=? AND v.version=? AND v.invalidated=0 AND v.pending_vault IS NULL AND u.suspended=0 AND u.email_verified=1 AND u.username IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM dm_blocks WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?))`
+          `INSERT INTO dm_messages(id,conversation_id,sender_id,sender_version,recipient_version,sender_public_key,envelopes,created_at) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM dm_vaults v JOIN user u ON u.id=v.user_id WHERE v.user_id=? AND v.version=? AND v.invalidated=0 AND v.pending_vault IS NULL AND u.suspended=0 AND u.email_verified=1 AND u.username IS NOT NULL AND u.deleting_at IS NULL) AND EXISTS(SELECT 1 FROM dm_vaults v JOIN user u ON u.id=v.user_id WHERE v.user_id=? AND v.version=? AND v.invalidated=0 AND v.pending_vault IS NULL AND u.suspended=0 AND u.email_verified=1 AND u.username IS NOT NULL AND u.deleting_at IS NULL) AND NOT EXISTS(SELECT 1 FROM dm_blocks WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?))`
         )
         .bind(
           input.id,
@@ -206,6 +213,13 @@ export async function dmAction(user: Viewer, action: string, data: any, write: b
           user.id
         ),
       db().prepare("UPDATE dm_conversations SET updated_at=? WHERE id=? AND EXISTS(SELECT 1 FROM dm_messages WHERE id=?)").bind(now, conversation.id, input.id),
+      ...attachmentIds.map((assetId) =>
+        db()
+          .prepare(
+            "INSERT INTO dm_attachments(message_id,asset_id) SELECT ?, (SELECT id FROM uploads WHERE id=? AND owner_id=? AND purpose='dm' AND conversation_id=? AND state='ready') WHERE EXISTS(SELECT 1 FROM dm_messages WHERE id=?)"
+          )
+          .bind(input.id, assetId, user.id, conversation.id, input.id)
+      ),
     ]);
     if (!result[0].meta.changes) throw new Error("Keys or messaging permissions changed. Try again.");
     await notify([user.id, peerId]);

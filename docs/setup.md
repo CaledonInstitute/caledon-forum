@@ -4,9 +4,9 @@ Public, server-rendered conversations for Caledon Institute. Astro + React islan
 
 Production: https://forum.hengker.tech. Sign-in remains disabled until the external service configuration below is completed.
 
-Each post and reply supports **25,000 Unicode code points** of Markdown. External image URLs render automatically; other URLs receive a metadata card, including click-to-load YouTube. **Image uploads are permanently out of scope.**
+Each post and reply supports **25,000 Unicode code points** of Markdown. External image URLs render automatically; other URLs receive a metadata card, including click-to-load YouTube. Direct uploads are supported through a private Backblaze B2 bucket; see [upload setup](uploads.md).
 
-Profile avatars and cover photos use public HTTPS image links, validated and served through the forum proxy (JPEG, PNG, GIF, or WebP, up to 2 MB). Set or remove the cover photo in Settings > Profile. Apply migration `0003_profile_cover.sql` before running the updated app.
+Profile avatars and cover photos support direct uploads and public HTTPS image links, validated and served through the forum proxy (JPEG, PNG, GIF, or WebP, up to 2 MB). Set or remove the cover photo in Settings > Profile. Apply migration `0003_profile_cover.sql` before running the updated app.
 
 Public links that return 403 receive one retry to the same URL with a browser-compatible User-Agent. Discord attachment links additionally fall back from the media resize proxy to Discord's original CDN. This applies to posts, previews, profile images, and covers. The original CDN can return the image at its original size, so the same 2 MB profile/cover and 10 MB post-image limits still apply. Persistent 403 responses remain failures. Discord attachment signatures expire; use a permanent public image URL for long-lived images. Signatures and query parameters must be kept intact. Image URLs pasted next to captions also render; explicitly labelled Markdown links remain clickable links.
 
