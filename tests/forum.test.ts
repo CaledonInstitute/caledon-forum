@@ -56,7 +56,7 @@ describe("forum data and authorization", () => {
     expect((await posts("p.parent_id=?", [root])).map((p) => p.id).sort()).toEqual([a, b].sort());
     expect((await posts("p.parent_id=?", [a])).map((p) => p.id)).toEqual([child]);
     expect((await posts("p.id=?", [root]))[0]).toMatchObject({ replies: 4, directReplies: 2 });
-    expect((await posts("p.id=?", [a]))[0]).toMatchObject({ replies: 0, directReplies: 1, parentUsername: "alice" });
+    expect((await posts("p.id=?", [a]))[0]).toMatchObject({ replies: 2, directReplies: 1, parentUsername: "alice" });
     await act("delete", { id: a }, bob);
     expect(await post(a)).toMatchObject({ deleted: 1, parentId: root });
     expect((await posts("p.id=?", [a]))[0]).toMatchObject({ hasChildren: 1, directReplies: 1 });

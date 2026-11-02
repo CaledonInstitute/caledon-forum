@@ -90,6 +90,29 @@ it("fingerprints subscriptions without retaining the endpoint in the identifier"
   expect(await subscriptionId("https://fcm.googleapis.com/test")).toMatch(/^[a-f0-9]{64}$/);
 });
 
+it("reclaims a browser subscription for a new account and removes the previous owner's queued deliveries", async () => {
+  const endpoint = "https://fcm.googleapis.com/fcm/send/switch-account";
+  const id = await subscriptionId(endpoint);
+  execute("UPDATE push_subscriptions SET id=?,endpoint=? WHERE id='device'", id, endpoint);
+  await dispatchPush();
+  expect(row("SELECT * FROM push_deliveries WHERE subscription_id=?", id)).toBeDefined();
+  const cookies = { set: vi.fn() };
+  const response = await pushApi({
+    locals: { user: { id: "bob" } },
+    cookies,
+    url: new URL(env.SITE_URL),
+    request: new Request(`${env.SITE_URL}/api/push`, {
+      method: "POST",
+      headers: { origin: env.SITE_URL, "content-type": "application/json" },
+      body: JSON.stringify({ endpoint, keys: { p256dh: key, auth } }),
+    }),
+  } as any);
+  expect(response.status).toBe(200);
+  expect(row("SELECT user_id FROM push_subscriptions WHERE id=?", id).user_id).toBe("bob");
+  expect(row("SELECT * FROM push_deliveries WHERE subscription_id=?", id)).toBeUndefined();
+  expect(cookies.set).toHaveBeenCalledWith("push-device", id, expect.anything());
+});
+
 function seedDm() {
   const conversation = "11111111-1111-4111-8111-111111111111";
   execute("INSERT INTO dm_conversations(id,user_a,user_b,created_at,updated_at) VALUES(?,'alice','bob',1,1)", conversation);

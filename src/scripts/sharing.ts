@@ -97,9 +97,43 @@ document.addEventListener("click", (event) => {
   };
   actions.appendChild(copy);
 
+  const publicId = /^\/p\/([1-9][0-9]*)$/.exec(path)?.[1];
+  if (publicId) {
+    const screenshot = document.createElement("button");
+    screenshot.type = "button";
+    screenshot.textContent = "Copy as screenshot (1080 × 1920)";
+    const download = document.createElement("a");
+    download.textContent = "Download screenshot";
+    download.href = `/api/screenshot/${publicId}.png`;
+    download.download = `caledon-${publicId}-1080x1920.png`;
+    const supported = !!navigator.clipboard?.write && typeof ClipboardItem !== "undefined" && (!ClipboardItem.supports || ClipboardItem.supports("image/png"));
+    screenshot.disabled = !supported;
+    screenshot.onclick = async () => {
+      screenshot.disabled = true;
+      const status = dialog.querySelector<HTMLElement>("[data-share-status]")!;
+      status.textContent = "Preparing screenshot…";
+      try {
+        // Pass the promise immediately to preserve user activation in Safari.
+        const png = fetch(download.href, { cache: "no-store", signal: AbortSignal.timeout(20000) }).then(async (response) => {
+          if (!response.ok || !response.headers.get("content-type")?.startsWith("image/png")) throw new Error("Could not create screenshot.");
+          return response.blob();
+        });
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+        status.textContent = "Screenshot copied. Paste it into another app.";
+      } catch {
+        status.textContent = "Could not copy screenshot. Use Download screenshot instead.";
+      } finally {
+        screenshot.disabled = false;
+      }
+    };
+    actions.appendChild(screenshot);
+    actions.appendChild(download);
+    if (!supported) dialog.querySelector("[data-share-status]")!.textContent = "This browser cannot copy images. Use Download screenshot.";
+  }
+
   if (innerWidth > 680) {
     const rect = button.getBoundingClientRect();
-    dialog.style.top = `${Math.min(rect.bottom + 8, innerHeight - 300)}px`;
+    dialog.style.top = `${Math.max(12, Math.min(rect.bottom + 8, innerHeight - 440))}px`;
     dialog.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - 290))}px`;
   }
 

@@ -114,6 +114,31 @@ it("requires session, same-origin writes and verified accounts", async () => {
   await expect(dmAction({ ...alice, emailVerified: false }, "inbox", {}, false)).rejects.toThrow("verified email");
 });
 
+it("deletes only the sender's message for both participants and cancels unread push", async () => {
+  const { c, input } = await fixture();
+  await dmAction(alice, "send", input, true);
+  await expect(dmAction(bob, "delete", { conversationId: c.id, id: input.id }, true)).rejects.toMatchObject({ status: 403 });
+  await expect(dmAction(charlie, "delete", { conversationId: c.id, id: input.id }, true)).rejects.toMatchObject({ status: 404 });
+  expect(await dmUnread(bob.id)).toBe(1);
+  execute(
+    "INSERT INTO uploads(id,owner_id,purpose,conversation_id,name,mime,size,object_key,state,created_at,expires_at) VALUES('delete-asset',?,'dm',?,'encrypted','application/octet-stream',16,'delete-asset','ready',1,9999999999999)",
+    alice.id,
+    c.id
+  );
+  execute("INSERT INTO dm_attachments(message_id,asset_id) VALUES(?,'delete-asset')", input.id);
+  await dmAction(alice, "delete", { conversationId: c.id, id: input.id }, true);
+  await dmAction(alice, "delete", { conversationId: c.id, id: input.id }, true);
+  expect(row("SELECT * FROM dm_messages WHERE id=?", input.id)).toMatchObject({ deleted: 1, envelopes: "{}", sender_public_key: "" });
+  expect(await dmUnread(bob.id)).toBe(0);
+  expect(row("SELECT * FROM push_outbox WHERE dm_message_id=?", input.id)).toBeUndefined();
+  expect(row("SELECT * FROM dm_attachments WHERE message_id=?", input.id)).toBeUndefined();
+  const result = (await dmAction(bob, "messages", { conversationId: c.id, since: 1 }, false)) as any;
+  expect(result.items[0].deleted).toBe(1);
+  expect(result.deletedIds).toEqual([input.id]);
+  expect(((await dmAction(bob, "inbox", {}, false)) as any).items[0].unread).toBe(0);
+  await expect(dmAction(alice, "send", input, true)).rejects.toThrow("already used");
+});
+
 it("rejects sending to a recipient whose email is no longer verified", async () => {
   const { input } = await fixture();
   execute("UPDATE user SET email_verified=0 WHERE id='bob'");

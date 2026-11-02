@@ -28,6 +28,7 @@ export default function DeleteAccount({ username }: { username?: string | null }
     try {
       const result = await post("/api/account/delete", { action: "prepare" });
       sessionStorage.setItem(storageKey, result.token);
+      await (await import("../lib/push-client")).detachBrowserPush();
       await post("/api/auth/sign-out", {});
       await forgetIdentity();
       location.assign("/login?reauth=delete");

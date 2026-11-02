@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { one, run } from "../../lib/db";
+import { one, run, db } from "../../lib/db";
 import { pushReady, subscriptionId, validateSubscription } from "../../lib/push";
 import { readLimited } from "../../lib/security";
 import { rateLimit } from "../../lib/rate-limit";
@@ -46,22 +46,19 @@ export const ALL: APIRoute = async (ctx) => {
       if (!pushReady()) return Response.json({ error: "Browser notifications are not available yet." }, { status: 503 });
       const s = validateSubscription(data);
       const id = await subscriptionId(s.endpoint);
-      const existing = await one<{ user_id: string }>("SELECT user_id FROM push_subscriptions WHERE id=?", id);
-      if (existing && existing.user_id !== ctx.locals.user.id)
-        return Response.json({ error: "Disable notifications for the previous account on this browser first." }, { status: 409 });
-      const result = await run(
-        `INSERT INTO push_subscriptions(id,user_id,endpoint,p256dh,auth,created_at) SELECT ?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM push_subscriptions WHERE user_id=?)<3 OR EXISTS(SELECT 1 FROM push_subscriptions WHERE id=? AND user_id=?) ON CONFLICT(id) DO UPDATE SET p256dh=excluded.p256dh,auth=excluded.auth WHERE push_subscriptions.user_id=excluded.user_id`,
-        id,
-        ctx.locals.user.id,
-        s.endpoint,
-        s.p256dh,
-        s.auth,
-        Date.now(),
-        ctx.locals.user.id,
-        id,
-        ctx.locals.user.id
-      );
-      if (!result.meta.changes) return Response.json({ error: "Maximum three devices per account." }, { status: 409 });
+      // Possession of the browser subscription lets an explicit opt-in reclaim it.
+      // Delete first so queued deliveries for the previous owner cascade away.
+      const results = await db().batch([
+        db()
+          .prepare("DELETE FROM push_subscriptions WHERE id=? AND user_id<>? AND (SELECT COUNT(*) FROM push_subscriptions WHERE user_id=?)<3")
+          .bind(id, ctx.locals.user.id, ctx.locals.user.id),
+        db()
+          .prepare(
+            `INSERT INTO push_subscriptions(id,user_id,endpoint,p256dh,auth,created_at) SELECT ?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM push_subscriptions WHERE user_id=?)<3 OR EXISTS(SELECT 1 FROM push_subscriptions WHERE id=? AND user_id=?) ON CONFLICT(id) DO UPDATE SET p256dh=excluded.p256dh,auth=excluded.auth WHERE push_subscriptions.user_id=excluded.user_id`
+          )
+          .bind(id, ctx.locals.user.id, s.endpoint, s.p256dh, s.auth, Date.now(), ctx.locals.user.id, id, ctx.locals.user.id),
+      ]);
+      if (!results[1].meta.changes) return Response.json({ error: "Maximum three devices per account." }, { status: 409 });
       ctx.cookies.set("push-device", id, { path: "/", httpOnly: true, secure: ctx.url.protocol === "https:", sameSite: "strict", maxAge: 365 * 86400 });
     }
     return Response.json({ ok: true });

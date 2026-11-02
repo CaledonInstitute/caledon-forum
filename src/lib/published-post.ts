@@ -14,7 +14,7 @@ export async function showPublishedPost(url: string, parentId?: string) {
   }
   const parent = fragment.querySelector<HTMLTemplateElement>("template[data-parent-id]");
   if (parent) {
-    const count = Number(parent.dataset.directReplies);
+    const count = Number(parent.dataset.replies);
     document.querySelectorAll<HTMLElement>("[data-reply-count]").forEach((element) => {
       if (element.dataset.replyCount === parent.dataset.parentId) element.textContent = String(count || "Reply");
     });

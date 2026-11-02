@@ -97,7 +97,7 @@ const time = postTime(p.createdAt);
               id: p.id,
               url: permalink,
               name: p.name,
-              directReplies: p.directReplies,
+              replies: p.replies,
               likes: p.likes,
               liked: !!p.liked,
               shares: p.shares,
@@ -112,7 +112,7 @@ const time = postTime(p.createdAt);
             })}
           >
             <a href={`${permalink}#reply`}>
-              <span data-reply-count={p.id}>{p.directReplies || "Reply"}</span>
+              <span data-reply-count={p.id}>{p.replies || "Reply"}</span>
             </a>
             <span>
               {p.likes} likes · {p.shares} shares

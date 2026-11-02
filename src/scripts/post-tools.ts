@@ -10,7 +10,7 @@ function enhanceTools() {
     reply.setAttribute("aria-label", `Reply to ${p.name}`);
     const count = reply.querySelector<HTMLElement>("span")!;
     count.dataset.replyCount = p.id;
-    count.textContent = String(p.directReplies || "Reply");
+    count.textContent = String(p.replies || "Reply");
     const like = host.querySelector<HTMLButtonElement>("[data-ui-like]")!;
     like.dataset.like = p.id;
     like.dataset.signedIn = String(p.signedIn);

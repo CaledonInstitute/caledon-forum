@@ -37,7 +37,10 @@ export async function publishBatch(statements: D1PreparedStatement[]) {
 const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_id AS rootId,p.parent_id AS parentId,p.body,(SELECT json_group_array(json_object('id',a.id,'name',a.name,'mime',a.mime,'size',a.size)) FROM (SELECT u.id,u.name,u.mime,u.size FROM post_attachments pa2 JOIN uploads u ON u.id=pa2.asset_id WHERE pa2.post_id=p.id AND u.state='ready' ORDER BY pa2.position) a) AS attachmentsJson,p.created_at AS createdAt,p.updated_at AS updatedAt,p.shares,p.views,p.deleted,p.locked,u.name,u.username,u.image,
  CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account a WHERE a.user_id=u.id AND a.provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember,
  (SELECT COUNT(*) FROM likes l WHERE l.post_id=p.id) AS likes,
- (SELECT COUNT(*) FROM posts r WHERE r.root_id=p.id AND r.deleted=0) AS replies,
+ (WITH RECURSIVE descendants(id,deleted) AS (
+   SELECT id,deleted FROM posts WHERE parent_id=p.id
+   UNION SELECT r.id,r.deleted FROM posts r JOIN descendants d ON r.parent_id=d.id
+ ) SELECT COUNT(*) FROM descendants WHERE deleted=0) AS replies,
  (SELECT COUNT(*) FROM posts r WHERE r.parent_id=p.id AND r.deleted=0) AS directReplies,
  EXISTS(SELECT 1 FROM posts r WHERE r.parent_id=p.id) AS hasChildren,
  (SELECT COUNT(*) FROM reposts rp WHERE rp.post_id=p.id) AS reposts,

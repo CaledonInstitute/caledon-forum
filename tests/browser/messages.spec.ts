@@ -254,6 +254,16 @@ test("encrypted personal DM, remembered access, cross-device unlock, blocking an
     } finally {
       await other.close();
     }
+    await a.getByLabel("Account password", { exact: true }).fill(password);
+    await a.getByRole("button", { name: "Unlock DM", exact: true }).click();
+    const message = a.locator(".dm-sent").filter({ hasText: text });
+    a.once("dialog", (dialog) => dialog.accept());
+    await message.getByRole("button", { name: "Delete message", exact: true }).click();
+    await expect(a.getByText(text, { exact: true })).toHaveCount(0);
+    await expect(a.locator(".dm-sent").filter({ hasText: "This message was deleted." }).first()).toBeVisible();
+    await b.reload();
+    await expect(b.getByText(text, { exact: true })).toHaveCount(0);
+    await expect(b.locator(".dm-received").filter({ hasText: "This message was deleted." }).first()).toBeVisible();
     expect(errors).toEqual([]);
   } finally {
     await sender.close();

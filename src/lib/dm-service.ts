@@ -25,7 +25,7 @@ export async function dmUnread(userId: string) {
   return (
     (
       await one<{ n: number }>(
-        `SELECT COUNT(*) AS n FROM dm_messages m JOIN dm_conversations c ON c.id=m.conversation_id LEFT JOIN dm_reads r ON r.conversation_id=c.id AND r.user_id=? WHERE (c.user_a=? OR c.user_b=?) AND m.sender_id<>? AND m.seq>COALESCE(r.seq,0)`,
+        `SELECT COUNT(*) AS n FROM dm_messages m JOIN dm_conversations c ON c.id=m.conversation_id LEFT JOIN dm_reads r ON r.conversation_id=c.id AND r.user_id=? WHERE (c.user_a=? OR c.user_b=?) AND m.deleted=0 AND m.sender_id<>? AND m.seq>COALESCE(r.seq,0)`,
         userId,
         userId,
         userId,
@@ -91,7 +91,7 @@ export async function dmAction(user: Viewer, action: string, data: any, write: b
     return {
       unread: await dmUnread(user.id),
       items: await all(
-        `SELECT c.*,u.id AS peerId,u.username,u.name,u.image,(SELECT COUNT(*) FROM dm_messages m WHERE m.conversation_id=c.id AND m.sender_id<>? AND m.seq>COALESCE(r.seq,0)) AS unread FROM dm_conversations c JOIN user u ON u.id=CASE WHEN c.user_a=? THEN c.user_b ELSE c.user_a END LEFT JOIN dm_reads r ON r.conversation_id=c.id AND r.user_id=? WHERE c.user_a=? OR c.user_b=? ORDER BY c.updated_at DESC LIMIT 100`,
+        `SELECT c.*,u.id AS peerId,u.username,u.name,u.image,(SELECT COUNT(*) FROM dm_messages m WHERE m.conversation_id=c.id AND m.deleted=0 AND m.sender_id<>? AND m.seq>COALESCE(r.seq,0)) AS unread FROM dm_conversations c JOIN user u ON u.id=CASE WHEN c.user_a=? THEN c.user_b ELSE c.user_a END LEFT JOIN dm_reads r ON r.conversation_id=c.id AND r.user_id=? WHERE c.user_a=? OR c.user_b=? ORDER BY c.updated_at DESC LIMIT 100`,
         user.id,
         user.id,
         user.id,
@@ -124,6 +124,20 @@ export async function dmAction(user: Viewer, action: string, data: any, write: b
   const conversation = await one<any>("SELECT * FROM dm_conversations WHERE id=? AND (user_a=? OR user_b=?)", id.parse(data.conversationId), user.id, user.id);
   if (!conversation) throw new Response(JSON.stringify({ error: "Conversation not found." }), { status: 404, headers: { "Content-Type": "application/json" } });
   const peerId = conversation.user_a === user.id ? conversation.user_b : conversation.user_a;
+  if (action === "delete" && write) {
+    const messageId = id.parse(data.id);
+    const message = await one<any>("SELECT sender_id FROM dm_messages WHERE id=? AND conversation_id=?", messageId, conversation.id);
+    if (!message || message.sender_id !== user.id) throw Response.json({ error: "You can only delete your own messages." }, { status: 403 });
+    await db().batch([
+      db()
+        .prepare("UPDATE dm_messages SET deleted=1,envelopes='{}',sender_public_key='' WHERE id=? AND conversation_id=? AND sender_id=?")
+        .bind(messageId, conversation.id, user.id),
+      db().prepare("DELETE FROM dm_attachments WHERE message_id=?").bind(messageId),
+      db().prepare("DELETE FROM push_outbox WHERE dm_message_id=?").bind(messageId),
+    ]);
+    await notify([user.id, peerId]);
+    return { ok: true };
+  }
   await reconcileVault(peerId);
   const peer = await one<any>(
     "SELECT u.id,u.username,u.name,u.image,u.suspended,u.email_verified AS emailVerified,v.version,v.public_key AS publicKey,v.invalidated FROM user u LEFT JOIN dm_vaults v ON v.user_id=u.id WHERE u.id=?",
@@ -131,11 +145,13 @@ export async function dmAction(user: Viewer, action: string, data: any, write: b
   );
   if (action === "messages" && !write) {
     const before = z.coerce.number().int().positive().optional().parse(data.before);
+    const since = z.coerce.number().int().positive().optional().parse(data.since);
     return {
       peer,
       blocked: !!(await blocked(user.id, peerId)),
       ownBlocked: !!(await one("SELECT 1 FROM dm_blocks WHERE user_id=? AND blocked_id=?", user.id, peerId)),
       items: await all("SELECT * FROM dm_messages WHERE conversation_id=? AND seq<? ORDER BY seq DESC LIMIT 51", conversation.id, before || Number.MAX_SAFE_INTEGER),
+      deletedIds: since ? (await all<{ id: string }>("SELECT id FROM dm_messages WHERE conversation_id=? AND deleted=1 AND seq>=?", conversation.id, since)).map((m) => m.id) : [],
     };
   }
   if (action === "read" && write) {
@@ -163,6 +179,7 @@ export async function dmAction(user: Viewer, action: string, data: any, write: b
     const previous = await one<any>("SELECT * FROM dm_messages WHERE id=?", input.id);
     if (previous) {
       if (
+        previous.deleted ||
         previous.sender_id !== user.id ||
         previous.conversation_id !== conversation.id ||
         previous.envelopes !== JSON.stringify(input.envelopes) ||

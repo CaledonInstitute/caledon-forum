@@ -416,6 +416,7 @@ export default function AccountPanel({
             disabled={busy}
             onClick={() =>
               perform(async () => {
+                await (await import("../lib/push-client")).detachBrowserPush();
                 await (await import("../lib/dm-crypto")).forgetIdentity();
                 await send("/api/auth/sign-out", {});
                 location.assign("/");

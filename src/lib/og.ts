@@ -12,6 +12,109 @@ async function initializeLayout() {
   await engine;
 }
 type CardFonts = { regular: ArrayBuffer; bold: ArrayBuffer; emoji: ArrayBuffer };
+export async function storySvg(fonts: CardFonts, data: PostCardData, avatar?: string, media?: string) {
+  await initializeLayout();
+  const text = truncateCardText(data.text, media ? 650 : 1400);
+  const date = new Date(data.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+  return satori(
+    node(
+      "div",
+      {
+        display: "flex",
+        flexDirection: "column",
+        width: 1080,
+        height: 1920,
+        position: "relative",
+        background: "#ffffff",
+        color: "#000000",
+        fontFamily: "Manrope, NotoEmoji",
+      },
+      [
+        node("div", { display: "flex", color: "#1d70e8", fontSize: 32, fontWeight: 700, position: "absolute", top: 120, left: 80, width: 920, height: 50 }, "Caledon Forum"),
+        node("div", { display: "flex", alignItems: "center", position: "absolute", top: 280, left: 80, width: 920, height: 100 }, [
+          avatar
+            ? node("img", { width: 88, height: 88, borderRadius: 44, objectFit: "cover", flexShrink: 0 }, undefined, { src: avatar })
+            : node(
+                "div",
+                { display: "flex", width: 88, height: 88, borderRadius: 44, background: "#f7f7f7", fontSize: 36, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+                Array.from(data.name.trim())[0] || "?"
+              ),
+          node("div", { display: "flex", flexDirection: "column", marginLeft: 24, width: 808, flexShrink: 1 }, [
+            node("div", { display: "flex", alignItems: "center", fontSize: 36, fontWeight: 700 }, [
+              node(
+                "div",
+                { display: "flex", maxWidth: data.member ? 740 : 808, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" },
+                truncateCardText(data.name, 36)
+              ),
+              data.member
+                ? node(
+                    "svg",
+                    { width: 32, height: 32, marginLeft: 12, flexShrink: 0 },
+                    [
+                      node("circle", {}, undefined, { cx: 12, cy: 12, r: 12, fill: "#1D70E8" }),
+                      node("path", {}, undefined, { d: "M7 12l3 3 7-7", fill: "none", stroke: "#FFFFFF", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }),
+                    ],
+                    { viewBox: "0 0 24 24" }
+                  )
+                : null,
+            ]),
+            node("div", { display: "flex", fontSize: 26, color: "#595959", marginTop: 6 }, data.username ? `@${data.username}` : "Deleted account"),
+          ]),
+        ]),
+        data.parent ? node("div", { display: "flex", fontSize: 26, color: "#595959", position: "absolute", top: 400, left: 80, width: 920 }, `Replying to @${data.parent}`) : null,
+        node("div", { display: "flex", flexDirection: "column", position: "absolute", top: data.parent ? 464 : 420, left: 80, width: 920, height: 1160, overflow: "hidden" }, [
+          node(
+            "div",
+            {
+              display: "flex",
+              fontSize: data.text.length > 600 ? 32 : 40,
+              lineHeight: 1.45,
+              lineClamp: media ? 12 : 23,
+              width: 920,
+              maxHeight: media ? 640 : 1140,
+              flexShrink: 0,
+              overflow: "hidden",
+              wordBreak: "break-word",
+            },
+            text || (media ? "" : "View this post on Caledon Forum.")
+          ),
+          media ? node("img", { width: 920, height: 480, objectFit: "contain", marginTop: 36, flexShrink: 0 }, undefined, { src: media }) : null,
+        ]),
+        node(
+          "div",
+          {
+            display: "flex",
+            flexDirection: "column",
+            position: "absolute",
+            top: 1680,
+            left: 80,
+            width: 920,
+            borderTop: "2px solid #e5e5e5",
+            paddingTop: 28,
+            color: "#595959",
+            fontSize: 24,
+            flexShrink: 0,
+          },
+          [
+            node("div", { display: "flex", marginBottom: 12 }, date),
+            node("div", { display: "flex", color: "#1d70e8" }, `${data.host}/p/${data.id}`),
+            data.member ? node("div", { display: "flex", marginTop: 12 }, "Member of Caledon Institute") : null,
+            text !== data.text ? node("div", { display: "flex", marginTop: 12 }, "Continue reading on Caledon Forum") : null,
+          ]
+        ),
+      ]
+    ) as ReactElement,
+    {
+      width: 1080,
+      height: 1920,
+      fonts: [
+        { name: "Manrope", data: fonts.regular, weight: 400, style: "normal" },
+        { name: "Manrope", data: fonts.bold, weight: 700, style: "normal" },
+        { name: "NotoEmoji", data: fonts.emoji, weight: 400, style: "normal" },
+      ],
+    }
+  );
+}
 export async function socialSvg(fonts: CardFonts, data: PostCardData, avatar?: string, media?: string) {
   await initializeLayout();
   const name = Array.from(data.name).slice(0, 26).join("") + (Array.from(data.name).length > 26 ? "…" : "");

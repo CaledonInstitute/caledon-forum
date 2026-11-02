@@ -277,6 +277,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
     try {
       const result = await dmRequest("messages", {
         conversationId: id,
+        ...(messagesRef.current.length ? { since: Math.min(...messagesRef.current.map((m) => m.seq)) } : {}),
         ...(older && messagesRef.current.length ? { before: Math.min(...messagesRef.current.map((m) => m.seq)) } : {}),
       });
       if (!valid()) return;
@@ -289,6 +290,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
           .slice(0, 50)
           .reverse()
           .map(async (m: any) => {
+            if (m.deleted) return { ...m, payload: null };
             const previous = known.get(m.id);
             if (
               previous &&
@@ -316,7 +318,10 @@ export default function DirectMessages({ conversationId: initialConversationId }
       setKeyChanged(!!pinned && pinned !== fp);
       if (!pinned) localStorage.setItem(`dm-peer-${key.userId}-${result.peer.id}`, fp);
       setMessages((previous) => {
-        const merged = new Map([...previous, ...items].map((m) => [m.id, m]));
+        const deleted = new Set(result.deletedIds || []);
+        const merged = new Map(
+          [...previous, ...items].map((m) => [m.id, deleted.has(m.id) && !m.deleted ? { ...m, deleted: 1, payload: null, envelopes: "{}", sender_public_key: "" } : m])
+        );
         const next = [...merged.values()].sort((a, b) => a.seq - b.seq);
         return next.length === previous.length && next.every((item, i) => item === previous[i]) ? previous : next;
       });
@@ -662,7 +667,9 @@ export default function DirectMessages({ conversationId: initialConversationId }
                         )}
                         <div className="dm-message-stack">
                           <div className="dm-bubble">
-                            {m.unavailable ? (
+                            {m.deleted ? (
+                              <p>This message was deleted.</p>
+                            ) : m.unavailable ? (
                               <p>This message could not be opened. Its key may have changed.</p>
                             ) : (
                               <>
@@ -685,6 +692,29 @@ export default function DirectMessages({ conversationId: initialConversationId }
                           >
                             {new Date(m.created_at).toLocaleTimeString("en-GB", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" })}
                           </time>
+                          {m.sender_id === identity.userId && !m.deleted && (
+                            <button
+                              type="button"
+                              className="text-button small"
+                              disabled={busy}
+                              onClick={() => {
+                                if (!confirm("Delete this message for everyone?")) return;
+                                const current = conversationId;
+                                void perform(async () => {
+                                  await dmRequest("delete", { conversationId: current, id: m.id }, true);
+                                  if (selected.current === current) {
+                                    loadSerial.current++;
+                                    setMessages((items) =>
+                                      items.map((item) => (item.id === m.id ? { ...item, deleted: 1, payload: null, envelopes: "{}", sender_public_key: "" } : item))
+                                    );
+                                  }
+                                  await refresh();
+                                });
+                              }}
+                            >
+                              Delete message
+                            </button>
+                          )}
                         </div>
                       </div>
                     </article>

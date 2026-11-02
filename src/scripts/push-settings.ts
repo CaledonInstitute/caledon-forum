@@ -53,7 +53,13 @@ if (panel) {
       const ready = await registration();
       await navigator.serviceWorker.ready;
       const key = Uint8Array.from(atob(publicKey.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
-      const sub = (await ready.pushManager.getSubscription()) || (await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }));
+      let sub = await ready.pushManager.getSubscription();
+      const previousKey = sub?.options?.applicationServerKey;
+      if (sub && previousKey && !new Uint8Array(previousKey).every((byte, i) => byte === key[i])) {
+        await sub.unsubscribe();
+        sub = null;
+      }
+      sub ||= await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
       try {
         await api("POST", sub.toJSON());
       } catch (error) {

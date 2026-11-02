@@ -168,7 +168,10 @@ async function refresh() {
           share.dataset.reposts = String(item.reposts);
           share.setAttribute("aria-label", `Share post, ${item.reposts} reposts`);
         }
-        set("[data-reply-count]", String(item.directReplies || "Reply"));
+        set("[data-reply-count]", String(item.replies || "Reply"));
+        document.querySelectorAll<HTMLElement>("[data-reply-summary]").forEach((summary) => {
+          if (summary.dataset.replySummary === item.id) summary.textContent = `${item.replies} ${item.replies === 1 ? "reply" : "replies"}`;
+        });
         set(".post-views span", Number(item.views).toLocaleString("en-US"));
         card.querySelector(".post-views")?.setAttribute("aria-label", `${item.views} ${item.views === 1 ? "view" : "views"}`);
       }

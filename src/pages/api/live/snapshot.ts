@@ -36,6 +36,7 @@ export const GET: APIRoute = async (ctx) => {
         reposted: !!p.reposted,
         views: p.views,
         directReplies: p.directReplies,
+        replies: p.replies,
         updatedAt: p.updatedAt,
         deleted: !!p.deleted,
         locked: !!p.locked,
