@@ -46,7 +46,8 @@ it("includes reposts in feed/profile and removes deleted sources", async () => {
   await forumAction(user, "repost", { id: "post", reposted: true });
   expect(row("SELECT COUNT(*) AS n FROM reposts").n).toBe(1);
   expect((await timeline())[0]).toMatchObject({ id: "post", repostedBy: "bob" });
-  expect((await profilePosts("bob", "posts"))[0]).toMatchObject({ id: "post", repostedBy: "bob" });
+  expect(await profilePosts("bob", "posts")).toHaveLength(0);
+  expect((await profilePosts("bob", "reposts"))[0]).toMatchObject({ id: "post" });
   execute("UPDATE posts SET deleted=1 WHERE id='post'");
   expect(await timeline()).toHaveLength(0);
 });

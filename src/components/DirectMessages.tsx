@@ -233,6 +233,8 @@ export default function DirectMessages({ conversationId: initialConversationId }
 
   const shared = routeUrl.searchParams.get("share");
 
+  const listingParam = routeUrl.searchParams.get("listing");
+  const sharedListing = listingParam && /^[0-9a-f-]{36}$/.test(listingParam) ? listingParam : undefined;
   const sharedPost = shared && /^\/p\/[1-9][0-9]*$/.test(shared) ? shared : undefined;
 
   const changeRoute = useCallback((url: string, push = true) => {
@@ -502,7 +504,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
     const generation = epoch.current;
     const result = await dmRequest("conversation", { username }, true);
     if (generation !== epoch.current) return;
-    changeRoute(`/dm/${result.id}${sharedPost ? "?share=" + encodeURIComponent(sharedPost) : ""}`);
+    changeRoute(`/dm/${result.id}${sharedPost ? "?share=" + encodeURIComponent(sharedPost) : sharedListing ? "?listing=" + encodeURIComponent(sharedListing) : ""}`);
     await refreshInbox(true);
   }
 
@@ -582,7 +584,12 @@ export default function DirectMessages({ conversationId: initialConversationId }
     let outgoing = pendingMessages.current.get(id);
     if (!outgoing) {
       const context = { id: crypto.randomUUID(), conversationId: id, senderId: key.userId, recipientId: peer.id, senderVersion: key.version, recipientVersion: peer.version };
-      const payload: Payload = { text: draft, ...(sharedPost ? { post: sharedPost } : {}), ...(attachments.length ? { attachments } : {}) };
+      if (sharedListing && Array.from(draft).length > 4800) throw new Error("Keep this message within 4,800 characters to leave room for the listing link.");
+      const payload: Payload = {
+        text: sharedListing ? `${draft}\n\nListing: ${location.origin}/marketplace/${sharedListing}` : draft,
+        ...(sharedPost ? { post: sharedPost } : {}),
+        ...(attachments.length ? { attachments } : {}),
+      };
       outgoing = { ...context, attachmentIds: attachments.map((a) => a.id), envelopes: await encryptMessage(key, JSON.parse(peer.publicKey), context, payload) };
       if (identityRef.current !== key) return;
       pendingMessages.current.set(id, outgoing);
@@ -594,7 +601,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
     if (selected.current === id) {
       setText((current) => (current === draft ? "" : current));
       setAttachments([]);
-      if (sharedPost && generation === epoch.current) {
+      if ((sharedPost || sharedListing) && generation === epoch.current) {
         history.replaceState(null, "", location.pathname);
         setRoute(location.pathname);
       }
@@ -781,6 +788,14 @@ export default function DirectMessages({ conversationId: initialConversationId }
                     void perform(send);
                   }}
                 >
+                  {sharedListing && (
+                    <p className="shared-post">
+                      <a className="text-link" href={`/marketplace/${sharedListing}`}>
+                        Discuss this marketplace listing
+                      </a>
+                      <span className="small muted"> Its link will be included when you send.</span>
+                    </p>
+                  )}
                   {sharedPost && (
                     <div className="notice">
                       Share post{" "}
@@ -834,7 +849,7 @@ export default function DirectMessages({ conversationId: initialConversationId }
                         peer?.invalidated ||
                         peer?.suspended ||
                         !peer?.emailVerified ||
-                        (!text.trim() && !sharedPost && !attachments.length) ||
+                        (!text.trim() && !sharedPost && !sharedListing && !attachments.length) ||
                         Array.from(text).length > 5000
                       }
                     >

@@ -5,16 +5,26 @@ import Post from "../components/Post.astro";
 import ComposeGate from "../components/ComposeGate.astro";
 import Pagination from "../components/Pagination.astro";
 import Icon from "../components/Icon.astro";
-import { timeline } from "../lib/db";
+import { timeline, pinnedPost } from "../lib/db";
 import { PAGE_SIZE, pageNumber } from "../lib/content";
 import { preparePostContent } from "../lib/post-content";
 const page = pageNumber(Astro.url);
-const items = await timeline(Astro.locals.user?.id, page);
+const announcement = page === 1 ? await pinnedPost(Astro.locals.user?.id) : null;
+const timelineItems = await timeline(Astro.locals.user?.id, page);
+const items = timelineItems.slice(0, PAGE_SIZE).filter((p) => p.id !== announcement?.id);
 const prepared = await preparePostContent(items.slice(0, PAGE_SIZE));
 ---
 
 <Layout>
   <PageHeader title="Home" subtitle="A place to learn together" />
+  <section data-announcement>
+    {announcement && (
+      <>
+        <p class="announcement-label">Announcement</p>
+        <Post post={announcement} />
+      </>
+    )}
+  </section>
   <ComposeGate />
   <section data-post-list aria-label="Posts">
     {items.length ? (
@@ -40,5 +50,5 @@ const prepared = await preparePostContent(items.slice(0, PAGE_SIZE));
       </>
     )}
   </section>
-  <Pagination page={page} hasMore={items.length > PAGE_SIZE} />
+  <Pagination page={page} hasMore={timelineItems.length > PAGE_SIZE} />
 </Layout>

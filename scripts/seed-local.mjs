@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 const q = (value) => `'${String(value).replaceAll("'", "''")}'`;
 const now = Date.now();
 const statements = [
+  `INSERT OR IGNORE INTO user(id,name,email,email_verified,username,role,created_at,updated_at) VALUES('qa-admin','QA Moderator','qa-admin@caledon.invalid',1,'qa_moderator','admin',${now},${now})`,
   `INSERT OR IGNORE INTO user(id,name,email,email_verified,username,created_at,updated_at,bio) VALUES('qa-alice','Caledon QA','qa-alice@caledon.invalid',1,'qa_caledon',${now},${now},'Local regression-test profile. Not published to production.')`,
   `INSERT OR IGNORE INTO user(id,name,email,email_verified,username,created_at,updated_at) VALUES('qa-bob','Research QA','qa-bob@caledon.invalid',1,'qa_research',${now},${now})`,
 ];
@@ -89,6 +90,7 @@ const variable = (name) =>
 if (variable("AUTH_ENABLED") === "true" && variable("BETTER_AUTH_SECRET")) {
   for (const [userId, sessionId, filename] of [
     ["qa-alice", "qa-browser-session", "qa-session.json"],
+    ["qa-admin", "qa-admin-session", "qa-admin-session.json"],
     ["qa-bob", "qa-mention-session", "qa-mention-session.json"],
     ["qa-dm-sender", "qa-dm-sender-session", "qa-dm-sender-session.json"],
     ["qa-dm-recipient", "qa-dm-recipient-session", "qa-dm-recipient-session.json"],

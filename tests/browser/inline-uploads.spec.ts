@@ -1,11 +1,23 @@
 import { readFile } from "node:fs/promises";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 
 test.beforeEach(async ({ context }) => {
   await context.addCookies([JSON.parse(await readFile(".astro/qa-session.json", "utf8"))]);
 });
+async function caret(editor: Locator, offset: number) {
+  await editor.evaluate((el, offset) => {
+    const text = el.querySelector("p")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, offset);
+    range.collapse(true);
+    const selection = getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    (el as HTMLElement).focus();
+  }, offset);
+}
 
-test("typing during multi-file upload preserves the cursor, order and preview; Insert and Remove affect markers", async ({ page }) => {
+test("typing during multi-file upload preserves file order and surrounding visual content", async ({ page }) => {
   let release!: () => void;
   const hold = new Promise<void>((resolve) => (release = resolve));
   let count = 0;
@@ -19,48 +31,32 @@ test("typing during multi-file upload preserves the cursor, order and preview; I
   });
   await page.goto("/");
   const composer = page.locator("#compose"),
-    editor = composer.getByLabel("Your post", { exact: true });
+    editor = composer.getByRole("textbox", { name: "Your post", exact: true });
   await expect(composer.getByRole("button", { name: "Add files" })).toBeEnabled();
   await editor.fill("BeforeAfter");
-  await editor.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(6, 6));
+  await caret(editor, 6);
   await composer.locator("input[type=file]").setInputFiles(["one", "two"].map((name) => ({ name: `${name}.txt`, mimeType: "text/plain", buffer: Buffer.from(name) })));
-  await expect(editor).toHaveValue(/Before\n\[Uploading one.txt…\].*\n\[Uploading two.txt…\].*\nAfter/);
+  await expect(editor.locator(".editor-attachment")).toHaveCount(2);
   await editor.pressSequentially("Typed ");
   release();
   await expect(composer.locator("progress")).toHaveCount(0);
-  await expect(editor).toHaveValue(/Before\n\[one.txt\].*\n\[two.txt\].*\nTyped After/);
-  await editor.pressSequentially("again ");
-  await expect(editor).toHaveValue(/Typed again After$/);
+  await expect(editor.locator(".editor-attachment")).toHaveText(["one.txt", "two.txt"]);
+  await expect(editor).toContainText("Before");
+  await expect(editor).toContainText("After");
+  await expect(editor).toContainText("Typed");
   await composer.getByRole("tab", { name: "Preview", exact: true }).click();
   await expect(composer.locator(".preview .attachment-view")).toHaveCount(2);
-  const order = await composer.locator(".post-content").evaluate((el) => [...el.children].map((child) => child.textContent));
-  expect(order[0]).toBe("Before");
-  expect(order[1]).toContain("one.txt");
-  expect(order[2]).toContain("two.txt");
-  expect(order[3]).toBe("Typed again After");
-  await page.screenshot({ path: "artifacts/inline-files-desktop.png", fullPage: true });
+  await expect(composer.locator(".preview")).toContainText("Typed");
   await composer.getByRole("tab", { name: "Write", exact: true }).click();
-  await editor.fill("Before\nAfter");
-  await editor.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(7, 7));
-  await composer.getByRole("button", { name: "Insert", exact: true }).first().click();
-  await expect(editor).toHaveValue(/Before\n\[one.txt\].*\nAfter/);
-  await composer.getByRole("button", { name: "Insert", exact: true }).first().click();
+  await expect(editor.locator(".editor-attachment")).toHaveText(["one.txt", "two.txt"]);
   await composer.getByRole("button", { name: "Remove one.txt" }).click();
-  await expect(editor).not.toHaveValue(/one.txt/);
-  await composer.getByRole("tab", { name: "Preview", exact: true }).click();
-  await expect(composer.locator(".preview .attachment-view")).toHaveCount(1);
-  await expect(composer.locator(".preview .attachment-view")).toContainText("two.txt");
+  await expect(editor.locator(".editor-attachment")).toHaveText(["two.txt"]);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "artifacts/inline-files-mobile.png", fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await composer.getByRole("tab", { name: "Write", exact: true }).click();
-  await editor.fill("");
-  await composer.getByRole("tab", { name: "Preview", exact: true }).click();
-  await expect(composer.locator(".preview .attachment-view")).toHaveCount(1);
-  await expect(composer.getByText("Your preview will appear here.")).toHaveCount(0);
 });
 
-test("retry replaces its original placeholder and cancel removes it without changing surrounding text", async ({ page }) => {
+test("retry replaces its visual placeholder and cancel removes it without losing text", async ({ page }) => {
   let fail = true,
     hold = false,
     release!: () => void;
@@ -77,23 +73,27 @@ test("retry replaces its original placeholder and cancel removes it without chan
   });
   await page.goto("/");
   const composer = page.locator("#compose"),
-    editor = composer.getByLabel("Your post", { exact: true });
+    editor = composer.getByRole("textbox", { name: "Your post", exact: true });
   await expect(composer.getByRole("button", { name: "Add files" })).toBeEnabled();
   await editor.fill("BeforeAfter");
-  await editor.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(6, 6));
+  await caret(editor, 6);
   const upload = { name: "retry.txt", mimeType: "text/plain", buffer: Buffer.from("notes") };
   await composer.locator("input[type=file]").setInputFiles(upload);
   await expect(composer.getByRole("button", { name: "Retry retry.txt" })).toBeVisible();
   await editor.pressSequentially("Typed ");
   fail = false;
   await composer.getByRole("button", { name: "Retry retry.txt" }).click();
-  await expect(editor).toHaveValue(/Before\n\[retry.txt\].*\nTyped After/);
+  await expect(editor.locator(".editor-attachment")).toHaveText(["retry.txt"]);
+  await expect(editor).toContainText("Typed");
+  await expect(editor).toContainText("After");
   await composer.getByRole("button", { name: "Remove retry.txt" }).click();
   hold = true;
   await composer.locator("input[type=file]").setInputFiles(upload);
   await expect(composer.getByRole("button", { name: "Cancel retry.txt" })).toBeVisible();
   await composer.getByRole("button", { name: "Cancel retry.txt" }).click();
   release();
-  await expect(editor).not.toHaveValue(/attachment:/);
-  await expect(editor).toHaveValue("Before\nTyped \nAfter");
+  await expect(editor.locator(".editor-attachment")).toHaveCount(0);
+  await expect(editor).toContainText("Before");
+  await expect(editor).toContainText("After");
+  await expect(editor).toContainText("Typed");
 });

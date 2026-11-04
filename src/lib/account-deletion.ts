@@ -14,7 +14,9 @@ export async function deleteAccount(userId: string) {
         "UPDATE user SET deleting_at=?,suspended=1,name='Deleted account',email=?||'@deleted.invalid',username=NULL,display_username=NULL,image=NULL,cover_image=NULL,bio='',location='',last_active_at=NULL,show_activity=0 WHERE id=?"
       )
       .bind(now, crypto.randomUUID(), userId),
-    db().prepare("UPDATE posts SET body='',deleted=1,updated_at=? WHERE author_id=?").bind(now, userId),
+    db().prepare("UPDATE marketplace_listings SET deleted=1,title='Deleted listing',description='',location='' WHERE seller_id=?").bind(userId),
+    db().prepare("DELETE FROM marketplace_photos WHERE listing_id IN (SELECT id FROM marketplace_listings WHERE seller_id=?)").bind(userId),
+    db().prepare("UPDATE posts SET body='',original_body=NULL,editor_doc=NULL,deleted=1,updated_at=? WHERE author_id=?").bind(now, userId),
     db()
       .prepare("UPDATE uploads SET state='deleting',name='Deleted attachment' WHERE owner_id=? OR conversation_id IN (SELECT id FROM dm_conversations WHERE user_a=? OR user_b=?)")
       .bind(userId, userId, userId),
@@ -42,6 +44,8 @@ export async function cleanupAccounts() {
       continue;
     }
     await db().batch([
+      db().prepare("DELETE FROM marketplace_reports WHERE reporter_id=? OR listing_id IN (SELECT id FROM marketplace_listings WHERE seller_id=?)").bind(id, id),
+      db().prepare("DELETE FROM marketplace_listings WHERE seller_id=?").bind(id),
       db().prepare("DELETE FROM post_attachments WHERE post_id IN (SELECT id FROM posts WHERE author_id=?)").bind(id),
       db().prepare("DELETE FROM post_links WHERE post_id IN (SELECT id FROM posts WHERE author_id=?)").bind(id),
       db().prepare("DELETE FROM notifications WHERE recipient_id=? OR actor_id=? OR post_id IN (SELECT id FROM posts WHERE author_id=?)").bind(id, id, id),

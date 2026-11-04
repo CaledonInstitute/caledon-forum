@@ -39,44 +39,6 @@ document.addEventListener("click", (event) => {
 
   link("Send via DM", signedIn ? `/dm?share=${encodeURIComponent(path)}` : "/login");
 
-  const repost = document.createElement("button");
-  repost.type = "button";
-  repost.textContent = button.dataset.reposted === "true" ? "Undo repost" : "Repost";
-
-  repost.onclick = async () => {
-    if (!signedIn) {
-      location.assign("/login");
-      return;
-    }
-    repost.disabled = true;
-    try {
-      const r = await fetch("/api/forum/repost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: button.dataset.share, reposted: button.dataset.reposted !== "true" }),
-      });
-      const result: any = await r.json();
-      if (!r.ok) throw new Error(result.error || "Could not repost.");
-      document.querySelectorAll<HTMLButtonElement>("[data-share-menu]").forEach((b) => {
-        if (b.dataset.share === button.dataset.share) {
-          b.dataset.reposted = String(result.reposted);
-          b.dataset.reposts = String(result.reposts);
-          b.querySelector("span")!.textContent = String(result.reposts || "Share");
-        }
-      });
-      if (!result.reposted)
-        document.querySelectorAll<HTMLElement>('[data-own-repost="true"]').forEach((card) => {
-          if (card.dataset.postId === button.dataset.share) card.remove();
-        });
-      dialog.close();
-    } catch (e) {
-      dialog.querySelector("[data-share-status]")!.textContent = e instanceof Error ? e.message : "Try again.";
-    } finally {
-      repost.disabled = false;
-    }
-  };
-  actions.appendChild(repost);
-
   link("Quote post", signedIn ? `/?quote=${encodeURIComponent(path)}#compose` : "/login");
 
   const copy = document.createElement("button");
@@ -101,27 +63,61 @@ document.addEventListener("click", (event) => {
   if (publicId) {
     const screenshot = document.createElement("button");
     screenshot.type = "button";
-    screenshot.textContent = "Copy as screenshot (1080 × 1920)";
+    screenshot.textContent = "Copy as screenshot";
     const download = document.createElement("a");
     download.textContent = "Download screenshot";
     download.href = `/api/screenshot/${publicId}.png`;
-    download.download = `caledon-${publicId}-1080x1920.png`;
+    download.download = `caledon-${publicId}-1080.png`;
+    async function fetchPng() {
+      const response = await fetch(download.href, { cache: "no-store", signal: AbortSignal.timeout(20000) });
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(result?.error || "Could not create screenshot. Try again.");
+      }
+      if (!response.headers.get("content-type")?.startsWith("image/png")) throw new Error("The server did not return a screenshot. Try again.");
+      return response.blob();
+    }
+    download.onclick = async (event) => {
+      event.preventDefault();
+      if (download.getAttribute("aria-disabled") === "true") return;
+      download.setAttribute("aria-disabled", "true");
+      const status = dialog.querySelector<HTMLElement>("[data-share-status]")!;
+      status.textContent = "Preparing screenshot…";
+      try {
+        const png = await fetchPng();
+        const url = URL.createObjectURL(png);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = download.download;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+        status.textContent = "Screenshot downloaded.";
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : "Could not download screenshot. Try again.";
+      } finally {
+        download.removeAttribute("aria-disabled");
+      }
+    };
     const supported = !!navigator.clipboard?.write && typeof ClipboardItem !== "undefined" && (!ClipboardItem.supports || ClipboardItem.supports("image/png"));
     screenshot.disabled = !supported;
     screenshot.onclick = async () => {
       screenshot.disabled = true;
       const status = dialog.querySelector<HTMLElement>("[data-share-status]")!;
       status.textContent = "Preparing screenshot…";
+      let renderError = "";
       try {
         // Pass the promise immediately to preserve user activation in Safari.
-        const png = fetch(download.href, { cache: "no-store", signal: AbortSignal.timeout(20000) }).then(async (response) => {
-          if (!response.ok || !response.headers.get("content-type")?.startsWith("image/png")) throw new Error("Could not create screenshot.");
-          return response.blob();
+        const png = fetchPng().catch((error) => {
+          renderError = error instanceof Error ? error.message : "Could not create screenshot.";
+          throw error;
         });
+        void png.catch(() => {});
         await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
         status.textContent = "Screenshot copied. Paste it into another app.";
       } catch {
-        status.textContent = "Could not copy screenshot. Use Download screenshot instead.";
+        status.textContent = renderError || "Could not copy screenshot. Use Download screenshot instead.";
       } finally {
         screenshot.disabled = false;
       }
@@ -141,3 +137,46 @@ document.addEventListener("click", (event) => {
 });
 
 export {};
+
+document.addEventListener("click", async (event) => {
+  const button = (event.target as Element).closest<HTMLButtonElement>("[data-repost],[data-pin]");
+  if (!button || button.disabled) return;
+  if (button.dataset.signedIn === "false") {
+    location.assign("/login");
+    return;
+  }
+  button.disabled = true;
+  const status = button.closest("article")?.querySelector<HTMLElement>("[data-post-status]");
+  try {
+    const pin = !!button.dataset.pin;
+    const response = await fetch(`/api/forum/${pin ? "pin" : "repost"}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        pin ? { id: button.dataset.pin, pinned: button.dataset.pinned !== "true" } : { id: button.dataset.repost, reposted: button.dataset.reposted !== "true" }
+      ),
+    });
+    const result: any = await response.json();
+    if (!response.ok) throw new Error(result.error || "Try again.");
+    if (pin) {
+      location.reload();
+      return;
+    }
+    document.querySelectorAll<HTMLButtonElement>("[data-repost]").forEach((b) => {
+      if (b.dataset.repost !== button.dataset.repost) return;
+      b.dataset.reposted = String(result.reposted);
+      b.setAttribute("aria-pressed", String(result.reposted));
+      b.setAttribute("aria-label", `Repost, ${result.reposts} reposts`);
+      b.querySelector("span")!.textContent = result.reposts ? Number(result.reposts).toLocaleString("en-US") : "";
+    });
+    if (!result.reposted)
+      document.querySelectorAll<HTMLElement>('[data-own-repost="true"], [data-own-reposts="true"] article').forEach((card) => {
+        if (card.dataset.postId === button.dataset.repost) card.remove();
+      });
+    document.dispatchEvent(new Event("forum:profile-counts"));
+  } catch (e) {
+    if (status) status.textContent = e instanceof Error ? e.message : "Try again.";
+  } finally {
+    button.disabled = false;
+  }
+});

@@ -2,6 +2,7 @@
 dist/
 /public/fonts/noto-emoji.woff
 /public/fonts/noto-emoji-LICENSE.txt
+/public/pdfjs/
 
 # generated types
 .astro/

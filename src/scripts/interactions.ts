@@ -61,9 +61,10 @@ document.addEventListener("click", async (event) => {
       const r = await action("like", { id: button.dataset.like, liked: button.getAttribute("aria-pressed") !== "true" });
       button.setAttribute("aria-pressed", String(r.liked));
       const span = button.querySelector("span");
-      if (span) span.textContent = String(r.likes || "Like");
+      if (span) span.textContent = r.likes ? Number(r.likes).toLocaleString("en-US") : "";
       const svg = button.querySelector("svg");
       svg?.setAttribute("fill", r.liked ? "currentColor" : "none");
+      document.dispatchEvent(new Event("forum:profile-counts"));
       if (!r.liked && button.closest('[data-own-likes="true"]')) location.reload();
     }
     if (button.dataset.delete && confirm("Delete this post? Replies will remain visible.")) {
@@ -132,3 +133,69 @@ document.addEventListener(
   },
   true
 );
+
+let countTimer: ReturnType<typeof setTimeout>;
+function refreshCounts() {
+  clearTimeout(countTimer);
+  countTimer = setTimeout(async () => {
+    const tabs = document.querySelector<HTMLElement>("[data-profile-user]");
+    if (!tabs) return;
+    try {
+      const r = await fetch(`/api/profile-counts/${encodeURIComponent(tabs.dataset.profileUser!)}`);
+      if (!r.ok) return;
+      const counts = (await r.json()) as Record<string, number>;
+      tabs.querySelectorAll<HTMLElement>("[data-profile-count]").forEach((e) => (e.textContent = String(counts[e.dataset.profileCount!] || 0)));
+    } catch {}
+  }, 200);
+}
+document.addEventListener("forum:profile-counts", refreshCounts);
+document.addEventListener("forum:posts-updated", refreshCounts);
+const profileTabs = document.querySelector(".profile-tabs");
+profileTabs?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+
+document.addEventListener("click", async (event) => {
+  const button = (event.target as Element).closest<HTMLButtonElement>("[data-pdf]");
+  if (!button || button.disabled) return;
+  button.disabled = true;
+  try {
+    await (await import("./pdf-reader")).openPdf(button.dataset.pdf!, button.dataset.pdfName || "PDF document", button);
+  } catch {
+    alert("Could not open the PDF reader. Use the download link.");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.addEventListener("click", async (event) => {
+  const button = (event.target as Element).closest<HTMLButtonElement>("[data-listing-action]");
+  if (!button || button.disabled) return;
+  const host = button.closest<HTMLElement>("[data-listing-id]")!;
+  const status = host.querySelector<HTMLElement>("[data-listing-status]");
+  const action = button.dataset.listingAction!;
+  let reason: string | null = null;
+  if (action === "report") {
+    reason = prompt("Why are you reporting this listing? (5–1,000 characters)");
+    if (!reason) return;
+  }
+  if ((action === "delete" || action === "moderate") && !confirm("Remove this listing? Its photos and description will be removed.")) return;
+  if (action === "resolve" && !confirm("Resolve this report? The listing will remain unchanged.")) return;
+  button.disabled = true;
+  if (status) status.textContent = "";
+  try {
+    const r = await fetch(`/api/marketplace/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: button.dataset.reportId || host.dataset.listingId, status: button.dataset.status, reason }),
+    });
+    const result = (await r.json()) as any;
+    if (!r.ok) throw new Error(result.error || "Try again.");
+    if (action === "report") {
+      if (status) status.textContent = "Report sent.";
+    } else if (location.pathname === "/admin") location.reload();
+    else location.assign(action === "delete" || action === "moderate" ? "/marketplace" : location.pathname);
+  } catch (e) {
+    if (status) status.textContent = (e as Error).message;
+  } finally {
+    button.disabled = false;
+  }
+});

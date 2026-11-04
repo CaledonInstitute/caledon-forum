@@ -2,9 +2,10 @@
 
 A public forum for Caledon Institute, built with Astro, React, and Cloudflare Workers.
 
-- Markdown and sanitized HTML posts and replies up to 25,000 characters each, with language-specific code highlighting and LaTeX math.
-- Public profile locations and Likes tabs, profile composers, and link-copy share counts.
-- External images, link previews, and click-to-play YouTube. No image uploads.
+- Visual posts and replies with tables, code languages, LaTeX, mentions and file attachments; Markdown/HTML API imports remain supported.
+- Public profiles with Posts, Replies, Reposts, Likes and Media counts, plus profile composers.
+- Image uploads, validated external images, link previews, click-to-play YouTube and on-demand PDF reading.
+- Admin announcements and a goods/services marketplace with seller contact through DM.
 - GitHub, optional Google, or username/password login, with verified-member badges.
 - Account API keys, a versioned REST API, and public Swagger docs at `/api/docs`.
 - Likes, notifications, search, reports, and admin moderation.
@@ -40,6 +41,7 @@ npm run test:worker
 npm run build
 ```
 
+See [the community/editor update](docs/forum-update.md) for migration, compatibility and validation details.
 See [setup and deployment](docs/setup.md) for service configuration and browser tests, or [architecture](docs/architecture.md) for implementation details.
 See [Cloudflare Free operations](docs/cloudflare-free.md) for hybrid rendering, resource budgets, push setup, and feature switches.
 

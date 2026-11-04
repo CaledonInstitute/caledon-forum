@@ -34,7 +34,7 @@ export async function publishBatch(statements: D1PreparedStatement[]) {
     }
   }
 }
-const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_id AS rootId,p.parent_id AS parentId,p.body,(SELECT json_group_array(json_object('id',a.id,'name',a.name,'mime',a.mime,'size',a.size)) FROM (SELECT u.id,u.name,u.mime,u.size FROM post_attachments pa2 JOIN uploads u ON u.id=pa2.asset_id WHERE pa2.post_id=p.id AND u.state='ready' ORDER BY pa2.position) a) AS attachmentsJson,p.created_at AS createdAt,p.updated_at AS updatedAt,p.shares,p.views,p.deleted,p.locked,u.name,u.username,u.image,
+const selection = `SELECT p.id,pa.id AS publicId,p.author_id AS authorId,p.root_id AS rootId,p.parent_id AS parentId,p.body,p.editor_doc AS editorDocument,p.legacy_readonly AS legacyReadonly,EXISTS(SELECT 1 FROM announcement a WHERE a.post_id=p.id) AS pinned,(SELECT json_group_array(json_object('id',a.id,'name',a.name,'mime',a.mime,'size',a.size)) FROM (SELECT u.id,u.name,u.mime,u.size FROM post_attachments pa2 JOIN uploads u ON u.id=pa2.asset_id WHERE pa2.post_id=p.id AND u.state='ready' ORDER BY pa2.position) a) AS attachmentsJson,p.created_at AS createdAt,p.updated_at AS updatedAt,p.shares,p.views,p.deleted,p.locked,u.name,u.username,u.image,
  CASE WHEN m.state='active' AND m.checked_at>? AND EXISTS(SELECT 1 FROM account a WHERE a.user_id=u.id AND a.provider_id='github') THEN 1 ELSE 0 END AS isCaledonMember,
  (SELECT COUNT(*) FROM likes l WHERE l.post_id=p.id) AS likes,
  (WITH RECURSIVE descendants(id,deleted) AS (
@@ -89,18 +89,31 @@ export async function replyLocation(id: string) {
   return p ? `/p/${p.id}` : "/";
 }
 
-export type ProfileTab = "posts" | "replies" | "likes";
-export function profilePosts(authorId: string, tab: ProfileTab, viewer?: string, page = 1) {
-  if (tab === "posts") return timeline(viewer, page, authorId);
+export type ProfileTab = "posts" | "replies" | "likes" | "reposts" | "media";
+const mediaWhere = `(EXISTS(SELECT 1 FROM post_attachments a JOIN uploads f ON f.id=a.asset_id WHERE a.post_id=p.id AND f.state='ready' AND (f.mime LIKE 'image/%' OR f.mime LIKE 'video/%')) OR EXISTS(SELECT 1 FROM post_links pl JOIN link_previews l ON l.id=pl.preview_id WHERE pl.post_id=p.id AND l.kind IN ('image','youtube')))`;
+function profileWhere(tab: ProfileTab) {
   return tab === "likes"
-    ? posts(
-        "p.deleted=0 AND EXISTS(SELECT 1 FROM likes l WHERE l.post_id=p.id AND l.user_id=?)",
-        [authorId, authorId],
-        viewer,
-        "(SELECT l.created_at FROM likes l WHERE l.post_id=p.id AND l.user_id=?) DESC,p.id DESC",
-        page
-      )
-    : posts(`p.author_id=? AND p.deleted=0 AND p.root_id IS ${tab === "replies" ? "NOT " : ""}NULL`, [authorId], viewer, undefined, page);
+    ? "EXISTS(SELECT 1 FROM likes l WHERE l.post_id=p.id AND l.user_id=?)"
+    : tab === "reposts"
+      ? "EXISTS(SELECT 1 FROM reposts r WHERE r.post_id=p.id AND r.user_id=?)"
+      : `p.author_id=? AND ${tab === "media" ? mediaWhere : `p.root_id IS ${tab === "replies" ? "NOT " : ""}NULL`}`;
+}
+export function profilePosts(authorId: string, tab: ProfileTab, viewer?: string, page = 1) {
+  const order =
+    tab === "likes"
+      ? "(SELECT created_at FROM likes WHERE post_id=p.id AND user_id=?) DESC,p.id DESC"
+      : tab === "reposts"
+        ? "(SELECT created_at FROM reposts WHERE post_id=p.id AND user_id=?) DESC,p.id DESC"
+        : undefined;
+  return posts("p.deleted=0 AND " + profileWhere(tab), order ? [authorId, authorId] : [authorId], viewer, order, page);
+}
+export async function profileCounts(authorId: string) {
+  const tabs: ProfileTab[] = ["posts", "replies", "reposts", "likes", "media"];
+  const counts = await Promise.all(tabs.map((tab) => one<{ n: number }>("SELECT COUNT(*) AS n FROM posts p WHERE p.deleted=0 AND " + profileWhere(tab), authorId)));
+  return Object.fromEntries(tabs.map((tab, i) => [tab, counts[i]?.n || 0])) as Record<ProfileTab, number>;
+}
+export async function pinnedPost(viewer?: string) {
+  return (await posts("p.deleted=0 AND EXISTS(SELECT 1 FROM announcement a WHERE a.post_id=p.id)", [], viewer))[0] || null;
 }
 
 export async function ancestors(id: string, viewer?: string) {

@@ -27,8 +27,8 @@ test("uploads multiple files, previews them and preserves IDs when publishing an
     { name: "research.png", mimeType: "image/png", buffer: image },
     { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("Notes") },
   ]);
-  await expect(composer.getByText("research.png", { exact: true })).toBeVisible();
-  await expect(composer.getByText("notes.txt", { exact: true })).toBeVisible();
+  await expect(composer.locator(".attachment-draft strong").filter({ hasText: "research.png" })).toBeVisible();
+  await expect(composer.locator(".attachment-draft strong").filter({ hasText: "notes.txt" })).toBeVisible();
   await expect(composer.locator("progress")).toHaveCount(0);
   await composer.getByRole("tab", { name: "Preview", exact: true }).click();
   await expect(composer.locator(".attachment-view")).toHaveCount(2);
@@ -41,7 +41,7 @@ test("uploads multiple files, previews them and preserves IDs when publishing an
   });
   await composer.getByRole("button", { name: "Post", exact: true }).click();
   await expect(composer.getByRole("alert")).toHaveText("Review fixture");
-  expect(payload.body).toMatch(/\[research\.png\]\(attachment:[0-9a-f-]{36}\)\n\[notes\.txt\]\(attachment:[0-9a-f-]{36}\)/);
+  expect(payload.body).toMatch(/\[research\.png\]\(attachment:[0-9a-f-]{36}\)\n+\[notes\.txt\]\(attachment:[0-9a-f-]{36}\)/);
   expect(payload.attachmentIds).toHaveLength(2);
   await page.screenshot({ path: "artifacts/uploads-composer-desktop.png", fullPage: true });
 });

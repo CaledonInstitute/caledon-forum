@@ -5,17 +5,18 @@ import Composer from "../../components/Composer";
 import { post } from "../../lib/db";
 if (!Astro.locals.user) return Astro.redirect("/login");
 const p = await post(Astro.params.id!, Astro.locals.user.id);
-if (!p || p.authorId !== Astro.locals.user.id || p.deleted || Astro.locals.user.suspended) {
+if (!p || p.authorId !== Astro.locals.user.id || p.deleted || p.legacyReadonly || Astro.locals.user.suspended) {
   Astro.response.status = 403;
 }
 ---
 
 <Layout title="Edit post" noindex>
   <PageHeader title="Edit post" subtitle="Your changes will be marked as edited." />
-  {p && p.authorId === Astro.locals.user.id && !p.deleted && !Astro.locals.user.suspended ? (
+  {p && p.authorId === Astro.locals.user.id && !p.deleted && !p.legacyReadonly && !Astro.locals.user.suspended ? (
     <Composer
       client:load
       initial={p.body}
+      initialDocument={p.editorDocument ? JSON.parse(p.editorDocument) : undefined}
       initialAttachments={p.attachments}
       editId={p.id}
       parentId={p.rootId || undefined}

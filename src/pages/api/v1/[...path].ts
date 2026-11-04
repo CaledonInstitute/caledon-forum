@@ -19,6 +19,7 @@ async function serializePost(p: ForumPost) {
     rootId: relation?.rootId ?? null,
     parentId: relation?.parentId ?? null,
     body: p.deleted ? "" : p.body,
+    editable: !p.deleted && !p.legacyReadonly,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
     deleted: !!p.deleted,
@@ -84,7 +85,7 @@ export const ALL: APIRoute = async (ctx) => {
         if (path.length === 3 && path[2] === "posts" && method === "GET") {
           await profile(path[1]);
           const owner = await one<{ id: string }>("SELECT id FROM user WHERE username=? COLLATE NOCASE", path[1]);
-          const tab = z.enum(["posts", "replies", "likes"]).parse(url.searchParams.get("tab") || "posts");
+          const tab = z.enum(["posts", "replies", "likes", "reposts", "media"]).parse(url.searchParams.get("tab") || "posts");
           const result = await profilePosts(owner!.id, tab, user.id, page);
           return Response.json({ items: await Promise.all(result.slice(0, PAGE_SIZE).map(serializePost)), page, hasMore: result.length > PAGE_SIZE });
         }

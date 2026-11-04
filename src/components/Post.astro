@@ -112,20 +112,33 @@ const time = postTime(p.createdAt);
               views: p.views,
               signedIn: !!viewer,
               owner: viewer?.id === p.authorId,
+              editable: !p.legacyReadonly,
+              pinned: !!p.pinned,
               admin: viewer?.role === "admin",
               root: !p.rootId,
               locked: !!p.locked,
             })}
           >
-            <a href={`${permalink}#reply`}>
-              <span data-reply-count={p.id}>{p.replies || "Reply"}</span>
-            </a>
-            <span>
-              {p.likes} likes · {p.shares} shares
-            </span>
-            <span class="post-views" role="img" aria-label={`${p.views} ${p.views === 1 ? "view" : "views"}`}>
-              <span aria-hidden="true">{p.views.toLocaleString("en-US")}</span>
-            </span>
+            <div class="post-action-row">
+              <a href={`${permalink}#reply`} aria-label={`Reply to ${p.name}`}>
+                <Icon name="message-circle" size={17} />
+                <span data-reply-count={p.id}>{p.replies ? p.replies.toLocaleString("en-US") : ""}</span>
+              </a>
+              <span class="post-action-count" aria-label={`${p.likes} likes`}>
+                <Icon name="heart" size={17} />
+                {p.likes || ""}
+              </span>
+              <span class="post-action-count" aria-label={`${p.reposts || 0} reposts`}>
+                <Icon name="repeat-2" size={17} />
+                {p.reposts || ""}
+              </span>
+              <span class="post-share-fallback" aria-label="Share post">
+                <Icon name="link" size={17} />
+              </span>
+            </div>
+            <p class="post-views" aria-label={`${p.views.toLocaleString("en-US")} ${p.views === 1 ? "view" : "views"}`}>
+              <span data-view-count>{p.views.toLocaleString("en-US")}</span> <span data-view-unit>{p.views === 1 ? "view" : "views"}</span>
+            </p>
           </div>
           <p class="error" role="status" data-post-status></p>
         </>

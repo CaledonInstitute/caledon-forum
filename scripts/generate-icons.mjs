@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 const names = [
   "home",
+  "shopping-bag",
   "search",
   "bell",
   "user-round",

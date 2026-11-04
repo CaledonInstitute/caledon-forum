@@ -73,7 +73,7 @@ export const openapi = {
     "/profiles/{username}/posts": {
       parameters: [username],
       get: operation("List profile posts, replies or liked content", "Profiles", ref("PostPage"), {
-        parameters: [page, { name: "tab", in: "query", schema: { type: "string", enum: ["posts", "replies", "likes"], default: "posts" } }],
+        parameters: [page, { name: "tab", in: "query", schema: { type: "string", enum: ["posts", "replies", "likes", "reposts", "media"], default: "posts" } }],
       }),
     },
     "/posts": {
@@ -108,6 +108,7 @@ export const openapi = {
       parameters: [postId],
       get: operation("Read a post or reply", "Posts", ref("Post")),
       patch: operation("Edit your post or reply", "Posts", ref("Mutation"), {
+        description: "Posts and replies created before the visual-editor migration are read-only and return HTTP 409 when edited. Deletion remains available.",
         requestBody: body(
           object({
             body: {
@@ -165,6 +166,7 @@ export const openapi = {
         rootId: nullableAddress,
         parentId: nullableAddress,
         body: text,
+        editable: { ...bool, description: "False for deleted content and posts or replies created before the visual-editor migration." },
         createdAt: integer,
         updatedAt: integer,
         deleted: bool,

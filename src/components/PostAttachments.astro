@@ -6,7 +6,14 @@ const { files } = Astro.props as { files: Attachment[] };
 <div class="post-attachments">
   {files.map((file) => (
     <figure class="attachment-view">
-      {file.mime.startsWith("image/") ? (
+      {file.mime === "application/pdf" ? (
+        <div class="pdf-card">
+          <span>PDF document</span>
+          <button type="button" data-pdf={fileUrl(file.id)} data-pdf-name={file.name}>
+            Read PDF
+          </button>
+        </div>
+      ) : file.mime.startsWith("image/") ? (
         <a href={fileUrl(file.id)} target="_blank" rel="noopener" aria-label={`Open ${file.name}`}>
           <img src={fileUrl(file.id)} alt={file.name} loading="lazy" />
         </a>

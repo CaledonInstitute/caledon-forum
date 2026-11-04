@@ -82,7 +82,7 @@ const reports =
 const audit =
   page === "admin" && user?.role === "admin"
     ? await all<any>(
-        `SELECT a.*,u.username,COALESCE(target.username,author.username) AS target_username,p.id AS post_id FROM moderation_actions a JOIN user u ON u.id=a.admin_id LEFT JOIN reports r ON a.action='resolve' AND r.id=a.target_id LEFT JOIN posts p ON p.id=CASE WHEN a.action='resolve' THEN r.post_id WHEN a.action IN ('delete','lock','unlock') THEN a.target_id END LEFT JOIN user author ON author.id=p.author_id LEFT JOIN user target ON a.action IN ('suspend','restore') AND target.id=a.target_id ORDER BY a.created_at DESC LIMIT 20`
+        `SELECT a.*,u.username,COALESCE(target.username,author.username) AS target_username,p.id AS post_id FROM moderation_actions a JOIN user u ON u.id=a.admin_id LEFT JOIN reports r ON a.action='resolve' AND r.id=a.target_id LEFT JOIN posts p ON p.id=CASE WHEN a.action='resolve' THEN r.post_id WHEN a.action IN ('delete','lock','unlock','pin','unpin') THEN a.target_id END LEFT JOIN user author ON author.id=p.author_id LEFT JOIN user target ON a.action IN ('suspend','restore') AND target.id=a.target_id ORDER BY a.created_at DESC LIMIT 20`
       )
     : [];
 const reportRows = await Promise.all(reports.slice(0, PAGE_SIZE).map(async (r) => ({ ...r, url: await replyLocation(r.post_id) })));

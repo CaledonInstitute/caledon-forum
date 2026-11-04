@@ -1,3 +1,4 @@
+import { paintPostViews } from "../lib/post-view-label";
 // Detail posts are counted by the server; only cards carry data-view-post.
 const counted = new Set<string>();
 const observed = new WeakSet<HTMLElement>();
@@ -33,10 +34,7 @@ function observePosts() {
           document.querySelectorAll<HTMLElement>("[data-view-post]").forEach((card) => {
             if (card.dataset.viewPost !== id) return;
             const control = card.querySelector<HTMLElement>(".post-views");
-            const number = result.views.toLocaleString("en-US");
-            control?.setAttribute("aria-label", `${number} ${result.views === 1 ? "view" : "views"}`);
-            const label = control?.querySelector("span");
-            if (label) label.textContent = number;
+            paintPostViews(control, result.views);
           });
         } catch {
           // Analytics failures must not interrupt reading or inflate counts through retries.

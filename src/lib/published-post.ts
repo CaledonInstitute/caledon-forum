@@ -16,7 +16,7 @@ export async function showPublishedPost(url: string, parentId?: string) {
   if (parent) {
     const count = Number(parent.dataset.replies);
     document.querySelectorAll<HTMLElement>("[data-reply-count]").forEach((element) => {
-      if (element.dataset.replyCount === parent.dataset.parentId) element.textContent = String(count || "Reply");
+      if (element.dataset.replyCount === parent.dataset.parentId) element.textContent = count ? count.toLocaleString("en-US") : "";
     });
     document.querySelectorAll<HTMLElement>("[data-reply-summary]").forEach((element) => {
       if (element.dataset.replySummary === parent.dataset.parentId) element.textContent = `${count} ${count === 1 ? "reply" : "replies"}`;

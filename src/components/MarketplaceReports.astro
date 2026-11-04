@@ -1,0 +1,47 @@
+---
+import { all } from "../lib/db";
+import { pageNumber } from "../lib/content";
+import Pagination from "./Pagination.astro";
+const active = Astro.url.searchParams.get("tab") === "marketplace";
+const page = pageNumber(Astro.url);
+const reports = active
+  ? await all<{ id: string; listing_id: string; reason: string; title: string; username: string; deleted: number }>(
+      "SELECT r.*,l.title,l.deleted,u.username FROM marketplace_reports r JOIN marketplace_listings l ON l.id=r.listing_id JOIN user u ON u.id=r.reporter_id WHERE r.status='open' ORDER BY r.created_at,r.id LIMIT 21 OFFSET ?",
+      (page - 1) * 20
+    )
+  : [];
+---
+
+{active && (
+  <section>
+    <h2>Marketplace reports</h2>
+    {reports.slice(0, 20).map((report) => (
+      <article class="moderation-report" data-listing-id={report.listing_id}>
+        <p>
+          Reported by{" "}
+          <a class="text-link" href={`/${report.username}`}>
+            @{report.username}
+          </a>
+        </p>
+        <h3>{report.title}</h3>
+        <p>{report.reason}</p>
+        <a class="text-link" href={`/marketplace/${report.listing_id}`}>
+          View listing
+        </a>
+        <div class="listing-actions">
+          <button class="button secondary" data-listing-action="resolve" data-report-id={report.id}>
+            Resolve report
+          </button>
+          {!report.deleted && (
+            <button class="button secondary" data-listing-action="moderate">
+              Remove listing
+            </button>
+          )}
+        </div>
+        <p class="error" role="status" data-listing-status></p>
+      </article>
+    ))}
+    {!reports.length && <p class="muted">No marketplace reports to review.</p>}
+    <Pagination page={page} hasMore={reports.length > 20} />
+  </section>
+)}

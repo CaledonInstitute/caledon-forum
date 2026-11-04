@@ -24,6 +24,7 @@ export const GET: APIRoute = async (ctx) => {
   return Response.json(
     {
       latest: latest?.id,
+      announcement: (await one<{ post_id: string }>("SELECT post_id FROM announcement WHERE slot=1"))?.post_id || null,
       thread,
       unread: unread?.n || 0,
       items: items.map((p) => ({
@@ -40,6 +41,7 @@ export const GET: APIRoute = async (ctx) => {
         updatedAt: p.updatedAt,
         deleted: !!p.deleted,
         locked: !!p.locked,
+        pinned: !!p.pinned,
       })),
     },
     { headers: { "Cache-Control": "private, no-store" } }

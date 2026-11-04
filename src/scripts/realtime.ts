@@ -1,3 +1,4 @@
+import { paintPostViews } from "../lib/post-view-label";
 import { postTime } from "../lib/post-time";
 let socket: WebSocket | undefined;
 let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -91,6 +92,22 @@ async function refresh() {
     const response = await fetch(`/api/live/snapshot?${query}`, { cache: "no-store" });
     if (!response.ok) return;
     const result = (await response.json()) as any;
+    if (location.pathname === "/" && !new URL(location.href).searchParams.has("page")) {
+      const announcement = document.querySelector<HTMLElement>("[data-announcement]");
+      const previous = announcement?.querySelector<HTMLElement>("[data-post-id]")?.dataset.postId || null;
+      if (announcement && result.announcement !== undefined && previous !== result.announcement) {
+        const response = await fetch(location.href, { cache: "no-store" });
+        if (response.ok) {
+          const page = new DOMParser().parseFromString(await response.text(), "text/html");
+          const replacement = page.querySelector("[data-announcement]");
+          if (replacement) announcement.replaceChildren(...replacement.childNodes);
+          document.querySelectorAll<HTMLElement>("[data-post-list] [data-post-id]").forEach((card) => {
+            if (card.dataset.postId === result.announcement) card.remove();
+          });
+          newItemsButton();
+        }
+      }
+    }
     if (result.thread) {
       const state = { locked: !!result.thread.locked, deleted: !!result.thread.deleted };
       document.body.dataset.threadState = JSON.stringify(state);
@@ -135,6 +152,7 @@ async function refresh() {
           }
           card.querySelectorAll("[data-rich-quote],.link-card,.external-image-link,.read-more").forEach((node) => node.remove());
           card.querySelector(".post-tools")?.remove();
+          card.querySelector(".identity > .more")?.remove();
           continue;
         }
         if (card.dataset.updatedAt !== String(item.updatedAt)) {
@@ -154,26 +172,31 @@ async function refresh() {
           continue;
         }
         const like = card.querySelector<HTMLButtonElement>("[data-like]");
+        const pin = card.querySelector<HTMLButtonElement>("[data-pin]");
+        if (pin) {
+          pin.dataset.pinned = String(item.pinned);
+          pin.textContent = item.pinned ? "Unpin announcement" : "Pin as announcement";
+        }
         like?.setAttribute("aria-pressed", String(item.liked));
         like?.querySelector("svg")?.setAttribute("fill", item.liked ? "currentColor" : "none");
         const set = (selector: string, text: string) => {
           const e = card.querySelector(selector);
           if (e) e.textContent = text;
         };
-        set("[data-like] span", String(item.likes || "Like"));
-        set("[data-share] span", String(item.reposts || "Share"));
-        const share = card.querySelector<HTMLElement>("[data-share]");
+        set("[data-like] span", item.likes ? Number(item.likes).toLocaleString("en-US") : "");
+        set("[data-repost] span", item.reposts ? Number(item.reposts).toLocaleString("en-US") : "");
+        const share = card.querySelector<HTMLElement>("[data-repost]");
         if (share) {
           share.dataset.reposted = String(item.reposted);
+          share.setAttribute("aria-pressed", String(item.reposted));
           share.dataset.reposts = String(item.reposts);
-          share.setAttribute("aria-label", `Share post, ${item.reposts} reposts`);
+          share.setAttribute("aria-label", `Repost, ${item.reposts} reposts`);
         }
-        set("[data-reply-count]", String(item.replies || "Reply"));
+        set("[data-reply-count]", item.replies ? Number(item.replies).toLocaleString("en-US") : "");
         document.querySelectorAll<HTMLElement>("[data-reply-summary]").forEach((summary) => {
           if (summary.dataset.replySummary === item.id) summary.textContent = `${item.replies} ${item.replies === 1 ? "reply" : "replies"}`;
         });
-        set(".post-views span", Number(item.views).toLocaleString("en-US"));
-        card.querySelector(".post-views")?.setAttribute("aria-label", `${item.views} ${item.views === 1 ? "view" : "views"}`);
+        paintPostViews(card.querySelector<HTMLElement>(".post-views"), Number(item.views));
       }
     }
     if (location.pathname === "/notifications") {

@@ -29,7 +29,7 @@ test("publish stays in feed, renders an interactive card and dismisses its toast
     await expect(card.locator(".post-content")).toHaveText(text);
     await expect(page).toHaveURL(url);
     expect(navigations).toEqual([]);
-    await expect(page.getByLabel("Your post", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Your post", { exact: true })).toHaveText("");
     await expect(page.locator(".publish-toast [role=status]")).toHaveText("Post published.");
     await expect(page.locator(".publish-toast a")).toHaveAttribute("href", result.url);
     await page.screenshot({ path: "artifacts/published-post-toast.png" });
@@ -61,7 +61,7 @@ test("reply stays on its parent, appends a reply and updates both reply counts",
     await expect(page).toHaveURL(url);
     await expect(parent.locator("[data-reply-count]")).toHaveText(String(initial + 1));
     await expect(page.locator("[data-reply-summary]")).toHaveText(`${initial + 1} ${initial + 1 === 1 ? "reply" : "replies"}`);
-    await expect(page.getByLabel("Your reply", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Your reply", { exact: true })).toHaveText("");
     await expect(page.locator(".publish-toast [role=status]")).toHaveText("Reply posted.");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: "artifacts/published-reply-toast-mobile.png" });
@@ -82,7 +82,7 @@ test("a failed list refresh still confirms publication and does not invite resen
   const result = await (await published).json();
   try {
     await expect(page.locator(".publish-toast [role=status]")).toContainText("Post published. Could not update this page.");
-    await expect(page.getByLabel("Your post", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Your post", { exact: true })).toHaveText("");
     await expect(page.locator(".composer [role=alert]")).toBeEmpty();
     await expect(page).toHaveURL("/");
     await expect(page.locator(".publish-toast a")).toHaveAttribute("href", result.url);

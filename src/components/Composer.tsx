@@ -1,8 +1,8 @@
 import FileUpload from "./FileUpload";
-import { useAttachmentEditor } from "../lib/use-attachment-editor";
+import VisualEditor, { type VisualEditorHandle } from "./VisualEditor";
+import type { EditorDocument } from "../lib/editor-document";
 import type { Attachment } from "../lib/upload-policy";
 import UserAvatar from "./UserAvatar";
-import MentionEditor from "./MentionEditor";
 import PublishToast from "./PublishToast";
 import QuoteCard from "./QuoteCard";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,6 +13,7 @@ export default function Composer({
   initialAttachments = [],
   parentId,
   initial = "",
+  initialDocument,
   editId,
   name = "You",
   username,
@@ -21,6 +22,7 @@ export default function Composer({
   initialAttachments?: Attachment[];
   parentId?: string;
   initial?: string;
+  initialDocument?: EditorDocument;
   editId?: string;
   name?: string;
   username?: string | null;
@@ -28,18 +30,27 @@ export default function Composer({
 }) {
   const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
   const [uploading, setUploading] = useState(false);
-  const [body, setBody] = useState(initial),
+  const [body, setBody] = useState(() => {
+      if (typeof window !== "undefined" && !parentId && !editId) {
+        const quote = new URLSearchParams(location.search).get("quote");
+        if (quote && /^\/p\/[1-9][0-9]*$/.test(quote)) return new URL(quote, location.origin).href;
+      }
+      return initial;
+    }),
     [tab, setTab] = useState("write"),
     [html, setHtml] = useState(""),
     [links, setLinks] = useState<LinkPreview[]>([]),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
-  const editor = useRef<HTMLTextAreaElement>(null);
-  const attachmentEditor = useAttachmentEditor(body, setBody, editor);
-  useEffect(() => {
-    const quote = new URLSearchParams(location.search).get("quote");
-    if (quote && /^\/p\/[1-9][0-9]*$/.test(quote) && !parentId && !editId) setBody(new URL(quote, location.origin).href);
-  }, []);
+  const editor = useRef<VisualEditorHandle>(null);
+  const [editorDocument, setEditorDocument] = useState<EditorDocument | undefined>(initialDocument);
+  const attachmentEditor = {
+    onUploadStart: (files: { key: string; file: File }[]) => files.forEach(({ key, file }) => editor.current?.insertAttachment({ id: key, name: `Uploading ${file.name}…` })),
+    onUploadComplete: (key: string, file: Attachment) => editor.current?.replaceAttachment(key, file),
+    onUploadCancel: (key: string) => editor.current?.removeAttachment(key),
+    onInsert: (file: Attachment) => editor.current?.insertAttachment(file),
+    onRemove: (file: Attachment) => editor.current?.removeAttachment(file.id),
+  };
   const pending = useRef(false);
   const [threadState, setThreadState] = useState({ locked: false, deleted: false });
   useEffect(() => {
@@ -113,11 +124,13 @@ export default function Composer({
     setBusy(true);
     setError("");
     try {
-      const r = await request(editId ? "edit" : "publish", { body, parentId, id: editId, attachmentIds: attachments.map((a) => a.id) });
+      const r = await request(editId ? "edit" : "publish", { body, document: editorDocument, parentId, id: editId, attachmentIds: attachments.map((a) => a.id) });
       if (editId) {
         location.assign(r.url || "/");
         return;
       }
+      editor.current?.clear();
+      setEditorDocument(undefined);
       setBody("");
       setAttachments([]);
       setHtml("");
@@ -162,7 +175,17 @@ export default function Composer({
         </div>
       </div>
       {tab === "write" ? (
-        <MentionEditor editorRef={editor} value={body} onChange={setBody} disabled={busy} reply={!!parentId} />
+        <VisualEditor
+          editorRef={editor}
+          initial={body}
+          initialDocument={editorDocument}
+          onChange={(next, doc) => {
+            setBody(next);
+            setEditorDocument(doc);
+          }}
+          disabled={busy}
+          reply={!!parentId}
+        />
       ) : (
         <div className="preview">
           <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />

@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+import { imageSize } from "image-size";
 import layoutWasm from "satori/layout.wasm?module";
 import type { ReactElement } from "react";
 import type { SatoriNode } from "satori";
@@ -14,10 +16,12 @@ async function initializeLayout() {
   });
   await engine;
 }
-type CardFonts = { regular: ArrayBuffer; bold: ArrayBuffer; emoji: ArrayBuffer };
+type CardFonts = { regular: ArrayBuffer; bold: ArrayBuffer; emoji: ArrayBuffer; italic?: ArrayBuffer; boldItalic?: ArrayBuffer };
 const fontOptions = (fonts: CardFonts) => [
   { name: "Manrope", data: fonts.regular, weight: 400 as const, style: "normal" as const },
   { name: "Manrope", data: fonts.bold, weight: 700 as const, style: "normal" as const },
+  { name: "Manrope", data: fonts.italic || fonts.regular, weight: 400 as const, style: "italic" as const },
+  { name: "Manrope", data: fonts.boldItalic || fonts.bold, weight: 700 as const, style: "italic" as const },
   { name: "NotoEmoji", data: fonts.emoji, weight: 400 as const, style: "normal" as const },
 ];
 async function fitMarkdown(fonts: CardFonts, data: PostCardData, limit: number, size: number, width: number, height: number) {
@@ -56,104 +60,51 @@ async function fitMarkdown(fonts: CardFonts, data: PostCardData, limit: number, 
 export async function storySvg(fonts: CardFonts, data: PostCardData, avatar?: string, media?: string) {
   await initializeLayout();
   const formatted = await fitMarkdown(fonts, data, media ? 650 : 1400, data.text.length > 600 ? 32 : 40, 920, media ? 640 : 1140);
-  const date = postTime(data.createdAt);
+  let textHeight = 0;
+  await satori({ ...node("div", { display: "flex", width: 920, fontFamily: "Manrope, NotoEmoji" }, formatted.content), key: "story-text" } as ReactElement, {
+    width: 920,
+    fonts: fontOptions(fonts),
+    onNodeDetected: (n: SatoriNode) => {
+      if (n.key === "story-text") textHeight = Math.ceil(n.height);
+    },
+  });
+  let imageHeight = 0;
+  if (media) {
+    const size = imageSize(Buffer.from(media.split(",")[1], "base64"));
+    if (!size.width || !size.height) throw new Error("Cannot determine image dimensions.");
+    imageHeight = Math.ceil((1080 * size.height) / size.width);
+  }
+  const height = Math.max(900, 420 + textHeight + (imageHeight ? 36 + imageHeight : 0) + 260);
+  if (height > 16384) throw new Error("This image is too tall to export safely. Open the original image instead.");
   return satori(
-    node(
-      "div",
-      {
-        display: "flex",
-        flexDirection: "column",
-        width: 1080,
-        height: 1920,
-        position: "relative",
-        background: "#ffffff",
-        color: "#000000",
-        fontFamily: "Manrope, NotoEmoji",
-      },
-      [
-        node("div", { display: "flex", color: "#1d70e8", fontSize: 32, fontWeight: 700, position: "absolute", top: 120, left: 80, width: 920, height: 50 }, "Caledon Forum"),
-        node("div", { display: "flex", alignItems: "center", position: "absolute", top: 280, left: 80, width: 920, height: 100 }, [
+    node("div", { display: "flex", flexDirection: "column", width: 1080, height, background: "#ffffff", color: "#000000", fontFamily: "Manrope, NotoEmoji" }, [
+      node("div", { display: "flex", flexDirection: "column", padding: "72px 80px 0", width: 920 }, [
+        node("div", { display: "flex", fontSize: 28, color: "#1d70e8", fontWeight: 700, marginBottom: 56 }, "Caledon Forum"),
+        node("div", { display: "flex", alignItems: "center", marginBottom: 32 }, [
           avatar
-            ? node("img", { width: 88, height: 88, borderRadius: 44, objectFit: "cover", flexShrink: 0 }, undefined, { src: avatar })
+            ? node("img", { width: 80, height: 80, borderRadius: 40, objectFit: "cover" }, undefined, { src: avatar })
             : node(
                 "div",
-                { display: "flex", width: 88, height: 88, borderRadius: 44, background: "#f7f7f7", fontSize: 36, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-                Array.from(data.name.trim())[0] || "?"
+                { display: "flex", width: 80, height: 80, borderRadius: 40, background: "#f7f7f7", alignItems: "center", justifyContent: "center", fontSize: 32 },
+                Array.from(data.name)[0] || "?"
               ),
-          node("div", { display: "flex", flexDirection: "column", marginLeft: 24, width: 808, flexShrink: 1 }, [
-            node("div", { display: "flex", alignItems: "center", fontSize: 36, fontWeight: 700 }, [
-              node(
-                "div",
-                { display: "flex", maxWidth: data.member ? 740 : 808, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" },
-                truncateCardText(data.name, 36)
-              ),
-              data.member
-                ? node(
-                    "svg",
-                    { width: 32, height: 32, marginLeft: 12, flexShrink: 0 },
-                    [
-                      node("circle", {}, undefined, { cx: 12, cy: 12, r: 12, fill: "#1D70E8" }),
-                      node("path", {}, undefined, { d: "M7 12l3 3 7-7", fill: "none", stroke: "#FFFFFF", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }),
-                    ],
-                    { viewBox: "0 0 24 24" }
-                  )
-                : null,
-            ]),
-            node("div", { display: "flex", fontSize: 26, color: "#595959", marginTop: 6 }, data.username ? `@${data.username}` : "Deleted account"),
+          node("div", { display: "flex", flexDirection: "column", marginLeft: 24, width: 816 }, [
+            node("div", { display: "flex", fontSize: 36, fontWeight: 700 }, truncateCardText(data.name, 40)),
+            node("div", { display: "flex", fontSize: 26, color: "#595959" }, data.username ? "@" + data.username : "Deleted account"),
           ]),
         ]),
-        data.parent ? node("div", { display: "flex", fontSize: 26, color: "#595959", position: "absolute", top: 400, left: 80, width: 920 }, `Replying to @${data.parent}`) : null,
-        node("div", { display: "flex", flexDirection: "column", position: "absolute", top: data.parent ? 464 : 420, left: 80, width: 920, height: 1160, overflow: "hidden" }, [
-          node(
-            "div",
-            {
-              display: "flex",
-              flexDirection: "column",
-              fontSize: data.text.length > 600 ? 32 : 40,
-              lineHeight: 1.45,
-              width: 920,
-              maxHeight: media ? 640 : 1140,
-              flexShrink: 0,
-              overflow: "hidden",
-              wordBreak: "break-word",
-            },
-            formatted.hasContent ? formatted.content : media ? "" : "View this post on Caledon Forum."
-          ),
-          media ? node("img", { width: 920, height: 480, objectFit: "contain", marginTop: 36, flexShrink: 0 }, undefined, { src: media }) : null,
-        ]),
-        node(
-          "div",
-          {
-            display: "flex",
-            flexDirection: "column",
-            position: "absolute",
-            top: 1680,
-            left: 80,
-            width: 920,
-            borderTop: "2px solid #e5e5e5",
-            paddingTop: 28,
-            color: "#595959",
-            fontSize: 24,
-            flexShrink: 0,
-          },
-          [
-            node("div", { display: "flex", marginBottom: 12 }, date),
-            node("div", { display: "flex", color: "#1d70e8" }, `${data.host}/p/${data.id}`),
-            data.member ? node("div", { display: "flex", marginTop: 12 }, "Member of Caledon Institute") : null,
-            formatted.truncated ? node("div", { display: "flex", marginTop: 12 }, "Continue reading on Caledon Forum") : null,
-          ]
-        ),
-      ]
-    ) as ReactElement,
-    {
-      width: 1080,
-      height: 1920,
-      fonts: [
-        { name: "Manrope", data: fonts.regular, weight: 400, style: "normal" },
-        { name: "Manrope", data: fonts.bold, weight: 700, style: "normal" },
-        { name: "NotoEmoji", data: fonts.emoji, weight: 400, style: "normal" },
-      ],
-    }
+        data.parent ? node("div", { display: "flex", fontSize: 24, color: "#595959", marginBottom: 20 }, `Replying to @${data.parent}`) : null,
+        node("div", { display: "flex", width: 920 }, formatted.content),
+      ]),
+      media ? node("img", { width: 1080, height: imageHeight, objectFit: "contain", marginTop: 36, flexShrink: 0 }, undefined, { src: media }) : null,
+      node("div", { display: "flex", flexDirection: "column", margin: "40px 80px 0", paddingTop: 24, borderTop: "2px solid #e5e5e5", fontSize: 24, color: "#595959" }, [
+        node("div", { display: "flex" }, postTime(data.createdAt)),
+        node("div", { display: "flex", marginTop: 12, color: "#1d70e8" }, `${data.host}/p/${data.id}`),
+        data.member ? node("div", { display: "flex", marginTop: 12 }, "Member of Caledon Institute") : null,
+        formatted.truncated ? node("div", { display: "flex", marginTop: 12 }, "Continue reading on Caledon Forum") : null,
+      ]),
+    ]) as ReactElement,
+    { width: 1080, height, fonts: fontOptions(fonts) }
   );
 }
 export async function socialSvg(fonts: CardFonts, data: PostCardData, avatar?: string, media?: string) {
@@ -209,7 +160,7 @@ export async function socialSvg(fonts: CardFonts, data: PostCardData, avatar?: s
             { display: "flex", flexDirection: "column", width: media ? 652 : 1104, fontSize: 32, lineHeight: 1.4, overflow: "hidden" },
             formatted.hasContent ? formatted.content : media ? "" : "View this post on Caledon Forum."
           ),
-          media ? node("img", { width: 420, height: 330, borderRadius: 12, objectFit: "cover", objectPosition: "center", flexShrink: 0 }, undefined, { src: media }) : null,
+          media ? node("img", { width: 420, height: 330, borderRadius: 12, objectFit: "contain", objectPosition: "center", flexShrink: 0 }, undefined, { src: media }) : null,
         ]),
         node(
           "div",
@@ -235,6 +186,8 @@ export async function socialSvg(fonts: CardFonts, data: PostCardData, avatar?: s
       fonts: [
         { name: "Manrope", data: fonts.regular, weight: 400, style: "normal" },
         { name: "Manrope", data: fonts.bold, weight: 700, style: "normal" },
+        { name: "Manrope", data: fonts.italic || fonts.regular, weight: 400, style: "italic" },
+        { name: "Manrope", data: fonts.boldItalic || fonts.bold, weight: 700, style: "italic" },
         { name: "NotoEmoji", data: fonts.emoji, weight: 400, style: "normal" },
       ],
     }
@@ -322,6 +275,8 @@ export async function profileSocialSvg(fonts: CardFonts, data: ProfileCardData, 
       fonts: [
         { name: "Manrope", data: fonts.regular, weight: 400, style: "normal" },
         { name: "Manrope", data: fonts.bold, weight: 700, style: "normal" },
+        { name: "Manrope", data: fonts.italic || fonts.regular, weight: 400, style: "italic" },
+        { name: "Manrope", data: fonts.boldItalic || fonts.bold, weight: 700, style: "italic" },
         { name: "NotoEmoji", data: fonts.emoji, weight: 400, style: "normal" },
       ],
     }

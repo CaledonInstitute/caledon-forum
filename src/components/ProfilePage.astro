@@ -7,7 +7,7 @@ import Post from "./Post.astro";
 import Pagination from "./Pagination.astro";
 import Icon from "./Icon.astro";
 import ComposeGate from "./ComposeGate.astro";
-import { profilePosts } from "../lib/db";
+import { profilePosts, profileCounts, type ProfileTab } from "../lib/db";
 import { PAGE_SIZE, pageNumber } from "../lib/content";
 import type { PublicProfile } from "../lib/types";
 import { preparePostContent } from "../lib/post-content";
@@ -20,7 +20,8 @@ interface Props {
 const { person } = Astro.props;
 const socialImage = person ? new URL((await profileCardKey(profileCardData(person, env.SITE_URL), env.SITE_URL)).url) : undefined;
 const requestedTab = Astro.url.searchParams.get("tab");
-const tab = requestedTab === "replies" || requestedTab === "likes" ? requestedTab : "posts";
+const tab: ProfileTab = ["replies", "likes", "reposts", "media"].includes(requestedTab || "") ? (requestedTab as ProfileTab) : "posts";
+const counts = person ? await profileCounts(person.id) : null;
 const page = pageNumber(Astro.url);
 const items = person ? await profilePosts(person.id, tab, Astro.locals.user?.id, page) : [];
 const prepared = await preparePostContent(items.slice(0, PAGE_SIZE));
@@ -107,19 +108,15 @@ const schema = person
         )}
         <p class="muted small">Joined {postTime(person.created_at)}</p>
       </header>
-      <nav class="tabs" aria-label="Profile activity">
-        <a href={`/${person.username}`} class:list={{ active: tab === "posts" }}>
-          Posts
-        </a>
-        <a href={`/${person.username}?tab=replies`} class:list={{ active: tab === "replies" }}>
-          Replies
-        </a>
-        <a href={`/${person.username}?tab=likes`} class:list={{ active: tab === "likes" }}>
-          Likes
-        </a>
+      <nav class="tabs profile-tabs" aria-label="Profile activity" data-profile-user={person.username}>
+        {(["posts", "replies", "reposts", "likes", "media"] as const).map((name) => (
+          <a href={`/${person.username}${name === "posts" ? "" : `?tab=${name}`}`} class:list={{ active: tab === name }} aria-current={tab === name ? "page" : undefined}>
+            {name[0].toUpperCase() + name.slice(1)} <span data-profile-count={name}>{counts?.[name] || 0}</span>
+          </a>
+        ))}
       </nav>
       {person.id === Astro.locals.user?.id && tab === "posts" && page === 1 && <ComposeGate />}
-      <section data-post-list aria-label="Posts">
+      <section data-post-list data-own-reposts={tab === "reposts" && person.id === Astro.locals.user?.id ? "true" : undefined} aria-label={tab}>
         {items.length ? (
           items.slice(0, PAGE_SIZE).map((post) => <Post post={post} prepared={prepared.get(post.id)} />)
         ) : (

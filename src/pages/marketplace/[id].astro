@@ -1,0 +1,98 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import ListingForm from "../../components/ListingForm";
+import { getListing, formatPrice } from "../../lib/marketplace";
+import { fileUrl } from "../../lib/upload-policy";
+const listing = await getListing(Astro.params.id || "");
+if (!listing) Astro.response.status = 404;
+const owner = listing?.seller_id === Astro.locals.user?.id;
+const editing = Astro.url.searchParams.get("edit") === "1";
+if (editing && !owner) Astro.response.status = 403;
+---
+
+<Layout title={listing?.title || "Listing unavailable"} noindex={editing || !listing}>
+  <div class="listing-detail">
+    <a href="/marketplace" class="text-link">
+      Marketplace
+    </a>
+    {!listing ? (
+      <section class="empty">
+        <h1>Listing unavailable.</h1>
+        <p>It may have been removed.</p>
+      </section>
+    ) : editing ? (
+      owner ? (
+        <>
+          <h1>Edit listing</h1>
+          <ListingForm client:load listing={listing} />
+        </>
+      ) : (
+        <p>You cannot edit this listing.</p>
+      )
+    ) : (
+      <>
+        <div class="listing-gallery">
+          {listing.photos.map((photo) => (
+            <a href={fileUrl(photo.id)} target="_blank" rel="noopener">
+              <img src={fileUrl(photo.id)} alt={photo.name} />
+            </a>
+          ))}
+        </div>
+        <p class="listing-price">
+          {formatPrice(listing.price)}
+          {!!listing.negotiable && <small>Negotiable</small>}
+        </p>
+        <h1>{listing.title}</h1>
+        <p class="muted">
+          {listing.kind === "service" ? "Service" : listing.condition === "new" ? "New item" : "Used item"}
+          {listing.location && ` · ${listing.location}`}
+        </p>
+        <p class="listing-description">{listing.description}</p>
+        <p>
+          Offered by{" "}
+          <a class="text-link" href={`/${listing.username}`}>
+            @{listing.username}
+          </a>
+        </p>
+        <div class="listing-actions" data-listing-id={listing.id}>
+          {listing.status === "closed" ? (
+            <strong>This listing is closed.</strong>
+          ) : (
+            !owner &&
+            (listing.dmEnabled ? (
+              <a class="button" href={!Astro.locals.user ? "/login" : `/dm?to=${encodeURIComponent(listing.username)}&listing=${listing.id}`}>
+                Contact seller
+              </a>
+            ) : (
+              <p class="muted">The seller cannot receive DM right now.</p>
+            ))
+          )}
+          {owner && (
+            <>
+              <a class="button secondary" href={`?edit=1`}>
+                Edit listing
+              </a>
+              <button class="button secondary" data-listing-action="close" data-status={listing.status === "active" ? "closed" : "active"}>
+                {listing.status === "active" ? "Close listing" : "Reopen listing"}
+              </button>
+              <button class="text-button" data-listing-action="delete">
+                Delete listing
+              </button>
+            </>
+          )}
+          {Astro.locals.user && !owner && (
+            <button class="text-button" data-listing-action="report">
+              Report listing
+            </button>
+          )}
+          {Astro.locals.user?.role === "admin" && (
+            <button class="text-button" data-listing-action="moderate">
+              Remove as admin
+            </button>
+          )}
+          <p role="status" class="error" data-listing-status></p>
+        </div>
+      </>
+    )}
+  </div>
+</Layout>

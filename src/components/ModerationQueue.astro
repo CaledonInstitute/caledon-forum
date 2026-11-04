@@ -1,4 +1,5 @@
 ---
+import MarketplaceReports from "./MarketplaceReports.astro";
 import { postTime } from "../lib/post-time";
 import Pagination from "./Pagination.astro";
 import { excerpt } from "../lib/content";
@@ -34,6 +35,7 @@ interface Props {
   hasMore: boolean;
 }
 const { reports, audit, page, hasMore } = Astro.props;
+const history = Astro.url.searchParams.get("tab") === "history";
 const date = postTime;
 const preview = (body: string) =>
   excerpt(
@@ -47,6 +49,8 @@ const preview = (body: string) =>
     280
   );
 const actions: Record<string, string> = {
+  pin: "Pinned an announcement",
+  unpin: "Unpinned an announcement",
   resolve: "Resolved a report",
   delete: "Removed a post",
   lock: "Locked a thread",
@@ -56,7 +60,19 @@ const actions: Record<string, string> = {
 };
 ---
 
-<section aria-labelledby="reports-title">
+<nav class="admin-tabs" aria-label="Administration">
+  <a href="/admin" aria-current={!history && Astro.url.searchParams.get("tab") !== "marketplace" ? "page" : undefined}>
+    Reports
+  </a>
+  <a href="/admin?tab=history" aria-current={history ? "page" : undefined}>
+    History
+  </a>
+  <a href="/admin?tab=marketplace" aria-current={Astro.url.searchParams.get("tab") === "marketplace" ? "page" : undefined}>
+    Marketplace
+  </a>
+</nav>
+<MarketplaceReports />
+<section hidden={history || Astro.url.searchParams.get("tab") === "marketplace"} aria-labelledby="reports-title">
   <header class="moderation-heading">
     <div>
       <h2 id="reports-title">Open reports</h2>
@@ -144,7 +160,7 @@ const actions: Record<string, string> = {
   )}
   <Pagination page={page} hasMore={hasMore} />
 </section>
-<section class="moderation-history" aria-labelledby="history-title">
+<section hidden={!history} class="moderation-history" aria-labelledby="history-title">
   <header class="moderation-heading">
     <div>
       <h2 id="history-title">Recent moderation</h2>

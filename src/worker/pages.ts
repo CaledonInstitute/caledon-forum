@@ -3,6 +3,7 @@ import { handle } from "@astrojs/cloudflare/handler";
 import { authReady, createAuth } from "../lib/auth";
 import { dispatchPush } from "../lib/push";
 import { cleanupUploads } from "../lib/uploads";
+import { migrateEditorBatch } from "../lib/migrate-editor";
 import { cleanupAccounts } from "../lib/account-deletion";
 /** The browser renders rich content. This guards remaining Astro/API CPU on Free. */
 export class ForumPages extends DurableObject<Cloudflare.Env> {
@@ -26,6 +27,7 @@ export class ForumPages extends DurableObject<Cloudflare.Env> {
         this.env.DB.prepare("DELETE FROM push_daily WHERE day<?").bind(new Date(now - 2 * 86400000).toISOString().slice(0, 10)),
         this.env.DB.prepare("UPDATE push_deliveries SET state='pending',queued_at=NULL WHERE state='sending' AND queued_at<?").bind(now - 600000),
       ]);
+      await migrateEditorBatch();
       await cleanupAccounts();
       await cleanupUploads();
       await dispatchPush();

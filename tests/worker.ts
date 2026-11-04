@@ -10,6 +10,8 @@ import viewsSql from "../migrations/0008_post_views.sql";
 import mentionsSql from "../migrations/0009_mentions.sql";
 import uploadsSql from "../migrations/0015_uploads_account_deletion.sql";
 import messagingSql from "../migrations/0013_messages_reposts_activity.sql";
+import communitySql from "../migrations/0017_forum_update.sql";
+import marketplaceGuardsSql from "../migrations/0018_marketplace_photo_guards.sql";
 import { createIdentity, wrapPrivate, unlockPrivate } from "../src/lib/dm-crypto";
 import { dmAction } from "../src/lib/dm-service";
 import { markdown } from "../src/lib/markdown";
@@ -98,8 +100,25 @@ export default {
       if (!notificationTable?.sql.includes("'mention'")) await env.DB.exec(mentionsSql.replace(/\s+/g, " ").trim());
       if (!columns.results.some((c) => c.name === "show_activity")) await env.DB.exec(messagingSql.replace(/\s+/g, " ").trim());
       if (!columns.results.some((c) => c.name === "deleting_at")) await env.DB.exec(uploadsSql.replace(/\s+/g, " ").trim());
+      if (!postColumns.results.some((c) => c.name === "editor_doc"))
+        await env.DB.exec(
+          communitySql
+            .replace(/^--.*$/gm, "")
+            .replace(/\s+/g, " ")
+            .trim()
+        );
+      await env.DB.exec(
+        marketplaceGuardsSql
+          .replace(/^--.*$/gm, "")
+          .replace(/\s+/g, " ")
+          .trim()
+      );
       await env.DB.batch(
         [
+          "announcement",
+          "marketplace_reports",
+          "marketplace_photos",
+          "marketplace_listings",
           "dm_reads",
           "dm_messages",
           "dm_conversations",

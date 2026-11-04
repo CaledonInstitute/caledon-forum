@@ -1,0 +1,32 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PageHeader from "../../components/PageHeader.astro";
+import ListingForm from "../../components/ListingForm";
+import { one } from "../../lib/db";
+const user = Astro.locals.user;
+if (!user) return Astro.redirect("/login");
+const ready = !user.suspended && user.emailVerified && !!user.username;
+const dm = ready && (await one("SELECT 1 FROM dm_vaults WHERE user_id=? AND invalidated=0", user.id));
+---
+
+<Layout title="Create listing" noindex>
+  <PageHeader title="Create listing" subtitle="Offer goods or services to the community" />
+  {!ready ? (
+    <section class="empty">
+      <h2>Your account cannot publish yet.</h2>
+      <a href="/settings" class="text-link">
+        Check your account settings
+      </a>
+    </section>
+  ) : !dm ? (
+    <section class="empty">
+      <h2>Enable DM to receive enquiries.</h2>
+      <p>Set up Messages, then return here to publish your listing.</p>
+      <a class="button" href="/dm">
+        Set up Messages
+      </a>
+    </section>
+  ) : (
+    <ListingForm client:load />
+  )}
+</Layout>

@@ -6,13 +6,15 @@ import regular from "@fontsource/manrope/files/manrope-latin-400-normal.woff?inl
 import bold from "@fontsource/manrope/files/manrope-latin-700-normal.woff?inline";
 import { socialSvg, profileSocialSvg, storySvg } from "./og";
 import { cardImage, type PostCardData, type ProfileCardData } from "./og-card";
+import italic from "@fontsource/noto-sans/files/noto-sans-latin-400-italic.woff?inline";
+import boldItalic from "@fontsource/noto-sans/files/noto-sans-latin-700-italic.woff?inline";
 let ready: Promise<void> | undefined;
 const decode = (value: string) => Uint8Array.from(Buffer.from(value.split(",")[1], "base64")).buffer;
-let fonts: Promise<{ regular: ArrayBuffer; bold: ArrayBuffer; emoji: ArrayBuffer }> | undefined;
+let fonts: Promise<{ regular: ArrayBuffer; bold: ArrayBuffer; emoji: ArrayBuffer; italic: ArrayBuffer; boldItalic: ArrayBuffer }> | undefined;
 async function loadFonts() {
   const asset = await env.ASSETS.fetch(new URL("/fonts/noto-emoji.woff", env.SITE_URL));
   if (!asset.ok) throw new Error("Bundled emoji font unavailable");
-  return { regular: decode(regular), bold: decode(bold), emoji: await asset.arrayBuffer() };
+  return { italic: decode(italic), boldItalic: decode(boldItalic), regular: decode(regular), bold: decode(bold), emoji: await asset.arrayBuffer() };
 }
 async function prepareRenderer() {
   ready ||= initWasm(wasm).catch((error) => {
@@ -34,7 +36,7 @@ export async function renderPostCard(data: PostCardData, story = false) {
   try {
     return rasterize(await render(loadedFonts, data, avatar, media));
   } catch (error) {
-    if (!avatar && !media) throw error;
+    if (story || (!avatar && !media)) throw error;
     return rasterize(await render(loadedFonts, data));
   }
 }

@@ -1,5 +1,6 @@
 export const RESERVED_USERNAMES = new Set([
   "dm",
+  "marketplace",
   "login",
   "register",
   "verify",

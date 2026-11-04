@@ -1,4 +1,4 @@
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile, readdir } from "node:fs/promises";
 // Satori 0.63.2 bundles HarfBuzz's browser bootstrap. Adapt its documented
 // instantiateWasm hook to a statically compiled Worker module (no runtime eval).
 const source = await readFile("node_modules/satori/dist/standalone.js", "utf8");
@@ -33,3 +33,11 @@ console.log("Prepared Satori for statically compiled Worker WASM.");
 await mkdir("public/fonts", { recursive: true });
 await writeChanged("public/fonts/noto-emoji.woff", await readFile("node_modules/@fontsource/noto-emoji/files/noto-emoji-emoji-400-normal.woff"));
 await writeChanged("public/fonts/noto-emoji-LICENSE.txt", await readFile("node_modules/@fontsource/noto-emoji/LICENSE"));
+// PDF.js resolves these by filename; bundle same-origin assets for on-demand use.
+for (const directory of ["cmaps", "standard_fonts", "wasm", "iccs"]) {
+  await mkdir(`public/pdfjs/${directory}`, { recursive: true });
+  for (const file of await readdir(`node_modules/pdfjs-dist/${directory}`, { withFileTypes: true })) {
+    if (file.isFile()) await writeChanged(`public/pdfjs/${directory}/${file.name}`, await readFile(`node_modules/pdfjs-dist/${directory}/${file.name}`));
+  }
+}
+await writeChanged("public/pdfjs/LICENSE", await readFile("node_modules/pdfjs-dist/LICENSE"));

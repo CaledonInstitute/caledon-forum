@@ -18,7 +18,7 @@ export const GET: APIRoute = async (ctx) => {
       headers: {
         "Content-Type": "image/png",
         "Cache-Control": "private, no-store",
-        "Content-Disposition": `inline; filename="caledon-${p.publicId}-1080x1920.png"`,
+        "Content-Disposition": `inline; filename="caledon-${p.publicId}-1080.png"`,
         "X-Content-Type-Options": "nosniff",
       },
     });

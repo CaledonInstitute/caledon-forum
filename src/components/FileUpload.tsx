@@ -9,6 +9,7 @@ export default function FileUpload({
   onChange,
   onBusy,
   disabled = false,
+  imagesOnly = false,
   conversationId,
   onUploadStart,
   onUploadComplete,
@@ -21,6 +22,7 @@ export default function FileUpload({
   onChange: (files: (Attachment | PrivateAttachment)[]) => void;
   onBusy?: (busy: boolean) => void;
   disabled?: boolean;
+  imagesOnly?: boolean;
   conversationId?: string;
   onUploadStart?: (files: { key: string; file: File }[]) => void;
   onUploadComplete?: (key: string, file: Attachment | PrivateAttachment) => void;
@@ -103,7 +105,10 @@ export default function FileUpload({
     try {
       if (!single && value.length + items.length + chosen.length > MAX_FILES) throw new Error("Attach up to four files.");
       if (!single && [...value, ...items.map((i) => i.file), ...chosen].reduce((n, f) => n + f.size, 0) > MAX_TOTAL) throw new Error("Keep attachments within 100 MB in total.");
-      for (const file of chosen) filePolicy(file.name, file.size, purpose);
+      for (const file of chosen) {
+        const mime = filePolicy(file.name, file.size, purpose);
+        if (imagesOnly && !mime.startsWith("image/")) throw new Error("Choose JPEG, PNG, GIF, or WebP photos.");
+      }
     } catch (e) {
       setError((e as Error).message);
       return;
@@ -187,7 +192,7 @@ export default function FileUpload({
         tabIndex={-1}
         aria-label={single ? "Choose image" : "Choose attachments"}
         multiple={!single}
-        accept={single ? ".jpg,.jpeg,.png,.gif,.webp" : ".jpg,.jpeg,.png,.gif,.webp,.pdf,.zip,.txt,.mp4,.webm,.mp3,.m4a,.ogg,.wav"}
+        accept={single || imagesOnly ? ".jpg,.jpeg,.png,.gif,.webp" : ".jpg,.jpeg,.png,.gif,.webp,.pdf,.zip,.txt,.mp4,.webm,.mp3,.m4a,.ogg,.wav"}
         onChange={(e) => {
           choose(Array.from(e.target.files || []));
           e.target.value = "";

@@ -29,7 +29,8 @@ const origin = new URL(env.SITE_URL).origin;
 const canonical = new URL(Astro.url.pathname, origin);
 const currentPage = Math.min(100000, Math.max(1, Math.floor(Number(Astro.url.searchParams.get("page"))) || 1));
 if (currentPage > 1) canonical.searchParams.set("page", String(currentPage));
-if (Astro.props.profile && ["replies", "likes"].includes(Astro.url.searchParams.get("tab") || "")) canonical.searchParams.set("tab", Astro.url.searchParams.get("tab")!);
+if (Astro.props.profile && ["replies", "likes", "reposts", "media"].includes(Astro.url.searchParams.get("tab") || ""))
+  canonical.searchParams.set("tab", Astro.url.searchParams.get("tab")!);
 const path = Astro.url.pathname;
 const lastUpdated = __SITE_LAST_UPDATED__;
 const commitHash = __SITE_COMMIT_HASH__;
@@ -40,6 +41,7 @@ const analyticsAllowed =
 const nav = [
   { label: "Home", href: "/", icon: "home" },
   { label: "DM", href: "/dm", icon: "message-circle" },
+  { label: "Marketplace", href: "/marketplace", icon: "shopping-bag" },
   { label: "Search", href: "/search", icon: "search" },
   { label: "Notifications", href: "/notifications", icon: "bell" },
   { label: "Profile", href: viewer?.username ? `/${viewer.username}` : "/login", icon: "user-round" },

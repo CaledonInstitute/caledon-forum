@@ -35,6 +35,8 @@ export async function validateAttachments(owner: string, ids: string[], purpose:
     purpose === "post"
       ? await one("SELECT 1 FROM post_attachments WHERE asset_id IN (SELECT value FROM json_each(?)) AND post_id<>?", JSON.stringify(ids), target || "")
       : await one("SELECT 1 FROM dm_attachments WHERE asset_id IN (SELECT value FROM json_each(?))", JSON.stringify(ids));
+  if (purpose === "post" && (await one("SELECT 1 FROM marketplace_photos WHERE asset_id IN (SELECT value FROM json_each(?))", JSON.stringify(ids))))
+    throw new Error("A photo is already used in a marketplace listing.");
   if (used) throw new Error("An attachment is already used in another message or post.");
   return ids.map((id) => assets.find((a) => a.id === id)!);
 }
@@ -52,7 +54,8 @@ export const postAttachments = (id: string) =>
 export async function referenced(a: Asset) {
   if (a.purpose === "dm") return !!(await one("SELECT 1 FROM dm_attachments WHERE asset_id=?", a.id));
   return !!(await one(
-    "SELECT 1 FROM post_attachments a JOIN posts p ON p.id=a.post_id WHERE a.asset_id=? AND p.deleted=0 UNION ALL SELECT 1 FROM user WHERE image=? OR cover_image=? LIMIT 1",
+    "SELECT 1 FROM post_attachments a JOIN posts p ON p.id=a.post_id WHERE a.asset_id=? AND p.deleted=0 UNION ALL SELECT 1 FROM marketplace_photos mp JOIN marketplace_listings ml ON ml.id=mp.listing_id WHERE mp.asset_id=? AND ml.deleted=0 UNION ALL SELECT 1 FROM user WHERE image=? OR cover_image=? LIMIT 1",
+    a.id,
     a.id,
     new URL(fileUrl(a.id), env.SITE_URL).href,
     new URL(fileUrl(a.id), env.SITE_URL).href
@@ -62,7 +65,7 @@ export async function collectUnused(ids: string[]) {
   const prefix = new URL("/api/files/", env.SITE_URL).href;
   for (const id of ids)
     await run(
-      "UPDATE uploads SET state='deleting' WHERE id=? AND lock_until<? AND NOT EXISTS(SELECT 1 FROM post_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM dm_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM user WHERE image=?||uploads.id OR cover_image=?||uploads.id)",
+      "UPDATE uploads SET state='deleting' WHERE id=? AND lock_until<? AND NOT EXISTS(SELECT 1 FROM post_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM dm_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM marketplace_photos WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM user WHERE image=?||uploads.id OR cover_image=?||uploads.id)",
       id,
       Date.now(),
       prefix,
@@ -139,7 +142,7 @@ export async function uploadApi(request: Request, userId: string | undefined, ta
     if (await referenced(asset)) throw new Error("Remove this file from its post or profile first.");
     const prefix = new URL("/api/files/", env.SITE_URL).href;
     await run(
-      "UPDATE uploads SET state='deleting' WHERE id=? AND NOT EXISTS(SELECT 1 FROM post_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM dm_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM user WHERE image=?||uploads.id OR cover_image=?||uploads.id)",
+      "UPDATE uploads SET state='deleting' WHERE id=? AND NOT EXISTS(SELECT 1 FROM post_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM dm_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM marketplace_photos WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM user WHERE image=?||uploads.id OR cover_image=?||uploads.id)",
       id,
       prefix,
       prefix
@@ -219,7 +222,7 @@ export async function uploadApi(request: Request, userId: string | undefined, ta
 export async function cleanupUploads() {
   if (!storageReady()) return;
   await run(
-    "UPDATE uploads SET state='deleting' WHERE state IN ('pending','busy','ready') AND expires_at<? AND lock_until<? AND NOT EXISTS(SELECT 1 FROM post_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM dm_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM user WHERE image=?||uploads.id OR cover_image=?||uploads.id)",
+    "UPDATE uploads SET state='deleting' WHERE state IN ('pending','busy','ready') AND expires_at<? AND lock_until<? AND NOT EXISTS(SELECT 1 FROM post_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM dm_attachments WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM marketplace_photos WHERE asset_id=uploads.id) AND NOT EXISTS(SELECT 1 FROM user WHERE image=?||uploads.id OR cover_image=?||uploads.id)",
     Date.now(),
     Date.now(),
     new URL("/api/files/", env.SITE_URL).href,
@@ -285,7 +288,11 @@ export async function serveFile(request: Request, id: string, waitUntil: (p: Pro
       "X-Robots-Tag": "noindex",
       "Referrer-Policy": "no-referrer",
     });
-  const inline = a.mime.startsWith("image/") || a.mime.startsWith("video/") || a.mime.startsWith("audio/");
+  const inline =
+    (a.mime === "application/pdf" && new URL(request.url).searchParams.get("inline") === "1") ||
+    a.mime.startsWith("image/") ||
+    a.mime.startsWith("video/") ||
+    a.mime.startsWith("audio/");
   headers.set(
     "Content-Disposition",
     `${inline ? "inline" : "attachment"}; filename="download"; filename*=UTF-8''${encodeURIComponent(a.name.toWellFormed()).replaceAll("'", "%27")}`

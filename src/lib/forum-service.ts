@@ -1,3 +1,4 @@
+import { validateDocument, documentBody, importApiDocument } from "./editor-document";
 import { activeAccount, validateAttachments, postAttachmentStatements, postAttachments, collectUnused, getAsset } from "./uploads";
 import { attachmentList } from "./upload-policy";
 import { env } from "cloudflare:workers";
@@ -28,7 +29,7 @@ function mentionNotifications(body: string, postId: string, actorId: string, now
 export async function forumAction(user: Viewer, action: string, data: any): Promise<Response> {
   if (!(await activeAccount(user.id))) return Response.json({ error: "This account is unavailable." }, { status: 403 });
   const response = await forumActionImpl(user, action, data);
-  if (response.ok && ["publish", "edit", "delete", "like", "read", "moderate", "profile", "repost", "activity"].includes(action)) {
+  if (response.ok && ["publish", "edit", "delete", "like", "read", "moderate", "profile", "repost", "activity", "pin"].includes(action)) {
     await signalChange();
   }
   return response;
@@ -142,6 +143,8 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
     return Response.json({ html: await markdown(body, links, quote?.sourceUrl), links, quote });
   }
   if (action === "publish") {
+    const document = data.document === undefined ? importApiDocument(data.body || "") : validateDocument(data.document);
+    if (data.document !== undefined) data = { ...data, body: documentBody(document!) };
     const attachmentIds = attachmentList(data.attachmentIds);
     await validateAttachments(user.id, attachmentIds, "post");
     const body = attachmentIds.length && (data.body === undefined || (typeof data.body === "string" && !data.body.trim())) ? "" : validateBody(data.body);
@@ -165,6 +168,9 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
           .bind(postId, user.id, body, now, now, user.id);
     const statements = [
       statement,
+      db()
+        .prepare("UPDATE posts SET editor_doc=? WHERE id=?")
+        .bind(document ? JSON.stringify(document) : null, postId),
       ...postAttachmentStatements(postId, attachmentIds),
       ...links.map((p, i) =>
         db().prepare("INSERT OR IGNORE INTO post_links(post_id,preview_id,position) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM posts WHERE id=?)").bind(postId, p.id, i, postId)
@@ -183,16 +189,19 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
   }
   if (action === "edit" || action === "delete") {
     const postId = id.parse(data.id);
-    const own = await one<{ deleted: number }>("SELECT deleted FROM posts WHERE id=? AND author_id=?", postId, user.id);
+    const own = await one<{ deleted: number; legacy_readonly: number }>("SELECT deleted,legacy_readonly FROM posts WHERE id=? AND author_id=?", postId, user.id);
     if (!own || own.deleted) return Response.json({ error: "You cannot change this post." }, { status: 403 });
+    if (action === "edit" && own.legacy_readonly) return Response.json({ error: "Legacy posts cannot be edited." }, { status: 409 });
     const previousAttachments = await postAttachments(postId);
     if (action === "delete") {
       await db().batch([
-        db().prepare("UPDATE posts SET body='',deleted=1,updated_at=? WHERE id=? AND author_id=?").bind(Date.now(), postId, user.id),
+        db().prepare("UPDATE posts SET body='',editor_doc=NULL,original_body=NULL,deleted=1,updated_at=? WHERE id=? AND author_id=?").bind(Date.now(), postId, user.id),
         db().prepare("DELETE FROM post_links WHERE post_id=?").bind(postId),
         db().prepare("DELETE FROM post_attachments WHERE post_id=?").bind(postId),
       ]);
     } else {
+      const document = data.document === undefined ? importApiDocument(data.body || "") : validateDocument(data.document);
+      if (data.document !== undefined) data = { ...data, body: documentBody(document!) };
       const attachmentIds = data.attachmentIds === undefined ? previousAttachments.map((a) => a.id) : attachmentList(data.attachmentIds);
       await validateAttachments(user.id, attachmentIds, "post", postId);
       const body = attachmentIds.length && (data.body === undefined || (typeof data.body === "string" && !data.body.trim())) ? "" : validateBody(data.body);
@@ -200,8 +209,10 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
       const now = Date.now();
       await db().batch([
         db()
-          .prepare("UPDATE posts SET body=?,updated_at=? WHERE id=? AND author_id=? AND deleted=0 AND EXISTS(SELECT 1 FROM user WHERE id=posts.author_id AND deleting_at IS NULL)")
-          .bind(body, now, postId, user.id),
+          .prepare(
+            "UPDATE posts SET body=?,updated_at=?,editor_doc=? WHERE id=? AND author_id=? AND deleted=0 AND legacy_readonly=0 AND EXISTS(SELECT 1 FROM user WHERE id=posts.author_id AND deleting_at IS NULL)"
+          )
+          .bind(body, now, document ? JSON.stringify(document) : null, postId, user.id),
         db().prepare("DELETE FROM post_attachments WHERE post_id=?").bind(postId),
         ...postAttachmentStatements(postId, attachmentIds),
         db()
@@ -234,6 +245,21 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
       ]);
     return Response.json({ ok: true, liked: input.liked, ...(await one("SELECT COUNT(*) AS likes FROM likes WHERE post_id=?", input.id)) });
   }
+  if (action === "pin") {
+    if (user.role !== "admin") return Response.json({ error: "Administrator access required." }, { status: 403 });
+    const input = z.object({ id, pinned: z.boolean() }).parse(data);
+    const target = await one("SELECT id FROM posts WHERE id=? AND deleted=0 AND root_id IS NULL", input.id);
+    if (!target) return Response.json({ error: "Choose an available main post." }, { status: 404 });
+    await db().batch([
+      input.pinned
+        ? db().prepare("INSERT INTO announcement(slot,post_id) VALUES(1,?) ON CONFLICT(slot) DO UPDATE SET post_id=excluded.post_id").bind(input.id)
+        : db().prepare("DELETE FROM announcement WHERE post_id=?").bind(input.id),
+      db()
+        .prepare("INSERT INTO moderation_actions(id,admin_id,action,target_id,created_at) VALUES(?,?,?,?,?)")
+        .bind(crypto.randomUUID(), user.id, input.pinned ? "pin" : "unpin", input.id, Date.now()),
+    ]);
+    return Response.json({ ok: true, pinned: input.pinned });
+  }
   if (action === "repost") {
     const input = z.object({ id, reposted: z.boolean() }).parse(data);
     if (input.reposted) await run("INSERT OR IGNORE INTO reposts(user_id,post_id,created_at) SELECT ?,id,? FROM posts WHERE id=? AND deleted=0", user.id, Date.now(), input.id);
@@ -260,7 +286,7 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
     const statements = [];
     if (input.operation === "delete")
       statements.push(
-        db().prepare("UPDATE posts SET body='',deleted=1,updated_at=? WHERE id=?").bind(Date.now(), input.id),
+        db().prepare("UPDATE posts SET body='',editor_doc=NULL,original_body=NULL,deleted=1,updated_at=? WHERE id=?").bind(Date.now(), input.id),
         db().prepare("DELETE FROM post_links WHERE post_id=?").bind(input.id)
       );
     if (input.operation === "lock" || input.operation === "unlock")

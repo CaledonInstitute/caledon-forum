@@ -5,7 +5,7 @@ test("detail views count each GET while server-only listings, HEAD, redirects an
   const feed = load(await (await request.get("/")).text());
   const path = feed("#post-qa-notebook").attr("data-post-url")!;
   expect(path).toMatch(/^\/p\/[1-9][0-9]*$/);
-  const count = (html: string, id = "qa-notebook") => Number(load(html)(`#post-${id} .post-views`).text().replaceAll(",", ""));
+  const count = (html: string, id = "qa-notebook") => Number(load(html)(`#post-${id} .post-views [data-view-count]`).text().replaceAll(",", ""));
   const initial = count(feed.html());
   expect(count(await (await request.get("/")).text())).toBe(initial);
   expect(count(await (await request.get("/qa_caledon")).text())).toBe(initial);
@@ -38,7 +38,7 @@ test("detail views count each GET while server-only listings, HEAD, redirects an
 
   await page.screenshot({ path: "artifacts/post-views-desktop.png" });
   await page.setViewportSize({ width: 320, height: 780 });
-  await views.locator("span").evaluate((el) => {
+  await views.locator("[data-view-count]").evaluate((el) => {
     el.textContent = "1,234,567,890";
   });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -59,6 +59,19 @@ test("visible feed and profile cards count once per page load; offscreen cards a
   const path = (await card.getAttribute("data-post-url"))!;
   await card.scrollIntoViewIfNeeded();
   await expect(card.locator(".post-views")).toHaveAttribute("aria-label", "42 views");
+  await expect(card.locator(".post-views")).toHaveText("42 views");
+  await expect(card.locator(".post-views svg")).toHaveCount(0);
+  await expect(card.locator(".post-action-row")).not.toContainText(/Reply|Like|Repost|Share/);
+  const layout = await card.evaluate((el) => {
+    const row = el.querySelector(".post-action-row")!.getBoundingClientRect();
+    const repost = el.querySelector("[data-repost]")!.getBoundingClientRect();
+    const share = el.querySelector("[data-share-menu]")!.getBoundingClientRect();
+    const views = el.querySelector(".post-views")!.getBoundingClientRect();
+    return { shareGap: share.left - repost.right, below: views.top >= row.bottom };
+  });
+  expect(layout.shareGap).toBeGreaterThanOrEqual(0);
+  expect(layout.shareGap).toBeLessThan(28);
+  expect(layout.below).toBe(true);
   expect(impressions.filter((id) => id === "qa-notebook")).toHaveLength(1);
   const offscreen = page.locator("[data-view-post]").last();
   const offscreenId = (await offscreen.getAttribute("data-view-post"))!;
