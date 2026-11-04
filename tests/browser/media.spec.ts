@@ -17,7 +17,8 @@ for (const width of [1280, 390]) {
       post.querySelector("button")!.addEventListener("click", (event) => {
         (event.currentTarget as HTMLButtonElement).textContent = "Action clicked";
       });
-      document.querySelector("main")!.prepend(post);
+      const main = document.querySelector("main")!;
+      main.insertBefore(post, main.firstChild);
     });
     const pdf = page.locator('[data-pdf="/qa-scroll.pdf"]');
     await pdf.scrollIntoViewIfNeeded();
@@ -27,7 +28,7 @@ for (const width of [1280, 390]) {
     await expect.poll(() => pdf.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
     await expect(pdf.locator('[data-page="2"] .textLayer')).toContainText("Hello PDF");
     const sheet = pdf.locator('[data-page="2"]');
-    expect(await sheet.locator(".textLayer").evaluate((el) => el.offsetParent === el.parentElement)).toBe(true);
+    expect(await sheet.locator(".textLayer").evaluate((el) => (el as HTMLElement).offsetParent === el.parentElement)).toBe(true);
     const url = page.url();
     await pdf.click({ position: { x: 40, y: 40 } });
     await expect(page).toHaveURL(url);

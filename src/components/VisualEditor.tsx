@@ -57,6 +57,7 @@ const AttachmentNode = Node.create({
           return true;
         },
         ignoreMutation: () => true,
+        stopEvent: (event) => event.target instanceof Element && !!event.target.closest("button, audio, video"),
       };
     };
   },

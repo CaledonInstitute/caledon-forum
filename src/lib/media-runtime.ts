@@ -67,7 +67,7 @@ export function observeMedia() {
         dispose();
         mounted.delete(element);
       }
-    document.querySelectorAll<HTMLElement>(".pdf-inline[data-pdf], .attachment-view video, .attachment-view audio").forEach((element) => {
+    document.querySelectorAll<HTMLElement>(".pdf-inline[data-pdf], .attachment-view video, .attachment-view audio, .editor-media video").forEach((element) => {
       if (mounted.has(element)) return;
       if (element instanceof HTMLVideoElement) mounted.set(element, mountVideo(element));
       else if (element instanceof HTMLAudioElement) {

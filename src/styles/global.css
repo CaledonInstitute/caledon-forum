@@ -2702,12 +2702,10 @@ small,
   background: #e9f1ff;
 }
 .editor-attachment {
-  display: inline-block;
-  color: var(--blue);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  padding: 3px 8px;
-  border-radius: 4px;
+  display: block;
+  min-width: 0;
+  color: #000;
+  margin: 8px 0;
 }
 .editor-math {
   cursor: pointer;
@@ -2844,10 +2842,107 @@ small,
   color: var(--muted);
 }
 .editor-attachment .attachment-draft {
-  margin: 8px 0;
+  position: relative;
+  margin: 0;
+  padding: 6px 44px 6px 8px;
+  gap: 8px;
+  border-radius: 6px;
+}
+.editor-attachment .editor-file-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  padding: 6px 44px 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.editor-attachment .editor-file-card > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.editor-attachment .editor-media {
+  position: relative;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 6px 44px 6px 0;
+}
+.editor-attachment .editor-media > img,
+.editor-attachment .editor-media > video {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 360px;
+  border-radius: 6px;
+}
+.editor-attachment .editor-media > audio {
+  display: block;
+  width: 320px;
+  max-width: 100%;
+}
+.editor-attachment .editor-media figcaption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+.editor-attachment .editor-file-details {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  font-size: 12px;
+}
+.editor-attachment .editor-file-details strong {
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.editor-attachment .editor-file-details small {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.editor-attachment .icon-button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--muted);
   border: 0;
-  background: none;
-  padding: 10px 12px;
+  border-radius: 4px;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+}
+.editor-attachment .icon-button:hover {
+  color: #000;
+  background: var(--surface);
+}
+.editor-attachment .editor-attachment-remove {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+}
+.editor-attachment :is(button, audio, video):focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.editor-attachment .editor-media-error {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 8px 0;
 }
 .post-action-row .post-views {
   margin: 0 0 0 auto;

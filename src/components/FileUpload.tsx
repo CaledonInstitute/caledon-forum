@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Paperclip, X, RotateCcw } from "lucide-react";
 import { filePolicy, fileUrl, MAX_FILES, MAX_TOTAL, type Attachment, type UploadPurpose, type PrivateAttachment } from "../lib/upload-policy";
 import { uploadFile, uploadRequest } from "../lib/client-uploads";
+import EditorAttachment from "./EditorAttachment";
 type Item = { key: string; file: File; preview?: string; progress: number; error?: string; assetId?: string; controller: AbortController };
 export default function FileUpload({
   purpose,
@@ -234,30 +235,42 @@ export default function FileUpload({
           {value.map((file) =>
             present(
               file.id,
-              <div key={file.id} className="attachment-draft">
-                {file.mime.startsWith("image/") && purpose !== "dm" && <img src={fileUrl(file.id)} alt="" />}
-                <span>
-                  <strong>{file.name}</strong>
-                  <small>{(file.size / 1048576).toFixed(1)} MB</small>
-                </span>
-                {onInsert && !inline && (
-                  <button type="button" className="text-button small" disabled={disabled || working} onClick={() => onInsert(file)}>
-                    Insert
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="icon-button"
+              inline && purpose === "post" ? (
+                <EditorAttachment
+                  key={file.id}
+                  file={file}
                   disabled={disabled || working}
-                  aria-label={`Remove ${file.name}`}
-                  onClick={() => {
+                  onRemove={() => {
                     onRemove?.(file);
                     onChange(value.filter((v) => v.id !== file.id));
                   }}
-                >
-                  <X size={17} />
-                </button>
-              </div>
+                />
+              ) : (
+                <div key={file.id} className="attachment-draft">
+                  {file.mime.startsWith("image/") && purpose !== "dm" && <img src={fileUrl(file.id)} alt="" />}
+                  <span>
+                    <strong>{file.name}</strong>
+                    <small>{(file.size / 1048576).toFixed(1)} MB</small>
+                  </span>
+                  {onInsert && !inline && (
+                    <button type="button" className="text-button small" disabled={disabled || working} onClick={() => onInsert(file)}>
+                      Insert
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="icon-button"
+                    disabled={disabled || working}
+                    aria-label={`Remove ${file.name}`}
+                    onClick={() => {
+                      onRemove?.(file);
+                      onChange(value.filter((v) => v.id !== file.id));
+                    }}
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
+              )
             )
           )}
         </div>
@@ -297,7 +310,7 @@ export default function FileUpload({
                 <RotateCcw size={17} />
               </button>
             )}
-            <button type="button" className="icon-button" aria-label={`Cancel ${item.file.name}`} onClick={() => removeItem(item)}>
+            <button type="button" className="icon-button editor-attachment-remove" aria-label={`Cancel ${item.file.name}`} onClick={() => removeItem(item)}>
               <X size={17} />
             </button>
           </div>

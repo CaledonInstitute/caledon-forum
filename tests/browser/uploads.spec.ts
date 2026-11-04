@@ -27,8 +27,8 @@ test("uploads multiple files inline and preserves IDs when publishing an attachm
     { name: "research.png", mimeType: "image/png", buffer: image },
     { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("Notes") },
   ]);
-  await expect(composer.locator(".attachment-draft strong").filter({ hasText: "research.png" })).toBeVisible();
-  await expect(composer.locator(".attachment-draft strong").filter({ hasText: "notes.txt" })).toBeVisible();
+  await expect(composer.locator(".editor-media img")).toBeVisible();
+  await expect(composer.locator(".editor-file-card strong")).toHaveText("notes.txt");
   await expect(composer.locator("progress")).toHaveCount(0);
   let payload: any;
   await page.route("**/api/forum/publish", (route) => {
