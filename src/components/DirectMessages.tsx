@@ -85,7 +85,7 @@ export function MessageContent({ text = "", files = [] }: { text?: string; files
       );
     if (used.has(file.id)) return null;
     used.add(file.id);
-    return <PrivateFile key={i} file={file} />;
+    return <PrivateFile key={file.id} file={file} />;
   });
   return (
     <>

@@ -3,7 +3,6 @@ import { resetDatabase, seedUser, execute, row } from "./runtime";
 import { forumAction } from "../src/lib/forum-service";
 import { markdown } from "../src/lib/markdown";
 import { extractMentions } from "../src/lib/mentions";
-import { activeMention } from "../src/lib/mention-input";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 
@@ -17,12 +16,6 @@ describe("mentions", () => {
     expect(html).toContain('<a href="/bob" class="mention" rel="ugc nofollow noopener">@Bob</a>');
     expect(html.match(/class="mention"/g)).toHaveLength(3);
     expect(html).toContain('target="_blank"');
-  });
-  it("detects a mention at the cursor without replacing following text", () => {
-    expect(activeMention("Hi @bo, hello", 6)).toEqual({ start: 3, end: 6, query: "bo" });
-    expect(activeMention("@", 1)?.query).toBe("");
-    expect(activeMention("mail@bob", 8)).toBeNull();
-    expect(activeMention("@bob ", 5)).toBeNull();
   });
   it("suggests public usernames with a literal underscore prefix and excludes suspended users", async () => {
     const alice = seedUser();

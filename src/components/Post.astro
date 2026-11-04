@@ -135,10 +135,10 @@ const time = postTime(p.createdAt);
               <span class="post-share-fallback" aria-label="Share post">
                 <Icon name="link" size={17} />
               </span>
+              <p class="post-views" aria-label={`${p.views.toLocaleString("en-US")} ${p.views === 1 ? "view" : "views"}`}>
+                <span data-view-count>{p.views.toLocaleString("en-US")}</span> <span data-view-unit>{p.views === 1 ? "view" : "views"}</span>
+              </p>
             </div>
-            <p class="post-views" aria-label={`${p.views.toLocaleString("en-US")} ${p.views === 1 ? "view" : "views"}`}>
-              <span data-view-count>{p.views.toLocaleString("en-US")}</span> <span data-view-unit>{p.views === 1 ? "view" : "views"}</span>
-            </p>
           </div>
           <p class="error" role="status" data-post-status></p>
         </>

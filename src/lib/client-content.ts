@@ -1,4 +1,3 @@
-import type { Attachment } from "./upload-policy";
 import { quoteElement } from "./quote-dom";
 import { markdown, extractLinks } from "./markdown";
 import { excerpt } from "./content";
@@ -39,10 +38,6 @@ async function quoteFromSource(source: NonNullable<ReturnType<typeof sourceLink>
     createdAt: p.createdAt,
     parentUsername: p.parentUsername,
   };
-}
-export async function clientRender(body: string, links: LinkPreview[], attachments: Attachment[] = []) {
-  const quote = await clientQuote(body);
-  return { html: await markdown(body, links, quote?.sourceUrl, undefined, attachments), quote };
 }
 export async function enhancePost(element: HTMLElement) {
   const source = element.querySelector<HTMLTemplateElement>("template[data-rich-source]");

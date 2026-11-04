@@ -37,7 +37,7 @@ test("Share opens without recording, copying records only after clipboard succee
   await expect(button).toBeFocused();
 });
 
-test("profile composer previews and publishes HTML, highlighted code and LaTeX with public Likes", async ({ page, context, browser }) => {
+test("profile composer formats and publishes HTML, highlighted code and LaTeX with public Likes", async ({ page, context, browser }) => {
   const cookie = await readFile(".astro/qa-session.json", "utf8")
     .then(JSON.parse)
     .catch(() => null);
@@ -74,11 +74,10 @@ test("profile composer previews and publishes HTML, highlighted code and LaTeX w
   await page.getByLabel("LaTeX formula", { exact: true }).fill("E=mc^2");
   await page.getByLabel("Display on its own line").check();
   await page.locator(".editor-panel").getByRole("button", { name: "Insert", exact: true }).click();
-  await page.getByRole("tab", { name: "Preview", exact: true }).click();
-  const preview = page.locator(".preview .post-content");
-  await expect(preview).toContainText(body);
-  await expect(preview.locator(".hljs")).toBeVisible();
-  await expect(preview.locator(".katex-display")).toBeVisible();
+  const draft = editor;
+  await expect(draft).toContainText(body);
+  await expect(draft.locator("pre code")).toBeVisible();
+  await expect(draft.locator(".katex-display")).toBeVisible();
   await page.screenshot({ path: "artifacts/profile-composer-formatting.png", fullPage: true });
   await page.getByRole("button", { name: "Post", exact: true }).click();
   await expect(page.locator(".publish-toast [role=status]")).toHaveText("Post published.");

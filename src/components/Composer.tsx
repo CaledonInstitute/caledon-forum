@@ -1,14 +1,16 @@
+import { splitAttachments } from "../lib/attachment-markers";
 import FileUpload from "./FileUpload";
-import VisualEditor, { type VisualEditorHandle } from "./VisualEditor";
+import type { VisualEditorHandle } from "./VisualEditor";
 import type { EditorDocument } from "../lib/editor-document";
 import type { Attachment } from "../lib/upload-policy";
 import UserAvatar from "./UserAvatar";
 import PublishToast from "./PublishToast";
 import QuoteCard from "./QuoteCard";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { showPublishedPost } from "../lib/published-post";
 import { countCharacters, MAX_CHARACTERS } from "../lib/content";
-import type { LinkPreview, QuotedPost } from "../lib/types";
+import type { QuotedPost } from "../lib/types";
+const VisualEditor = lazy(() => import("./VisualEditor"));
 export default function Composer({
   initialAttachments = [],
   parentId,
@@ -28,7 +30,11 @@ export default function Composer({
   username?: string | null;
   image?: string | null;
 }) {
+  const [editorReady, setEditorReady] = useState(false);
+  useEffect(() => setEditorReady(true), []);
+  // Keep removed assets available to undo; only document references are published.
   const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
+  const [uploadAvailable, setUploadAvailable] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [body, setBody] = useState(() => {
       if (typeof window !== "undefined" && !parentId && !editId) {
@@ -37,9 +43,6 @@ export default function Composer({
       }
       return initial;
     }),
-    [tab, setTab] = useState("write"),
-    [html, setHtml] = useState(""),
-    [links, setLinks] = useState<LinkPreview[]>([]),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const editor = useRef<VisualEditorHandle>(null);
@@ -48,7 +51,6 @@ export default function Composer({
     onUploadStart: (files: { key: string; file: File }[]) => files.forEach(({ key, file }) => editor.current?.insertAttachment({ id: key, name: `Uploading ${file.name}…` })),
     onUploadComplete: (key: string, file: Attachment) => editor.current?.replaceAttachment(key, file),
     onUploadCancel: (key: string) => editor.current?.removeAttachment(key),
-    onInsert: (file: Attachment) => editor.current?.insertAttachment(file),
     onRemove: (file: Attachment) => editor.current?.removeAttachment(file.id),
   };
   const pending = useRef(false);
@@ -80,7 +82,7 @@ export default function Composer({
         setQuote(result.quote);
         setQuoteStatus("");
       } catch {
-        if (!controller.signal.aborted) setQuoteStatus("Could not load the quote. Use Preview to try again.");
+        if (!controller.signal.aborted) setQuoteStatus("Could not load the quote. Check the post link and try again.");
       }
     }, 400);
     return () => {
@@ -88,6 +90,8 @@ export default function Composer({
       controller.abort();
     };
   }, [body]);
+  const activeIds = new Set(splitAttachments(body).flatMap((part) => (part.type === "attachment" ? [part.id] : [])));
+  const activeAttachments = [...activeIds].map((id) => attachments.find((a) => a.id === id)).filter((a): a is Attachment => !!a);
   const count = countCharacters(body);
   async function request(action: string, data: unknown) {
     const response = await fetch(`/api/forum/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -95,36 +99,13 @@ export default function Composer({
     if (!response.ok) throw new Error(result.error || "Please try again.");
     return result;
   }
-  async function preview() {
-    setBusy(true);
-    setError("");
-    try {
-      if (body.trim() || attachments.length) {
-        const r = body.trim() ? await request("preview-data", { body }) : { links: [] };
-        const rendered = await (await import("../lib/client-content")).clientRender(body, r.links, attachments);
-        setHtml(rendered.html);
-        setLinks(r.links);
-        setQuote(rendered.quote);
-        setQuoteStatus("");
-      } else {
-        setHtml("");
-        setLinks([]);
-        setQuote(null);
-      }
-      setTab("preview");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   async function publish() {
     if (pending.current || busy || uploading) return;
     pending.current = true;
     setBusy(true);
     setError("");
     try {
-      const r = await request(editId ? "edit" : "publish", { body, document: editorDocument, parentId, id: editId, attachmentIds: attachments.map((a) => a.id) });
+      const r = await request(editId ? "edit" : "publish", { body, document: editorDocument, parentId, id: editId, attachmentIds: activeAttachments.map((a) => a.id) });
       if (editId) {
         location.assign(r.url || "/");
         return;
@@ -133,11 +114,8 @@ export default function Composer({
       setEditorDocument(undefined);
       setBody("");
       setAttachments([]);
-      setHtml("");
-      setLinks([]);
       setQuote(null);
       setQuoteStatus("");
-      setTab("write");
       const message = parentId ? "Reply posted." : "Post published.";
       setNotice({ message, url: r.url });
       try {
@@ -165,46 +143,34 @@ export default function Composer({
       <div className="composer-head">
         <UserAvatar name={name} username={username} image={image} />
         <strong>{editId ? "Edit your post" : parentId ? "Join the conversation" : "What are you exploring?"}</strong>
-        <div className="composer-tabs" role="tablist">
-          <button role="tab" disabled={busy || uploading} aria-selected={tab === "write"} onClick={() => setTab("write")}>
-            Write
-          </button>
-          <button role="tab" disabled={busy || uploading} aria-selected={tab === "preview"} onClick={preview}>
-            Preview
-          </button>
-        </div>
       </div>
-      {tab === "write" ? (
-        <VisualEditor
-          editorRef={editor}
-          initial={body}
-          initialDocument={editorDocument}
-          onChange={(next, doc) => {
-            setBody(next);
-            setEditorDocument(doc);
-          }}
-          disabled={busy}
-          reply={!!parentId}
-        />
-      ) : (
-        <div className="preview">
-          <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />
-          {!body.trim() && !attachments.length && <p className="muted small">Your preview will appear here.</p>}
-          {links
-            .filter((p) => p.kind !== "image")
-            .map((p) => (
-              <a key={p.id} className="link-card" href={p.url} target="_blank" rel="ugc nofollow noopener">
-                {p.image && <img src={`/api/media/${p.id}`} alt="" />}
-                <div className="link-card-copy">
-                  <small>{p.site}</small>
-                  <strong>{p.title}</strong>
-                  <p>{p.description}</p>
-                </div>
-              </a>
-            ))}
-        </div>
-      )}
-      {tab === "write" ? <FileUpload purpose="post" value={attachments} onChange={setAttachments} onBusy={setUploading} disabled={busy} {...attachmentEditor} /> : null}
+      <Suspense fallback={<p className="muted small">Loading editor…</p>}>
+        {editorReady && (
+          <VisualEditor
+            editorRef={editor}
+            initial={body}
+            initialDocument={editorDocument}
+            initialAttachments={initialAttachments}
+            onChange={(next, doc) => {
+              setBody(next);
+              setEditorDocument(doc);
+            }}
+            disabled={busy}
+            attachmentsDisabled={!uploadAvailable || uploading || activeAttachments.length >= 4}
+            reply={!!parentId}
+          />
+        )}
+      </Suspense>
+      <FileUpload
+        purpose="post"
+        inline
+        value={activeAttachments}
+        onChange={(files) => setAttachments((old) => [...old.filter((a) => !files.some((f) => f.id === a.id)), ...files])}
+        onBusy={setUploading}
+        onAvailability={setUploadAvailable}
+        disabled={busy}
+        {...attachmentEditor}
+      />
       {quote && <QuoteCard quote={quote} />}
       {quoteStatus && (
         <p className="quote-status" role="status">
@@ -218,7 +184,7 @@ export default function Composer({
         <span className="counter" aria-live="polite">
           {count.toLocaleString("en")} / 25,000
         </span>
-        <button className="button" disabled={busy || uploading || (!body.trim() && !attachments.length) || count > MAX_CHARACTERS} onClick={publish}>
+        <button className="button" disabled={busy || uploading || (!body.trim() && !activeAttachments.length) || count > MAX_CHARACTERS} onClick={publish}>
           {busy ? "Working…" : editId ? "Save changes" : parentId ? "Reply" : "Post"}
         </button>
       </div>

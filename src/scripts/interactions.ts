@@ -1,3 +1,5 @@
+import { observeMedia } from "../lib/media-runtime";
+observeMedia();
 import "./sharing";
 import "./dm-updates";
 import "./post-tools";
@@ -152,19 +154,6 @@ document.addEventListener("forum:profile-counts", refreshCounts);
 document.addEventListener("forum:posts-updated", refreshCounts);
 const profileTabs = document.querySelector(".profile-tabs");
 profileTabs?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
-
-document.addEventListener("click", async (event) => {
-  const button = (event.target as Element).closest<HTMLButtonElement>("[data-pdf]");
-  if (!button || button.disabled) return;
-  button.disabled = true;
-  try {
-    await (await import("./pdf-reader")).openPdf(button.dataset.pdf!, button.dataset.pdfName || "PDF document", button);
-  } catch {
-    alert("Could not open the PDF reader. Use the download link.");
-  } finally {
-    button.disabled = false;
-  }
-});
 
 document.addEventListener("click", async (event) => {
   const button = (event.target as Element).closest<HTMLButtonElement>("[data-listing-action]");

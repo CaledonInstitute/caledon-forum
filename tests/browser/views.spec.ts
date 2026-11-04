@@ -67,11 +67,12 @@ test("visible feed and profile cards count once per page load; offscreen cards a
     const repost = el.querySelector("[data-repost]")!.getBoundingClientRect();
     const share = el.querySelector("[data-share-menu]")!.getBoundingClientRect();
     const views = el.querySelector(".post-views")!.getBoundingClientRect();
-    return { shareGap: share.left - repost.right, below: views.top >= row.bottom };
+    return { shareGap: share.left - repost.right, aligned: views.top >= row.top && views.bottom <= row.bottom, right: views.right >= share.right };
   });
   expect(layout.shareGap).toBeGreaterThanOrEqual(0);
   expect(layout.shareGap).toBeLessThan(28);
-  expect(layout.below).toBe(true);
+  expect(layout.aligned).toBe(true);
+  expect(layout.right).toBe(true);
   expect(impressions.filter((id) => id === "qa-notebook")).toHaveLength(1);
   const offscreen = page.locator("[data-view-post]").last();
   const offscreenId = (await offscreen.getAttribute("data-view-post"))!;

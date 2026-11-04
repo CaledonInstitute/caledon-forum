@@ -5,7 +5,7 @@ function enhanceTools() {
   document.querySelectorAll<HTMLElement>("[data-post-controls]:not([data-controls-ready])").forEach((host) => {
     const p = JSON.parse(host.dataset.postControls!);
     host.dataset.controlsReady = "true";
-    host.innerHTML = `<div class="post-action-row"><a data-ui-reply>${postIcons.reply}<span></span></a><button type="button" data-ui-like>${p.liked ? postIcons.liked : postIcons.like}<span></span></button><button type="button" data-ui-repost>${iconMarkup("repeat-2", 17, 1.6)}<span></span></button><button type="button" data-ui-share>${postIcons.link}</button></div><p class="post-views"><span data-view-count></span> <span data-view-unit></span></p><details class="more"><summary aria-label="More actions">${postIcons.more}</summary><div class="menu"></div></details>`;
+    host.innerHTML = `<div class="post-action-row"><a data-ui-reply>${postIcons.reply}<span></span></a><button type="button" data-ui-like>${p.liked ? postIcons.liked : postIcons.like}<span></span></button><button type="button" data-ui-repost>${iconMarkup("repeat-2", 17, 1.6)}<span></span></button><button type="button" data-ui-share>${postIcons.link}</button><p class="post-views"><span data-view-count></span> <span data-view-unit></span></p></div><details class="more"><summary aria-label="More actions">${postIcons.more}</summary><div class="menu"></div></details>`;
     const reply = host.querySelector<HTMLAnchorElement>("[data-ui-reply]")!;
     reply.href = `${p.url}#reply`;
     reply.setAttribute("aria-label", `Reply to ${p.name}`);

@@ -10,7 +10,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 for (const kind of ["post", "reply"] as const) {
-  test(`pasted ${kind} link becomes a quote in editor, preview and published posts`, async ({ page, context, browser }) => {
+  test(`pasted ${kind} link becomes a quote in editor and published posts`, async ({ page, context, browser }) => {
     await page.goto("/");
     const thread = (await page.locator("#post-qa-notebook .post-time").getAttribute("href"))!;
     let source = thread;
@@ -28,8 +28,6 @@ for (const kind of ["post", "reply"] as const) {
     await expect(draft.locator(".quote-source")).toHaveAttribute("href", source);
     if (kind === "reply") await expect(draft.locator(".quote-context")).toHaveText("Replying to @qa_caledon");
     await page.screenshot({ path: `artifacts/quote-${kind}-desktop.png` });
-    await page.getByRole("tab", { name: "Preview", exact: true }).click();
-    await expect(page.locator(".composer .preview .post-content")).toHaveText(text);
     await expect(draft).toBeVisible();
     await expect(page.locator(".composer .link-card")).toHaveCount(0);
     const published = page.waitForResponse((r) => r.url().endsWith("/api/forum/publish") && r.request().method() === "POST");

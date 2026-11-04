@@ -1,3 +1,6 @@
+import { closeHistory } from "@tiptap/pm/history";
+import { EditorState, Plugin } from "@tiptap/pm/state";
+import { List, ListOrdered, Quote, Link, Plus, Undo2, Redo2, Paperclip } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { Node, mergeAttributes, type JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -12,11 +15,49 @@ const AttachmentNode = Node.create({
   name: "attachment",
   group: "block",
   atom: true,
+  addStorage() {
+    return { resolved: new Map<string, Attachment | null>() };
+  },
+  addProseMirrorPlugins() {
+    const resolved = this.storage.resolved as Map<string, Attachment | null>;
+    return [
+      new Plugin({
+        appendTransaction(_transactions, _old, state) {
+          const changes: { pos: number; size: number; file: Attachment | null }[] = [];
+          state.doc.descendants((node, pos) => {
+            if (node.type.name === "attachment" && resolved.has(node.attrs.id)) changes.push({ pos, size: node.nodeSize, file: resolved.get(node.attrs.id)! });
+          });
+          if (!changes.length) return null;
+          const tr = state.tr.setMeta("addToHistory", false);
+          for (const change of changes.reverse())
+            change.file ? tr.setNodeMarkup(change.pos, undefined, { id: change.file.id, name: change.file.name }) : tr.delete(change.pos, change.pos + change.size);
+          return tr;
+        },
+      }),
+    ];
+  },
   addAttributes() {
     return { id: { default: "" }, name: { default: "File" } };
   },
   parseHTML() {
     return [{ tag: "div[data-attachment]" }];
+  },
+  addNodeView() {
+    return ({ node }) => {
+      const dom = document.createElement("div");
+      dom.className = "editor-attachment";
+      dom.dataset.attachment = node.attrs.id;
+      dom.contentEditable = "false";
+      return {
+        dom,
+        update(next) {
+          if (next.type.name !== "attachment") return false;
+          dom.dataset.attachment = next.attrs.id;
+          return true;
+        },
+        ignoreMutation: () => true,
+      };
+    };
   },
   renderHTML({ node, HTMLAttributes }) {
     return ["div", mergeAttributes(HTMLAttributes, { "data-attachment": node.attrs.id, class: "editor-attachment", contenteditable: "false" }), node.attrs.name];
@@ -83,7 +124,7 @@ const ProxiedImage = Image.extend({
           }
         })
         .catch(() => {
-          if (alive) status.textContent = "Image preview unavailable. Check the URL or use Preview to retry.";
+          if (alive) status.textContent = "Image preview unavailable. Check the URL and try again.";
         });
       return {
         dom,
@@ -167,14 +208,18 @@ export interface VisualEditorHandle {
 export default function VisualEditor({
   initial = "",
   initialDocument,
+  initialAttachments = [],
   disabled,
+  attachmentsDisabled = false,
   reply,
   onChange,
   editorRef,
 }: {
   initial?: string;
   initialDocument?: EditorDocument;
+  initialAttachments?: Attachment[];
   disabled: boolean;
+  attachmentsDisabled?: boolean;
   reply: boolean;
   onChange: (body: string, doc: EditorDocument) => void;
   editorRef: RefObject<VisualEditorHandle | null>;
@@ -192,6 +237,23 @@ export default function VisualEditor({
   const state = useRef({ query, users, selected });
   state.current = { query, users, selected };
   const chooseRef = useRef<(username: string) => void>(() => {});
+  const [startingDocument] = useState(() => {
+    const doc = structuredClone(
+      initialDocument?.doc || importMarkdown(initial)?.doc || { type: "doc", content: [{ type: "paragraph", content: initial ? [{ type: "text", text: initial }] : [] }] }
+    ) as JSONContent;
+    const ids = new Set<string>();
+    const visit = (node: JSONContent) => {
+      if (node.type === "attachment") ids.add(node.attrs?.id);
+      node.content?.forEach(visit);
+    };
+    visit(doc);
+    for (const file of initialAttachments)
+      if (!ids.has(file.id)) {
+        (doc.content ||= []).push({ type: "attachment", attrs: { id: file.id, name: file.name } });
+        ids.add(file.id);
+      }
+    return doc;
+  });
   const editor = useEditor({
     immediatelyRender: false,
     shouldRerenderOnTransaction: true,
@@ -205,8 +267,7 @@ export default function VisualEditor({
       mathNode("inlineMath", true),
       mathNode("blockMath", false),
     ],
-    content: (initialDocument?.doc ||
-      importMarkdown(initial)?.doc || { type: "doc", content: [{ type: "paragraph", content: initial ? [{ type: "text", text: initial }] : [] }] }) as JSONContent,
+    content: startingDocument,
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": reply ? "Your reply" : "Your post", class: "post-content visual-editor" },
       handleKeyDown: (_view, event) => {
@@ -268,7 +329,8 @@ export default function VisualEditor({
     const doc: EditorDocument = { version: 1, doc: editor.getJSON() as any };
     change.current(documentBody(doc), doc);
     function updateFile(id: string, replacement?: Attachment) {
-      const transaction = editor!.state.tr;
+      if (replacement || id.startsWith("pending-")) (editor!.storage as any).attachment.resolved.set(id, replacement || null);
+      const transaction = closeHistory(editor!.state.tr).setMeta("addToHistory", !replacement);
       const nodes: { pos: number; size: number }[] = [];
       editor!.state.doc.descendants((node, pos) => {
         if (node.type.name === "attachment" && node.attrs.id === id) nodes.push({ pos, size: node.nodeSize });
@@ -278,11 +340,20 @@ export default function VisualEditor({
       editor!.view.dispatch(transaction);
     }
     editorRef.current = {
-      clear: () => editor.commands.clearContent(),
+      clear: () => {
+        editor.commands.clearContent();
+        // Publishing starts a new draft, including its undo history and upload aliases.
+        editor.view.updateState(EditorState.create({ doc: editor.state.doc, plugins: editor.state.plugins }));
+        (editor.storage as any).attachment.resolved.clear();
+      },
       insertAttachment: (file) => {
         editor
           .chain()
           .focus()
+          .command(({ tr }) => {
+            closeHistory(tr);
+            return true;
+          })
           .insertContent([{ type: "attachment", attrs: file }, { type: "paragraph" }])
           .run();
       },
@@ -371,6 +442,8 @@ export default function VisualEditor({
     <button
       type="button"
       disabled={!editor || disabled}
+      title={label}
+      aria-label={label}
       aria-pressed={active}
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => {
@@ -378,7 +451,19 @@ export default function VisualEditor({
         editor?.view.focus();
       }}
     >
-      {label}
+      {(
+        {
+          Bold: <b>B</b>,
+          Italic: <i>I</i>,
+          Strike: <s>S</s>,
+          List: <List size={16} />,
+          Numbered: <ListOrdered size={16} />,
+          Quote: <Quote size={16} />,
+          Link: <Link size={16} />,
+          Undo: <Undo2 size={16} />,
+          Redo: <Redo2 size={16} />,
+        } as Record<string, React.ReactNode>
+      )[label] || label}
     </button>
   );
   return (
@@ -401,31 +486,50 @@ export default function VisualEditor({
               : editor?.chain().focus().setParagraph().run()
           }
         >
-          <option value="0">Paragraph</option>
-          <option value="1">Heading 1</option>
-          <option value="2">Heading 2</option>
-          <option value="3">Heading 3</option>
+          <option value="0">P</option>
+          <option value="1">H1</option>
+          <option value="2">H2</option>
+          <option value="3">H3</option>
         </select>
         {button("List", !!editor?.isActive("bulletList"), () => editor?.chain().focus().toggleBulletList().run())}
         {button("Numbered", !!editor?.isActive("orderedList"), () => editor?.chain().focus().toggleOrderedList().run())}
         {button("Quote", !!editor?.isActive("blockquote"), () => editor?.chain().focus().toggleBlockquote().run())}
         {button("Link", !!editor?.isActive("link"), () => open("link"))}
-        <details>
-          <summary>Insert</summary>
+        <details
+          onToggle={(event) => {
+            const details = event.currentTarget;
+            if (!details.open) return;
+            const anchor = details.querySelector("summary")!.getBoundingClientRect();
+            const menu = details.querySelector<HTMLElement>(".editor-insert")!;
+            menu.style.left = `${Math.max(8, Math.min(anchor.left, innerWidth - 184))}px`;
+            menu.style.top = `${Math.max(8, Math.min(anchor.bottom + 6, innerHeight - menu.offsetHeight - 8))}px`;
+          }}
+        >
+          <summary title="Insert" aria-label="Insert">
+            <Plus size={16} />
+          </summary>
           <div className="editor-insert">
             {button("Table", false, () => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}
             {button("Code block", false, () => open("code"))}
             {button("Inline code", !!editor?.isActive("code"), () => editor?.chain().focus().toggleCode().run())}
             {button("Formula", false, () => open("math"))}
             {button("Image URL", false, () => open("image"))}
-            {button("Attachment", false, () =>
-              document
-                .getElementById(reply ? "reply" : "compose")
-                ?.querySelector<HTMLInputElement>('input[type="file"]')
-                ?.click()
-            )}
           </div>
         </details>
+        <button
+          type="button"
+          title="Attach files"
+          aria-label="Attach files"
+          disabled={disabled || attachmentsDisabled || !editor}
+          onClick={() =>
+            document
+              .getElementById(reply ? "reply" : "compose")
+              ?.querySelector<HTMLInputElement>('input[type="file"]')
+              ?.click()
+          }
+        >
+          <Paperclip size={16} />
+        </button>
         {button("Undo", false, () => editor?.chain().focus().undo().run())}
         {button("Redo", false, () => editor?.chain().focus().redo().run())}
       </div>

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { Paperclip, X, RotateCcw } from "lucide-react";
 import { filePolicy, fileUrl, MAX_FILES, MAX_TOTAL, type Attachment, type UploadPurpose, type PrivateAttachment } from "../lib/upload-policy";
@@ -5,9 +6,11 @@ import { uploadFile, uploadRequest } from "../lib/client-uploads";
 type Item = { key: string; file: File; preview?: string; progress: number; error?: string; assetId?: string; controller: AbortController };
 export default function FileUpload({
   purpose,
+  inline = false,
   value,
   onChange,
   onBusy,
+  onAvailability,
   disabled = false,
   imagesOnly = false,
   conversationId,
@@ -18,9 +21,11 @@ export default function FileUpload({
   onRemove,
 }: {
   purpose: UploadPurpose;
+  inline?: boolean;
   value: (Attachment | PrivateAttachment)[];
   onChange: (files: (Attachment | PrivateAttachment)[]) => void;
   onBusy?: (busy: boolean) => void;
+  onAvailability?: (enabled: boolean) => void;
   disabled?: boolean;
   imagesOnly?: boolean;
   conversationId?: string;
@@ -99,7 +104,7 @@ export default function FileUpload({
     }
   }
   function choose(files: File[]) {
-    if (disabled || items.some((i) => !i.error)) return;
+    if (!enabled || disabled || items.some((i) => !i.error)) return;
     setError("");
     const chosen = single ? files.slice(0, 1) : files;
     try {
@@ -114,7 +119,7 @@ export default function FileUpload({
       return;
     }
     const next = chosen.map((file) => ({
-      key: crypto.randomUUID(),
+      key: inline ? `pending-${crypto.randomUUID()}` : crypto.randomUUID(),
       file,
       preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
       progress: 0,
@@ -162,14 +167,22 @@ export default function FileUpload({
       host?.removeEventListener("drop", drop);
     };
   });
+  useEffect(() => {
+    onAvailability?.(enabled === true);
+  }, [enabled]);
   const working = items.some((i) => !i.error);
   useEffect(() => {
     onBusy?.(items.length > 0);
   }, [items.length]);
+  const present = (key: string, content: React.ReactNode) => {
+    if (!inline) return content;
+    const node = root.current?.closest(".composer")?.querySelector<HTMLElement>(`[data-attachment="${key}"]`);
+    return node ? createPortal(content, node) : null;
+  };
   return (
     <div
       ref={root}
-      className={`file-upload${single ? " file-upload-single" : ""}`}
+      className={`file-upload${inline ? " file-upload-inline" : ""}${single ? " file-upload-single" : ""}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) e.preventDefault();
       }}
@@ -198,86 +211,98 @@ export default function FileUpload({
           e.target.value = "";
         }}
       />
-      <button
-        type="button"
-        className="button secondary attachment-add"
-        disabled={disabled || working || !enabled || (!single && value.length >= MAX_FILES)}
-        onClick={() => input.current?.click()}
-      >
-        <Paperclip size={16} />
-        {single ? (purpose === "cover" ? "Choose cover" : "Choose photo") : "Add files"}
-      </button>
-      <span className="help">
-        {enabled === false ? "Uploads are not configured yet." : single ? "JPEG, PNG, GIF or WebP · up to 2 MB" : "Drop files or paste an image · up to 4 files / 100 MB"}
-      </span>
+      {!inline && (
+        <button
+          type="button"
+          className="button secondary attachment-add"
+          disabled={disabled || working || !enabled || (!single && value.length >= MAX_FILES)}
+          onClick={() => input.current?.click()}
+        >
+          <Paperclip size={16} />
+          {single ? (purpose === "cover" ? "Choose cover" : "Choose photo") : "Add files"}
+        </button>
+      )}
+      {!inline && (
+        <>
+          <span className="help">
+            {enabled === false ? "Uploads are not configured yet." : single ? "JPEG, PNG, GIF or WebP · up to 2 MB" : "Drop files or paste an image · up to 4 files / 100 MB"}
+          </span>
+        </>
+      )}
       {value.length > 0 && !single && (
         <div className="attachment-list">
-          {value.map((file) => (
-            <div key={file.id} className="attachment-draft">
-              {file.mime.startsWith("image/") && purpose !== "dm" && <img src={fileUrl(file.id)} alt="" />}
-              <span>
-                <strong>{file.name}</strong>
-                <small>{(file.size / 1048576).toFixed(1)} MB</small>
-              </span>
-              {onInsert && (
-                <button type="button" className="text-button small" disabled={disabled || working} onClick={() => onInsert(file)}>
-                  Insert
+          {value.map((file) =>
+            present(
+              file.id,
+              <div key={file.id} className="attachment-draft">
+                {file.mime.startsWith("image/") && purpose !== "dm" && <img src={fileUrl(file.id)} alt="" />}
+                <span>
+                  <strong>{file.name}</strong>
+                  <small>{(file.size / 1048576).toFixed(1)} MB</small>
+                </span>
+                {onInsert && !inline && (
+                  <button type="button" className="text-button small" disabled={disabled || working} onClick={() => onInsert(file)}>
+                    Insert
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="icon-button"
+                  disabled={disabled || working}
+                  aria-label={`Remove ${file.name}`}
+                  onClick={() => {
+                    onRemove?.(file);
+                    onChange(value.filter((v) => v.id !== file.id));
+                  }}
+                >
+                  <X size={17} />
                 </button>
+              </div>
+            )
+          )}
+        </div>
+      )}
+      {items.map((item) =>
+        present(
+          item.key,
+          <div key={item.key} className="attachment-draft">
+            {item.preview && <img src={item.preview} alt="" />}
+            <span>
+              <strong>{item.file.name}</strong>
+              {item.error ? (
+                <small className="error" role="alert">
+                  {item.error}
+                </small>
+              ) : (
+                <>
+                  <progress max="100" value={item.progress} aria-label={`Uploading ${item.file.name}`} />
+                  <small role="status">{item.progress}% uploaded</small>
+                </>
               )}
+            </span>
+            {item.error && (
               <button
                 type="button"
                 className="icon-button"
-                disabled={disabled || working}
-                aria-label={`Remove ${file.name}`}
+                aria-label={`Retry ${item.file.name}`}
+                disabled={working || disabled}
                 onClick={() => {
-                  onRemove?.(file);
-                  onChange(value.filter((v) => v.id !== file.id));
+                  if (item.assetId) void uploadRequest(`/${item.assetId}`, "DELETE").catch(() => {});
+                  item.controller = new AbortController();
+                  item.assetId = undefined;
+                  update(item.key, { error: undefined, progress: 0, controller: item.controller, assetId: undefined });
+                  void transfer(item);
                 }}
               >
-                <X size={17} />
+                <RotateCcw size={17} />
               </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {items.map((item) => (
-        <div key={item.key} className="attachment-draft">
-          {item.preview && <img src={item.preview} alt="" />}
-          <span>
-            <strong>{item.file.name}</strong>
-            {item.error ? (
-              <small className="error" role="alert">
-                {item.error}
-              </small>
-            ) : (
-              <>
-                <progress max="100" value={item.progress} aria-label={`Uploading ${item.file.name}`} />
-                <small role="status">{item.progress}% uploaded</small>
-              </>
             )}
-          </span>
-          {item.error && (
-            <button
-              type="button"
-              className="icon-button"
-              aria-label={`Retry ${item.file.name}`}
-              disabled={working || disabled}
-              onClick={() => {
-                if (item.assetId) void uploadRequest(`/${item.assetId}`, "DELETE").catch(() => {});
-                item.controller = new AbortController();
-                item.assetId = undefined;
-                update(item.key, { error: undefined, progress: 0, controller: item.controller, assetId: undefined });
-                void transfer(item);
-              }}
-            >
-              <RotateCcw size={17} />
+            <button type="button" className="icon-button" aria-label={`Cancel ${item.file.name}`} onClick={() => removeItem(item)}>
+              <X size={17} />
             </button>
-          )}
-          <button type="button" className="icon-button" aria-label={`Cancel ${item.file.name}`} onClick={() => removeItem(item)}>
-            <X size={17} />
-          </button>
-        </div>
-      ))}
+          </div>
+        )
+      )}
       {error && (
         <p className="error" role="alert">
           {error}

@@ -18,11 +18,11 @@ test.beforeEach(async ({ context }) => {
   test.skip(!cookie, "Run seed-local first");
   await context.addCookies([cookie]);
 });
-test("uploads multiple files, previews them and preserves IDs when publishing an attachment-only post", async ({ page }) => {
+test("uploads multiple files inline and preserves IDs when publishing an attachment-only post", async ({ page }) => {
   await mockUploads(page);
   await page.goto("/");
   const composer = page.locator("#compose");
-  await expect(composer.getByRole("button", { name: "Add files" })).toBeEnabled();
+  await expect(composer.getByRole("button", { name: "Attach files" })).toBeEnabled();
   await composer.locator("input[type=file]").setInputFiles([
     { name: "research.png", mimeType: "image/png", buffer: image },
     { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("Notes") },
@@ -30,10 +30,6 @@ test("uploads multiple files, previews them and preserves IDs when publishing an
   await expect(composer.locator(".attachment-draft strong").filter({ hasText: "research.png" })).toBeVisible();
   await expect(composer.locator(".attachment-draft strong").filter({ hasText: "notes.txt" })).toBeVisible();
   await expect(composer.locator("progress")).toHaveCount(0);
-  await composer.getByRole("tab", { name: "Preview", exact: true }).click();
-  await expect(composer.locator(".attachment-view")).toHaveCount(2);
-  await expect(composer.locator(".attachment-view img")).toBeVisible();
-  await composer.getByRole("tab", { name: "Write", exact: true }).click();
   let payload: any;
   await page.route("**/api/forum/publish", (route) => {
     payload = route.request().postDataJSON();
@@ -49,7 +45,7 @@ test("validates files, accepts pasted images in the editor and lets users remove
   await mockUploads(page);
   await page.goto("/");
   const composer = page.locator("#compose");
-  await expect(composer.getByRole("button", { name: "Add files" })).toBeEnabled();
+  await expect(composer.getByRole("button", { name: "Attach files" })).toBeEnabled();
   await composer.locator("input[type=file]").setInputFiles({ name: "unsafe.svg", mimeType: "image/svg+xml", buffer: Buffer.from("<svg/>") });
   await expect(composer.getByText(/Choose a JPEG/)).toBeVisible();
   await composer.getByLabel("Your post", { exact: true }).evaluate((el, bytes) => {

@@ -537,73 +537,6 @@ small,
   gap: 12px;
   font-size: 14px;
 }
-.composer textarea {
-  border: 0;
-  resize: vertical;
-  width: 100%;
-  min-height: 100px;
-  max-height: 70vh;
-  padding: 16px 0 12px;
-  background: white;
-  color: black;
-  line-height: 1.7;
-  font-size: 15px;
-}
-.composer textarea:focus {
-  outline: none;
-}
-.mention-editor {
-  position: relative;
-}
-.mention-picker {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: min(100%, 440px);
-  z-index: 10;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
-  overflow: hidden;
-}
-.mention-picker-heading {
-  padding: 12px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--line);
-}
-.mention-picker-heading span {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--muted);
-}
-.mention-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  cursor: pointer;
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-.mention-option[aria-selected="true"] {
-  background: var(--surface);
-  box-shadow: inset 3px 0 var(--blue);
-}
-.mention-handle {
-  display: block;
-  color: var(--muted);
-  font-size: 12px;
-}
-.mention-status {
-  padding: 12px 14px;
-  margin: 0;
-  font-size: 12px;
-  color: var(--muted);
-}
 .post-content a.mention {
   color: var(--blue);
   font-weight: 600;
@@ -615,22 +548,6 @@ small,
 .composer:focus-within {
   box-shadow: inset 2px 0 black;
 }
-.composer-tabs {
-  display: flex;
-  gap: 18px;
-  margin-left: auto;
-}
-.composer-tabs button {
-  border: 0;
-  background: none;
-  padding: 5px 0;
-  font-size: 12px;
-  color: var(--muted);
-}
-.composer-tabs button[aria-selected="true"] {
-  color: black;
-  border-bottom: 1px solid black;
-}
 .composer-foot {
   display: flex;
   align-items: center;
@@ -638,10 +555,6 @@ small,
   gap: 12px;
   border-top: 1px solid #f0f0f0;
   padding-top: 13px;
-}
-.composer-hint {
-  font-size: 11px;
-  color: var(--muted);
 }
 .publish-toast {
   position: fixed;
@@ -689,10 +602,6 @@ small,
   font-size: 11px;
   color: var(--muted);
   margin-left: auto;
-}
-.composer .preview {
-  min-height: 100px;
-  padding: 18px 0;
 }
 .compose-invite {
   padding: 23px 28px;
@@ -1262,9 +1171,6 @@ small,
   .compose-invite {
     padding: 20px;
   }
-  .composer-hint {
-    display: none;
-  }
   .composer-foot .counter {
     margin-left: 0;
   }
@@ -1755,31 +1661,9 @@ small,
   cursor: pointer;
   font-weight: 600;
 }
-.composer-guide {
-  margin: 10px 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-.composer-guide summary {
-  cursor: pointer;
-}
-.composer-guide pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  background: var(--surface);
-  padding: 12px;
-  border-radius: 6px;
-  line-height: 1.7;
-}
-.composer-guide code {
-  font-size: 12px;
-}
 @media (max-width: 680px) {
   .composer-foot {
     flex-wrap: wrap;
-  }
-  .composer-hint {
-    flex-basis: 100%;
   }
 }
 .plain-post {
@@ -2864,88 +2748,8 @@ small,
   color: var(--muted);
 }
 
-.pdf-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 20px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-}
-.pdf-card span {
-  color: var(--muted);
-  font-size: 13px;
-}
-.pdf-card button {
-  background: white;
-  color: var(--blue);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 9px 14px;
-}
-.pdf-reader {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100dvh;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  border: 0;
-  padding: 0;
-  background: var(--surface);
-}
-.pdf-reader::backdrop {
-  background: white;
-}
-html:has(.pdf-reader[open]) {
-  overflow: hidden;
-}
-.pdf-reader[open] {
-  display: flex;
-  flex-direction: column;
-}
-.pdf-reader header {
-  background: white;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--line);
-}
-.pdf-reader header strong {
-  display: block;
-  overflow-wrap: anywhere;
-  margin-bottom: 10px;
-}
-.pdf-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-.pdf-controls button,
-.pdf-controls a {
-  background: white;
-  color: var(--blue);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 8px 12px;
-  font-size: 13px;
-}
-.pdf-stage {
-  flex: 1;
-  overflow: auto;
-  padding: 16px;
-}
-.pdf-sheet {
-  position: relative;
-  margin: 0 auto;
-  background: white;
-}
-.pdf-reader [role="status"] {
-  margin: 8px 20px;
-}
 /* PDF.js text-layer layout (Apache-2.0); keep viewer styles inside the reader. */
-.pdf-reader .textLayer {
+.pdf-inline .textLayer {
   --min-font-size: 1;
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
@@ -2960,7 +2764,7 @@ html:has(.pdf-reader[open]) {
   letter-spacing: normal;
   word-spacing: normal;
 }
-.pdf-reader .textLayer :is(span, br) {
+.pdf-inline .textLayer :is(span, br) {
   color: transparent;
   position: absolute;
   white-space: pre;
@@ -2968,8 +2772,8 @@ html:has(.pdf-reader[open]) {
   transform-origin: 0 0;
   user-select: text;
 }
-.pdf-reader .textLayer > :not(.markedContent),
-.pdf-reader .textLayer .markedContent span:not(.markedContent) {
+.pdf-inline .textLayer > :not(.markedContent),
+.pdf-inline .textLayer .markedContent span:not(.markedContent) {
   --font-height: 0;
   --scale-x: 1;
   --rotate: 0deg;
@@ -2977,10 +2781,10 @@ html:has(.pdf-reader[open]) {
   font-size: calc(var(--text-scale-factor) * var(--font-height));
   transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
 }
-.pdf-reader .textLayer .markedContent {
+.pdf-inline .textLayer .markedContent {
   display: contents;
 }
-.pdf-reader .textLayer ::selection {
+.pdf-inline .textLayer ::selection {
   background: #1d70e84d;
 }
 
@@ -3161,4 +2965,127 @@ html:has(.pdf-reader[open]) {
   .listing-form {
     padding: 20px 16px;
   }
+}
+
+/* Compact composer and inline media keep the feed's existing visual language. */
+.editor-toolbar[aria-label="Text formatting"] {
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 6px;
+}
+.editor-toolbar[aria-label="Text formatting"] > :is(button, select, details) {
+  flex-shrink: 0;
+}
+.editor-toolbar button,
+.editor-toolbar summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 34px;
+  padding: 6px;
+}
+.editor-toolbar select {
+  width: 55px;
+  padding: 6px;
+}
+.editor-insert {
+  position: fixed;
+  inset: auto;
+  margin-top: 0;
+  width: 176px;
+  max-width: calc(100vw - 16px);
+}
+.editor-insert button {
+  justify-content: flex-start;
+}
+.file-upload-inline > .attachment-list {
+  display: contents;
+}
+.file-upload-inline {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.file-upload-inline:has(> .error) {
+  margin-bottom: 8px;
+}
+.editor-attachment {
+  padding: 0;
+}
+.editor-attachment:empty::before {
+  content: "Loading attachment...";
+  color: var(--muted);
+}
+.editor-attachment .attachment-draft {
+  margin: 8px 0;
+  border: 0;
+  background: none;
+  padding: 10px 12px;
+}
+.post-action-row .post-views {
+  margin: 0 0 0 auto;
+}
+.pdf-inline {
+  max-height: 480px;
+  min-height: 180px;
+  overflow: auto;
+  padding: 8px;
+  background: var(--surface);
+  overscroll-behavior: contain;
+}
+.pdf-inline .pdf-sheet {
+  margin: 0 auto 8px;
+  width: 100%;
+  overflow: hidden;
+}
+.pdf-inline canvas {
+  display: block;
+  max-width: 100%;
+}
+.pdf-inline [role="status"] {
+  padding: 12px;
+  color: var(--muted);
+}
+.attachment-view figcaption {
+  flex-wrap: wrap;
+}
+.private-attachment {
+  min-width: 0;
+}
+@media (max-width: 480px) {
+  .editor-toolbar[aria-label="Text formatting"] {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .post-action-row {
+    gap: 2px;
+  }
+  .post-action-row > :is(a, button, .post-action-count, .post-share-fallback) {
+    min-width: 36px;
+  }
+}
+
+@media (max-width: 360px) {
+  .post-action-row {
+    gap: 0;
+  }
+  .post-action-row > :is(a, button, .post-action-count, .post-share-fallback) {
+    min-width: 28px;
+    gap: 3px;
+  }
+  .post-action-row .post-views {
+    font-size: 10px;
+  }
+}
+
+.media-duration {
+  display: block;
+  padding: 0 12px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.dm-message-stack:has(.attachment-view) {
+  width: min(100%, 360px);
 }
