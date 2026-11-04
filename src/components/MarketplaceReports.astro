@@ -13,8 +13,10 @@ const reports = active
 ---
 
 {active && (
-  <section>
-    <h2>Marketplace reports</h2>
+  <section aria-labelledby="marketplace-reports-title">
+    <header class="moderation-heading">
+      <h2 id="marketplace-reports-title">Marketplace reports</h2>
+    </header>
     {reports.slice(0, 20).map((report) => (
       <article class="moderation-report" data-listing-id={report.listing_id}>
         <p>
@@ -41,7 +43,11 @@ const reports = active
         <p class="error" role="status" data-listing-status></p>
       </article>
     ))}
-    {!reports.length && <p class="muted">No marketplace reports to review.</p>}
+    {!reports.length && (
+      <div class="moderation-empty">
+        <p>No marketplace reports to review.</p>
+      </div>
+    )}
     <Pagination page={page} hasMore={reports.length > 20} />
   </section>
 )}

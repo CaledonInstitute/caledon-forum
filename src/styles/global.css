@@ -2595,8 +2595,9 @@ small,
 }
 .admin-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
-  padding: 16px 0;
+  padding: 16px 28px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 20px;
 }
@@ -2605,6 +2606,9 @@ small,
   font-weight: 700;
 }
 @media (max-width: 680px) {
+  .admin-tabs {
+    padding-inline: 20px;
+  }
   .report-meta,
   .moderation-heading,
   .moderation-log li {
