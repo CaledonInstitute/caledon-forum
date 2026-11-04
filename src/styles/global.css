@@ -2857,6 +2857,7 @@ small,
   overscroll-behavior: contain;
 }
 .pdf-inline .pdf-sheet {
+  position: relative;
   margin: 0 auto 8px;
   width: 100%;
   overflow: hidden;

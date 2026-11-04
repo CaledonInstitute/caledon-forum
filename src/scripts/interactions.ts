@@ -114,7 +114,7 @@ document.addEventListener("click", async (event) => {
 });
 document.addEventListener("click", (event) => {
   if (event.defaultPrevented || event.button !== 0 || !(event.target instanceof Element)) return;
-  if (event.target.closest('a,button,input,textarea,select,label,details,summary,iframe,video,audio,[contenteditable],[role="button"],[role="link"]')) return;
+  if (event.target.closest('a,button,input,textarea,select,label,details,summary,iframe,video,audio,.pdf-inline,[contenteditable],[role="button"],[role="link"]')) return;
   if (window.getSelection()?.toString()) return;
   const post = event.target.closest<HTMLElement>("[data-post-url]");
   const url = post?.dataset.postUrl;

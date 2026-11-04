@@ -3,6 +3,42 @@ import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createIdentity, encryptMessage } from "../../src/lib/dm-crypto";
 
+for (const width of [1280, 390]) {
+  test(`post PDF scrolls through pages at ${width}px without opening the post`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.route("**/qa-scroll.pdf", (route) => route.fulfill({ contentType: "application/pdf", body: simplePdf() }));
+    await page.route("**/qa-post-should-not-open", (route) => route.fulfill({ contentType: "text/html", body: "Post opened" }));
+    await page.goto("/");
+    await page.evaluate(() => {
+      const post = document.createElement("article");
+      post.dataset.postUrl = "/qa-post-should-not-open";
+      post.innerHTML =
+        '<p data-qa-post-body>Post with PDF</p><button type="button" data-qa-post-action>Post action</button><figure class="attachment-view"><div class="pdf-inline" data-pdf="/qa-scroll.pdf"></div></figure>';
+      post.querySelector("button")!.addEventListener("click", (event) => {
+        (event.currentTarget as HTMLButtonElement).textContent = "Action clicked";
+      });
+      document.querySelector("main")!.prepend(post);
+    });
+    const pdf = page.locator('[data-pdf="/qa-scroll.pdf"]');
+    await pdf.scrollIntoViewIfNeeded();
+    await expect(pdf.locator(".textLayer").first()).toContainText("Hello PDF");
+    await pdf.hover();
+    await page.mouse.wheel(0, 650);
+    await expect.poll(() => pdf.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    await expect(pdf.locator('[data-page="2"] .textLayer')).toContainText("Hello PDF");
+    const sheet = pdf.locator('[data-page="2"]');
+    expect(await sheet.locator(".textLayer").evaluate((el) => el.offsetParent === el.parentElement)).toBe(true);
+    const url = page.url();
+    await pdf.click({ position: { x: 40, y: 40 } });
+    await expect(page).toHaveURL(url);
+    await page.locator("[data-qa-post-action]").click();
+    await expect(page.locator("[data-qa-post-action]")).toHaveText("Action clicked");
+    await expect(page).toHaveURL(url);
+    await page.locator("[data-qa-post-body]").click();
+    await expect(page).toHaveURL(/\/qa-post-should-not-open$/);
+  });
+}
+
 function wave() {
   const bytes = Buffer.alloc(44 + 16000);
   bytes.write("RIFF", 0);
