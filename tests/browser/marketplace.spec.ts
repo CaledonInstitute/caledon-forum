@@ -312,6 +312,7 @@ for (const width of [320, 390, 680, 1280]) {
     for (const [name, path] of [
       ["index", `/marketplace?q=${encodeURIComponent(query)}`],
       ["detail", `/marketplace/${listingId}`],
+      ["closed", "/marketplace/40000000-0000-4000-8000-000000000005"],
       ["create", "/marketplace/new"],
       ["edit", `/marketplace/${listingId}?edit=1`],
     ]) {
@@ -332,6 +333,18 @@ for (const width of [320, 390, 680, 1280]) {
         expect(columns).toBe(width < 360 ? 1 : 2);
       }
       if (name === "detail") expect((await page.locator(".listing-gallery-main img").boundingBox())!.height).toBeLessThanOrEqual(400);
+      if (name === "closed") {
+        const notice = (await page.getByText("This listing is closed.", { exact: true }).boundingBox())!;
+        const reopen = page.getByRole("button", { name: "Reopen listing", exact: true });
+        const primary = (await reopen.boundingBox())!;
+        const edit = (await page.getByRole("link", { name: "Edit listing", exact: true }).boundingBox())!;
+        const remove = (await page.getByRole("button", { name: "Delete listing", exact: true }).boundingBox())!;
+        expect(notice.y + notice.height).toBeLessThan(primary.y);
+        expect(edit.y).toBe(primary.y);
+        expect(primary.y + primary.height).toBeLessThan(remove.y);
+        await reopen.focus();
+        expect(await reopen.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
+      }
     }
   });
 }

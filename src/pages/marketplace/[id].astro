@@ -59,7 +59,7 @@ if (editing && !owner) Astro.response.status = 403;
         </div>
         <div class="listing-actions" data-listing-id={listing.id}>
           {listing.status === "closed" ? (
-            <strong>This listing is closed.</strong>
+            <p class="listing-closed-notice">This listing is closed.</p>
           ) : (
             !owner &&
             (listing.dmEnabled ? (
@@ -67,31 +67,40 @@ if (editing && !owner) Astro.response.status = 403;
                 Contact seller
               </a>
             ) : (
-              <p class="muted">The seller cannot receive DM right now.</p>
+              <p class="listing-contact-notice muted">The seller cannot receive DM right now.</p>
             ))
           )}
           {owner && (
-            <>
+            <div class="listing-owner-actions">
+              <button
+                class:list={["button", { secondary: listing.status === "active" }]}
+                data-listing-action="close"
+                data-status={listing.status === "active" ? "closed" : "active"}
+              >
+                {listing.status === "active" ? "Close listing" : "Reopen listing"}
+              </button>
               <a class="button secondary" href={`?edit=1`}>
                 Edit listing
               </a>
-              <button class="button secondary" data-listing-action="close" data-status={listing.status === "active" ? "closed" : "active"}>
-                {listing.status === "active" ? "Close listing" : "Reopen listing"}
-              </button>
-              <button class="text-button" data-listing-action="delete">
-                Delete listing
-              </button>
-            </>
+            </div>
           )}
-          {Astro.locals.user && !owner && (
-            <button class="text-button" data-listing-action="report">
-              Report listing
-            </button>
-          )}
-          {Astro.locals.user?.role === "admin" && (
-            <button class="text-button" data-listing-action="moderate">
-              Remove as admin
-            </button>
+          {Astro.locals.user && (
+            <div class="listing-secondary-actions">
+              {owner ? (
+                <button class="text-button" data-listing-action="delete">
+                  Delete listing
+                </button>
+              ) : (
+                <button class="text-button" data-listing-action="report">
+                  Report listing
+                </button>
+              )}
+              {Astro.locals.user?.role === "admin" && (
+                <button class="text-button" data-listing-action="moderate">
+                  Remove as admin
+                </button>
+              )}
+            </div>
           )}
           <p role="status" class="error" data-listing-status></p>
         </div>
