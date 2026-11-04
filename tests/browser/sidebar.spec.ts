@@ -15,6 +15,11 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await page.goto("/");
     const sidebar = page.locator(".sidebar");
+    const style = await sidebar.evaluate((el) => {
+      const css = getComputedStyle(el);
+      return { shadow: css.boxShadow, radius: css.borderRadius, border: css.borderTopWidth, position: css.position };
+    });
+    expect(style).toEqual({ shadow: "none", radius: "0px", border: "0px", position: "sticky" });
     const links = sidebar.locator("a");
     for (const link of await links.all()) {
       // Keyboard focus must bring every navigation, account and footer link into view.

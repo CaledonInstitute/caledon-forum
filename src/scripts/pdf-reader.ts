@@ -1,4 +1,3 @@
-import "pdfjs-dist/web/pdf_viewer.css";
 import { getDocument, GlobalWorkerOptions, TextLayer, type PDFDocumentProxy } from "pdfjs-dist";
 import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 GlobalWorkerOptions.workerSrc = worker;

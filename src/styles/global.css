@@ -2944,7 +2944,11 @@ html:has(.pdf-reader[open]) {
 .pdf-reader [role="status"] {
   margin: 8px 20px;
 }
-.textLayer {
+/* PDF.js text-layer layout (Apache-2.0); keep viewer styles inside the reader. */
+.pdf-reader .textLayer {
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
   position: absolute;
   inset: 0;
   overflow: clip;
@@ -2953,19 +2957,30 @@ html:has(.pdf-reader[open]) {
   text-size-adjust: none;
   transform-origin: 0 0;
   forced-color-adjust: none;
+  letter-spacing: normal;
+  word-spacing: normal;
 }
-.textLayer :is(span, br) {
+.pdf-reader .textLayer :is(span, br) {
   color: transparent;
   position: absolute;
   white-space: pre;
   cursor: text;
   transform-origin: 0 0;
+  user-select: text;
 }
-.textLayer span.markedContent {
-  top: 0;
-  height: 0;
+.pdf-reader .textLayer > :not(.markedContent),
+.pdf-reader .textLayer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  z-index: 1;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
 }
-.textLayer ::selection {
+.pdf-reader .textLayer .markedContent {
+  display: contents;
+}
+.pdf-reader .textLayer ::selection {
   background: #1d70e84d;
 }
 

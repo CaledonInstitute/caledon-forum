@@ -170,6 +170,14 @@ test("PDF reader loads only on demand, exposes selectable text and offers recove
   });
   await page.goto("/");
   expect(reads).toBe(0);
+  const sidebarStyle = () =>
+    page.locator(".sidebar").evaluate((el) => {
+      const css = getComputedStyle(el);
+      return { shadow: css.boxShadow, radius: css.borderRadius, border: css.borderTopWidth, padding: css.padding };
+    });
+  const baseline = await sidebarStyle();
+  expect(baseline.shadow).toBe("none");
+  expect(baseline.radius).toBe("0px");
   await page.evaluate(() => {
     const button = document.createElement("button");
     button.dataset.pdf = "/api/files/pdf-fixture";
@@ -181,12 +189,20 @@ test("PDF reader loads only on demand, exposes selectable text and offers recove
   const reader = page.getByRole("dialog", { name: "Research.pdf" });
   await expect(reader).toBeVisible();
   await expect(reader.locator(".textLayer")).toContainText("Hello PDF");
+  expect(await sidebarStyle()).toEqual(baseline);
+  expect(
+    await reader
+      .locator(".textLayer span")
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+  ).toBeGreaterThan(0);
   expect(reads).toBeGreaterThan(0);
   await reader.getByRole("button", { name: "Zoom in" }).click();
   await expect(reader.locator(".textLayer")).toContainText("Hello PDF");
   expect(await reader.evaluate((el) => Math.round(el.getBoundingClientRect().top))).toBe(0);
   await page.screenshot({ path: "artifacts/pdf-reader.png" });
   await reader.getByRole("button", { name: "Close", exact: true }).click();
+  expect(await sidebarStyle()).toEqual(baseline);
   await expect(page.getByRole("button", { name: "Read fixture" })).toBeFocused();
   await page.route("**/api/files/pdf-fixture", (route) => route.fulfill({ contentType: "application/pdf", body: "not a PDF" }));
   await page.getByRole("button", { name: "Read fixture" }).click();
