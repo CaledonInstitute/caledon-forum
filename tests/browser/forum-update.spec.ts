@@ -7,6 +7,38 @@ test.beforeEach(async ({ context }) => {
   await context.addCookies([JSON.parse(await readFile(".astro/qa-session.json", "utf8"))]);
 });
 
+test("the editor accepts typing after the first click in its empty writing area", async ({ page }) => {
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    const editor = page.getByRole("textbox", { name: "Your post", exact: true });
+    await expect(editor).toBeVisible();
+    const bounds = (await editor.boundingBox())!;
+    for (const [x, y] of [
+      [2, 2],
+      [20, 20],
+      [bounds.width - 2, bounds.height - 2],
+      [bounds.width / 2, bounds.height / 2],
+    ]) {
+      await page.locator(".composer-head strong").click();
+      await expect(editor).not.toBeFocused();
+      await page.mouse.click(bounds.x + x, bounds.y + y);
+      await expect(editor).toBeFocused();
+      expect(await editor.evaluate((el) => el.contains(window.getSelection()?.anchorNode || null))).toBe(true);
+      await page.keyboard.type("First click draft");
+      await expect(editor).toHaveText("First click draft");
+      await page.keyboard.press("ControlOrMeta+a");
+      await page.keyboard.press("Backspace");
+    }
+    await editor.fill("Existing draft");
+    await page.locator(".composer-head strong").click();
+    const paragraph = (await editor.locator("p").boundingBox())!;
+    await page.mouse.click(paragraph.x + 1, paragraph.y + paragraph.height / 2);
+    await page.keyboard.type("Start ");
+    await expect(editor).toHaveText("Start Existing draft");
+  }
+});
+
 test("visual editor publishes italic, edits JSON content, without preview tabs", async ({ page }) => {
   test.setTimeout(60000);
   await page.goto("/qa_caledon");

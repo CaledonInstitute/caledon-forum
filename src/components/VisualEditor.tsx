@@ -1,12 +1,13 @@
 import { closeHistory } from "@tiptap/pm/history";
 import { EditorState, Plugin } from "@tiptap/pm/state";
+import type { EditorProps } from "@tiptap/pm/view";
 import { List, ListOrdered, Quote, Link, Plus, Undo2, Redo2, Paperclip } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { Node, mergeAttributes, type JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
 import Image from "@tiptap/extension-image";
-import { useEffect, useRef, useState, useId, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, useId, type RefObject } from "react";
 import katex from "katex";
 import { importMarkdown, documentBody, type EditorDocument } from "../lib/editor-document";
 import type { Attachment } from "../lib/upload-policy";
@@ -254,10 +255,10 @@ export default function VisualEditor({
       }
     return doc;
   });
-  const editor = useEditor({
-    immediatelyRender: false,
-    shouldRerenderOnTransaction: true,
-    extensions: [
+  // Focus also dispatches a transaction. Keep view options stable so its React
+  // render does not reconfigure ProseMirror while the first click places a caret.
+  const extensions = useMemo(
+    () => [
       StarterKit.configure({ heading: { levels: [1, 2, 3] }, underline: false, link: { openOnClick: false } }),
       TableKit.configure({ table: { resizable: false } }),
       ProxiedImage.configure({ inline: true }),
@@ -267,9 +268,18 @@ export default function VisualEditor({
       mathNode("inlineMath", true),
       mathNode("blockMath", false),
     ],
-    content: startingDocument,
-    editorProps: {
+    []
+  );
+  const editorProps = useMemo<EditorProps>(
+    () => ({
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": reply ? "Your reply" : "Your post", class: "post-content visual-editor" },
+      handleDOMEvents: {
+        mousedown: (view, event) => {
+          if (event.button === 0 && view.editable && !view.hasFocus()) view.focus();
+          // Let ProseMirror and the browser place/drag the selection at the click.
+          return false;
+        },
+      },
       handleKeyDown: (_view, event) => {
         const current = state.current;
         if (!current.query) return false;
@@ -289,7 +299,15 @@ export default function VisualEditor({
         }
         return false;
       },
-    },
+    }),
+    [reply]
+  );
+  const editor = useEditor({
+    immediatelyRender: false,
+    shouldRerenderOnTransaction: true,
+    extensions,
+    content: startingDocument,
+    editorProps,
     onUpdate: ({ editor }) => {
       const doc: EditorDocument = { version: 1, doc: editor.getJSON() as any };
       change.current(documentBody(doc), doc);
