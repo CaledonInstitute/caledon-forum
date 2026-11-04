@@ -6,6 +6,8 @@ import type { Attachment } from "../lib/upload-policy";
 import UserAvatar from "./UserAvatar";
 import PublishToast from "./PublishToast";
 import QuoteCard from "./QuoteCard";
+import ListingPreview from "./ListingPreview";
+import type { ListingPreview as ProductPreview } from "../lib/listing-dom";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { showPublishedPost } from "../lib/published-post";
 import { countCharacters, MAX_CHARACTERS } from "../lib/content";
@@ -68,21 +70,25 @@ export default function Composer({
   const [notice, setNotice] = useState<{ message: string; url: string; persistent?: boolean } | null>(null);
   const closeNotice = useCallback(() => setNotice(null), []);
   const [quote, setQuote] = useState<QuotedPost | null>(null);
+  const [listing, setListing] = useState<ProductPreview | null>(null);
   const [quoteStatus, setQuoteStatus] = useState("");
   useEffect(() => {
     setQuote(null);
+    setListing(null);
     setQuoteStatus("");
-    if (!/\/p\/[0-9]+/.test(body)) return;
+    if (!/(\/p\/[0-9]+|\/marketplace\/)/.test(body)) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
-      setQuoteStatus("Loading quoted post…");
+      setQuoteStatus("Loading preview…");
       try {
-        const result = { quote: await (await import("../lib/client-content")).clientQuote(body) };
+        const content = await import("../lib/client-content");
+        const [quote, listing] = await Promise.all([content.clientQuote(body), content.clientListing(body)]);
         if (controller.signal.aborted) return;
-        setQuote(result.quote);
+        setQuote(quote);
+        setListing(listing);
         setQuoteStatus("");
       } catch {
-        if (!controller.signal.aborted) setQuoteStatus("Could not load the quote. Check the post link and try again.");
+        if (!controller.signal.aborted) setQuoteStatus("Could not load the preview. Check the link and try again.");
       }
     }, 400);
     return () => {
@@ -115,6 +121,7 @@ export default function Composer({
       setBody("");
       setAttachments([]);
       setQuote(null);
+      setListing(null);
       setQuoteStatus("");
       const message = parentId ? "Reply posted." : "Post published.";
       setNotice({ message, url: r.url });
@@ -172,6 +179,7 @@ export default function Composer({
         {...attachmentEditor}
       />
       {quote && <QuoteCard quote={quote} />}
+      {listing && <ListingPreview preview={listing} />}
       {quoteStatus && (
         <p className="quote-status" role="status">
           {quoteStatus}

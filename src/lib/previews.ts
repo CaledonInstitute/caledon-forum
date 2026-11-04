@@ -5,6 +5,7 @@ import { publicUrl, safeFetch, readLimited, rasterType } from "./security";
 import { youtubeId } from "./content";
 import type { LinkPreview } from "./types";
 import { localPostId } from "./quotes";
+import { localListingId } from "./listing-link";
 import { env } from "cloudflare:workers";
 import { reserveBudget } from "./control";
 const query = "SELECT id,url,kind,title,description,site,image,video_id AS videoId,checked_at AS checkedAt FROM link_previews WHERE url=?";
@@ -52,7 +53,7 @@ async function scrapeLink(url: string, response: Response, p: LinkPreview): Prom
 }
 export async function inspectLink(value: string): Promise<LinkPreview | null> {
   try {
-    if (localPostId(value)) return null;
+    if (localPostId(value) || localListingId(value, env.SITE_URL)) return null;
     const url = publicUrl(value).href;
     const cached = await one<LinkPreview>(query, url);
     if (cached && cached.checkedAt > Date.now() - 86400000 && previewUsable(cached, url)) return cached;

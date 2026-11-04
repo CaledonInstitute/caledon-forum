@@ -150,7 +150,7 @@ async function refresh() {
             content.dataset.richDeleted = "true";
             content.replaceChildren(document.createTextNode("This post was deleted."));
           }
-          card.querySelectorAll("[data-rich-quote],.link-card,.external-image-link,.read-more").forEach((node) => node.remove());
+          card.querySelectorAll("[data-rich-quote],[data-rich-listing],.link-card,.external-image-link,.read-more").forEach((node) => node.remove());
           card.querySelector(".post-tools")?.remove();
           card.querySelector(".identity > .more")?.remove();
           continue;

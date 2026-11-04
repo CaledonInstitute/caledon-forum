@@ -1,5 +1,6 @@
+import { env } from "cloudflare:workers";
 import { z } from "zod";
-import { all, one, db } from "./db";
+import { all, one, db, publishBatch } from "./db";
 import { activeAccount, collectUnused } from "./uploads";
 import { attachmentList, type Attachment } from "./upload-policy";
 import type { Viewer } from "./types";
@@ -45,8 +46,17 @@ export async function listMarketplace(url: URL, page: number) {
   );
   return Promise.all(items.map(async (item) => ({ ...item, photos: await listingPhotos(item.id) })));
 }
-export const formatPrice = (price: number) =>
-  price === 0 ? "Free" : new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(price);
+export { formatPrice } from "./listing-price";
+export type ListingCardData = Pick<Listing, "id" | "title" | "price" | "negotiable" | "location" | "kind" | "condition" | "status"> & { photoId: string | null };
+export function listingCards(ids: string[]) {
+  return all<ListingCardData>(
+    `SELECT l.id,l.title,l.price,l.negotiable,l.location,l.kind,l.condition,l.status,
+    (SELECT mp.asset_id FROM marketplace_photos mp JOIN uploads a ON a.id=mp.asset_id WHERE mp.listing_id=l.id AND a.state='ready' ORDER BY mp.position LIMIT 1) AS photoId
+    FROM marketplace_listings l JOIN user u ON u.id=l.seller_id
+    WHERE l.id IN (SELECT value FROM json_each(?)) AND l.deleted=0 AND u.suspended=0 AND u.deleting_at IS NULL`,
+    JSON.stringify(ids)
+  );
+}
 export async function marketplaceAction(user: Viewer, action: string, data: any): Promise<Response> {
   if (!(await activeAccount(user.id)) || user.suspended || !user.emailVerified || !user.username)
     return Response.json({ error: "Sign in with an active, verified account and choose a username." }, { status: 403 });
@@ -86,6 +96,7 @@ export async function marketplaceAction(user: Viewer, action: string, data: any)
     )
       throw new Error("A photo is already used in another post or listing.");
     const id = input.id || crypto.randomUUID();
+    const postBody = new URL(`/marketplace/${id}`, env.SITE_URL).href;
     const condition = input.kind === "goods" ? input.condition : null;
     const statement = existing
       ? db()
@@ -96,7 +107,7 @@ export async function marketplaceAction(user: Viewer, action: string, data: any)
             "INSERT INTO marketplace_listings(id,seller_id,kind,title,description,price,negotiable,location,condition,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM user WHERE id=? AND suspended=0 AND deleting_at IS NULL)"
           )
           .bind(id, user.id, input.kind, input.title, input.description, input.price, Number(input.negotiable), input.location, condition, now, now, user.id);
-    await db().batch([
+    await publishBatch([
       statement,
       db().prepare("DELETE FROM marketplace_photos WHERE listing_id=?").bind(id),
       ...ids.map((asset, i) =>
@@ -104,6 +115,13 @@ export async function marketplaceAction(user: Viewer, action: string, data: any)
           .prepare("INSERT INTO marketplace_photos(listing_id,asset_id,position) SELECT ?,id,? FROM uploads WHERE id=? AND owner_id=? AND state='ready'")
           .bind(id, i, asset, user.id)
       ),
+      ...(!existing
+        ? [
+            db()
+              .prepare("INSERT INTO posts(id,author_id,body,created_at,updated_at) SELECT ?,seller_id,?,?,? FROM marketplace_listings WHERE id=? AND seller_id=? AND deleted=0")
+              .bind(crypto.randomUUID(), postBody, now, now, id, user.id),
+          ]
+        : []),
     ]);
     await collectUnused((existing?.photos || []).filter((p) => !ids.includes(p.id)).map((p) => p.id));
     await signalChange();
@@ -132,7 +150,7 @@ export async function marketplaceAction(user: Viewer, action: string, data: any)
   if (action !== "moderate" && listing.seller_id !== user.id) return Response.json({ error: "You cannot change this listing." }, { status: 403 });
   if (action === "close") {
     const status = z.enum(["active", "closed"]).parse(data.status);
-    await db().prepare("UPDATE marketplace_listings SET status=?,updated_at=? WHERE id=? AND seller_id=?").bind(status, now, id, user.id).run();
+    await db().batch([db().prepare("UPDATE marketplace_listings SET status=?,updated_at=? WHERE id=? AND seller_id=?").bind(status, now, id, user.id)]);
   } else if (action === "delete" || action === "moderate") {
     await db().batch([
       db().prepare("UPDATE marketplace_listings SET deleted=1,title='Deleted listing',description='',location='',updated_at=? WHERE id=?").bind(now, id),

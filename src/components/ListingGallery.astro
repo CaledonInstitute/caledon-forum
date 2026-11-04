@@ -1,0 +1,46 @@
+---
+import { fileUrl, type Attachment } from "../lib/upload-policy";
+interface Props {
+  photos: Attachment[];
+  title: string;
+}
+const { photos, title } = Astro.props;
+---
+
+{photos.length > 0 && (
+  <div class="listing-gallery" data-listing-gallery>
+    <a class="listing-gallery-main" href={fileUrl(photos[0].id)} target="_blank" rel="noopener" aria-label={`Open photo of ${title} in full size`}>
+      <img src={fileUrl(photos[0].id)} alt={`${title}, photo 1`} />
+    </a>
+    {photos.length > 1 && (
+      <div class="listing-thumbnails" role="group" aria-label="Listing photos">
+        {photos.map((photo, index) => (
+          <button
+            type="button"
+            data-photo-src={fileUrl(photo.id)}
+            data-photo-alt={`${title}, photo ${index + 1}`}
+            aria-label={`Show photo ${index + 1}`}
+            aria-pressed={index === 0 ? "true" : "false"}
+          >
+            <img src={fileUrl(photo.id)} alt="" loading="lazy" />
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-listing-gallery]").forEach((gallery) => {
+    const main = gallery.querySelector<HTMLAnchorElement>(".listing-gallery-main")!;
+    const image = main.querySelector("img")!;
+    gallery.querySelectorAll<HTMLButtonElement>("[data-photo-src]").forEach((button) => {
+      button.addEventListener("click", () => {
+        main.href = button.dataset.photoSrc!;
+        image.src = button.dataset.photoSrc!;
+        image.alt = button.dataset.photoAlt!;
+        gallery.querySelectorAll("[aria-pressed]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+      });
+    });
+  });
+</script>

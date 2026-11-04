@@ -30,7 +30,7 @@ export function extractUrls(body: string): string[] {
   return extractLinks(body).filter((url) => /^https:\/\//.test(url));
 }
 const linkParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(remarkRehype, { allowDangerousHtml: true }).use(rehypeRaw).freeze();
-type RenderData = { images: Map<string, LinkPreview>; quoteSource?: string; limit?: number; attachmentSlots?: Set<string> };
+type RenderData = { images: Map<string, LinkPreview>; quoteSource?: string | string[]; limit?: number; attachmentSlots?: Set<string> };
 function imageFor(images: RenderData["images"], value: string) {
   try {
     const url = new URL(value);
@@ -110,10 +110,10 @@ const processor = unified()
     visit(tree, "element", (node: any, index: number | undefined, parent: any) => {
       if (
         node.tagName === "a" &&
-        node.properties.href === quoteSource &&
+        (Array.isArray(quoteSource) ? quoteSource.includes(node.properties.href) : node.properties.href === quoteSource) &&
         node.children?.length === 1 &&
         node.children[0].type === "text" &&
-        node.children[0].value === quoteSource &&
+        node.children[0].value === node.properties.href &&
         parent &&
         index !== undefined
       ) {
@@ -196,7 +196,7 @@ const processor = unified()
   })
   .use(rehypeStringify)
   .freeze();
-export async function markdown(body: string, previews: LinkPreview[] = [], quoteSource?: string, limit?: number, attachments: Attachment[] = []): Promise<string> {
+export async function markdown(body: string, previews: LinkPreview[] = [], quoteSource?: string | string[], limit?: number, attachments: Attachment[] = []): Promise<string> {
   const slots = new Map<string, { id: string; html: string }>();
   const referenced = new Set<string>();
   const nonce = crypto.randomUUID().replaceAll("-", "");

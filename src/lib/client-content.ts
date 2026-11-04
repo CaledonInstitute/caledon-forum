@@ -2,6 +2,9 @@ import { quoteElement } from "./quote-dom";
 import { markdown, extractLinks } from "./markdown";
 import { excerpt } from "./content";
 import type { LinkPreview, QuotedPost } from "./types";
+import { clientListing, trackListing } from "./client-listings";
+import { listingElement, type ListingPreview } from "./listing-dom";
+export { clientListing, refreshListings } from "./client-listings";
 const quoteBodies = new WeakMap<HTMLElement, string>();
 function sourceLink(body: string) {
   for (const sourceUrl of extractLinks(body, false)) {
@@ -45,12 +48,24 @@ export async function enhancePost(element: HTMLElement) {
   const body = source.content.textContent || "";
   const links = JSON.parse(element.dataset.richPreviews || "[]") as LinkPreview[];
   let quote: QuotedPost | null = null;
+  let listing: ListingPreview | null = null;
   try {
     quote = await clientQuote(body);
   } catch {
     /* Keep original link when offline. */
   }
-  const html = await markdown(body, links, quote?.sourceUrl, element.closest(".post-detail") ? undefined : 600, JSON.parse(element.dataset.richAttachments || "[]"));
+  try {
+    listing = await clientListing(body);
+  } catch {
+    /* Keep the link usable offline. */
+  }
+  const html = await markdown(
+    body,
+    links,
+    [quote?.sourceUrl, listing?.sourceUrl].filter((url): url is string => !!url),
+    element.closest(".post-detail") ? undefined : 600,
+    JSON.parse(element.dataset.richAttachments || "[]")
+  );
   if (!element.isConnected || element.dataset.richDeleted === "true") return;
   element.innerHTML = html;
   element.parentElement?.querySelector(".post-attachments")?.setAttribute("hidden", "");
@@ -68,6 +83,11 @@ export async function enhancePost(element: HTMLElement) {
   const host = element.parentElement?.querySelector<HTMLElement>("[data-rich-quote]");
   if (host && body.includes("p/")) quoteBodies.set(host, body);
   if (host && quote) host.replaceChildren(quoteElement(quote));
+  const productHost = element.parentElement?.querySelector<HTMLElement>("[data-rich-listing]");
+  if (productHost && listing) {
+    trackListing(productHost, body);
+    productHost.replaceChildren(listingElement(listing));
+  }
   document.dispatchEvent(new Event("forum:posts-updated"));
 }
 export async function refreshQuotes() {

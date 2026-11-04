@@ -40,6 +40,7 @@ document.addEventListener("forum:quotes-updated", () => {
     queue = queue.then(async () => {
       try {
         await (await renderer!).refreshQuotes();
+        await (await renderer!).refreshListings();
       } catch {}
     });
 });

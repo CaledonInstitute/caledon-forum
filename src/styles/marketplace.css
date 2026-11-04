@@ -1,0 +1,403 @@
+/* Marketplace shares the forum palette, with photographs and prices leading. */
+.marketplace-header .page-header {
+  padding: 28px 24px 24px;
+  align-items: flex-start;
+}
+.marketplace-header .page-header > div {
+  min-width: 0;
+}
+.marketplace-header .page-header h1 {
+  font-size: 24px;
+}
+.marketplace-header .button {
+  flex-shrink: 0;
+  min-height: 44px;
+}
+.listing-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.marketplace-header > .listing-back {
+  margin: 16px 24px 0;
+}
+.marketplace-header:has(> .listing-back) .page-header {
+  padding-top: 8px;
+}
+.marketplace-filters {
+  padding: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.marketplace-search {
+  display: flex;
+  gap: 8px;
+}
+.marketplace-search input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+.marketplace-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.marketplace-filters :is(input, select),
+.listing-form :is(input:not([type="file"]), textarea, select) {
+  min-height: 44px;
+  font: inherit;
+  color: #000;
+  background: #fff;
+  border: 1px solid #b8b8b8;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.marketplace-filters select {
+  min-width: 130px;
+  max-width: 100%;
+}
+.marketplace-filters select:focus-visible,
+.listing-form select:focus-visible {
+  outline: 2px solid #404040;
+  outline-offset: 4px;
+}
+.marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 28px 20px;
+  padding: 24px;
+}
+.marketplace-grid:empty {
+  display: none;
+}
+.listing-card {
+  min-width: 0;
+}
+.listing-card > a {
+  display: block;
+  border-radius: 8px;
+}
+.listing-photo {
+  aspect-ratio: 4 / 3;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.listing-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.listing-photo span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.listing-copy {
+  padding-top: 12px;
+  overflow-wrap: anywhere;
+}
+.listing-price {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.listing-copy h2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: -0.2px;
+  margin: 6px 0;
+}
+.listing-copy > p:not(.listing-price) {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.listing-negotiable {
+  color: var(--muted);
+  font-size: 13px;
+}
+.listing-status {
+  display: inline-block;
+  padding: 4px 9px;
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.listing-detail {
+  padding: 16px 24px 32px;
+}
+.listing-detail h1 {
+  margin: 12px 0;
+  font-size: 24px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.listing-gallery {
+  margin: 16px 0 24px;
+}
+.listing-gallery-main {
+  display: block;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.listing-gallery-main img {
+  display: block;
+  width: 100%;
+  height: clamp(220px, 55vw, 400px);
+  object-fit: contain;
+}
+.listing-thumbnails {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.listing-thumbnails button {
+  width: 60px;
+  height: 60px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+.listing-thumbnails button[aria-pressed="true"] {
+  border: 2px solid #000;
+  padding: 2px;
+}
+.listing-thumbnails img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 3px;
+}
+.listing-summary {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.listing-price-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+.listing-metadata {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.listing-metadata p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.listing-description-section {
+  padding: 24px 0;
+}
+.listing-description-section h2,
+.listing-form-section h2 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  margin: 0 0 18px;
+}
+.listing-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  margin: 0;
+}
+.listing-seller {
+  padding: 20px 0 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.listing-seller p {
+  margin: 0 0 16px;
+  overflow-wrap: anywhere;
+}
+.listing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.listing-actions .button {
+  min-height: 44px;
+}
+.listing-actions .text-button {
+  min-height: 44px;
+}
+.listing-actions > .error {
+  flex-basis: 100%;
+  margin: 0;
+}
+.listing-actions > .error:empty {
+  display: none;
+}
+.listing-form {
+  padding: 0 24px 32px;
+}
+.listing-detail .listing-form {
+  padding: 0;
+}
+.listing-form > fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.listing-form-section {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
+}
+.listing-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 0;
+}
+.listing-form-section > label:last-child {
+  margin-bottom: 0;
+}
+.listing-form :is(input:not([type="file"]), textarea, select) {
+  width: 100%;
+  max-width: 100%;
+  font-weight: 400;
+}
+.listing-form textarea {
+  resize: vertical;
+}
+.listing-form small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.listing-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.listing-form .listing-check {
+  flex-direction: row;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 400;
+  gap: 10px;
+}
+.listing-form .listing-check input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  accent-color: #000;
+}
+.listing-upload {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.listing-field-label {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.listing-upload .file-upload {
+  margin: 0;
+}
+.listing-upload .attachment-draft {
+  min-width: 0;
+}
+.listing-form-footer {
+  padding-top: 20px;
+}
+.listing-form-footer > .error:empty {
+  display: none;
+}
+.listing-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.listing-form-actions .button {
+  min-height: 44px;
+}
+@media (max-width: 479px) {
+  .marketplace-header .page-header {
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px 16px;
+  }
+  .marketplace-header > .listing-back {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+  .marketplace-filters {
+    padding: 20px 16px;
+  }
+  .marketplace-filter-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .marketplace-filters select {
+    min-width: 0;
+    width: 100%;
+  }
+  .marketplace-grid {
+    padding: 20px 16px;
+    gap: 24px 12px;
+  }
+  .listing-price {
+    font-size: 20px;
+  }
+  .listing-detail {
+    padding: 12px 16px 24px;
+  }
+  .listing-form {
+    padding: 0 16px 24px;
+  }
+  .listing-form-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .listing-upload {
+    padding: 12px;
+  }
+}
+@media (max-width: 359px) {
+  .marketplace-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

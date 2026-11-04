@@ -1,5 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import "../../styles/marketplace.css";
 import PageHeader from "../../components/PageHeader.astro";
 import Pagination from "../../components/Pagination.astro";
 import { listMarketplace, formatPrice } from "../../lib/marketplace";
@@ -10,31 +11,35 @@ const items = await listMarketplace(Astro.url, page);
 ---
 
 <Layout title="Marketplace">
-  <PageHeader title="Marketplace" subtitle="Goods and services from the community" />
-  <div class="marketplace-heading">
-    <p>Find something useful. Share what you offer.</p>
-    <a class="button" href={Astro.locals.user ? "/marketplace/new" : "/login"}>
-      Create listing
-    </a>
+  <div class="marketplace-header">
+    <PageHeader title="Marketplace" subtitle="Goods and services from the community">
+      <a class="button" href={Astro.locals.user ? "/marketplace/new" : "/login"}>
+        Create listing
+      </a>
+    </PageHeader>
   </div>
   <form class="marketplace-filters" method="get">
-    <input type="search" name="q" aria-label="Search listings" placeholder="Search listings" value={Astro.url.searchParams.get("q")} />
-    <select name="kind" aria-label="Listing type">
-      <option value="">All types</option>
-      <option value="goods" selected={Astro.url.searchParams.get("kind") === "goods"}>
-        Goods
-      </option>
-      <option value="service" selected={Astro.url.searchParams.get("kind") === "service"}>
-        Services
-      </option>
-    </select>
-    <select name="status" aria-label="Listing status">
-      <option value="active">Available</option>
-      <option value="closed" selected={Astro.url.searchParams.get("status") === "closed"}>
-        Closed
-      </option>
-    </select>
-    <button class="button secondary">Search</button>
+    <div class="marketplace-search">
+      <input type="search" name="q" aria-label="Search listings" placeholder="Search listings" value={Astro.url.searchParams.get("q")} />
+      <button class="button secondary">Search</button>
+    </div>
+    <div class="marketplace-filter-options">
+      <select name="kind" aria-label="Listing type">
+        <option value="">All types</option>
+        <option value="goods" selected={Astro.url.searchParams.get("kind") === "goods"}>
+          Goods
+        </option>
+        <option value="service" selected={Astro.url.searchParams.get("kind") === "service"}>
+          Services
+        </option>
+      </select>
+      <select name="status" aria-label="Listing status">
+        <option value="active">Available</option>
+        <option value="closed" selected={Astro.url.searchParams.get("status") === "closed"}>
+          Closed
+        </option>
+      </select>
+    </div>
   </form>
   <section class="marketplace-grid" aria-label="Listings">
     {items.slice(0, 20).map((item) => (
@@ -44,13 +49,11 @@ const items = await listMarketplace(Astro.url, page);
             {item.photos[0] ? <img src={fileUrl(item.photos[0].id)} alt={item.title} loading="lazy" /> : <span>{item.kind === "service" ? "Service" : "No photo"}</span>}
           </div>
           <div class="listing-copy">
-            <p class="listing-price">
-              {formatPrice(item.price)}
-              {item.negotiable && <small>Negotiable</small>}
-            </p>
+            <p class="listing-price">{formatPrice(item.price)}</p>
             <h2>{item.title}</h2>
+            {!!item.negotiable && <p class="listing-negotiable">Negotiable</p>}
             <p>{item.location || `Offered by @${item.username}`}</p>
-            {item.status === "closed" && <span>Closed</span>}
+            {item.status === "closed" && <span class="listing-status">Closed</span>}
           </div>
         </a>
       </article>

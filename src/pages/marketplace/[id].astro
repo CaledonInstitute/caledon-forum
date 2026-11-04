@@ -1,8 +1,9 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import "../../styles/marketplace.css";
+import ListingGallery from "../../components/ListingGallery.astro";
 import ListingForm from "../../components/ListingForm";
 import { getListing, formatPrice } from "../../lib/marketplace";
-import { fileUrl } from "../../lib/upload-policy";
 const listing = await getListing(Astro.params.id || "");
 if (!listing) Astro.response.status = 404;
 const owner = listing?.seller_id === Astro.locals.user?.id;
@@ -12,8 +13,8 @@ if (editing && !owner) Astro.response.status = 403;
 
 <Layout title={listing?.title || "Listing unavailable"} noindex={editing || !listing}>
   <div class="listing-detail">
-    <a href="/marketplace" class="text-link">
-      Marketplace
+    <a href="/marketplace" class="listing-back">
+      ‹ Marketplace
     </a>
     {!listing ? (
       <section class="empty">
@@ -31,29 +32,31 @@ if (editing && !owner) Astro.response.status = 403;
       )
     ) : (
       <>
-        <div class="listing-gallery">
-          {listing.photos.map((photo) => (
-            <a href={fileUrl(photo.id)} target="_blank" rel="noopener">
-              <img src={fileUrl(photo.id)} alt={photo.name} />
-            </a>
-          ))}
+        <ListingGallery photos={listing.photos} title={listing.title} />
+        <div class="listing-summary">
+          {listing.status === "closed" && <span class="listing-status">Closed</span>}
+          <h1>{listing.title}</h1>
+          <div class="listing-price-row">
+            <p class="listing-price">{formatPrice(listing.price)}</p>
+            {!!listing.negotiable && <span class="listing-negotiable">Negotiable</span>}
+          </div>
+          <div class="listing-metadata">
+            <p>{listing.kind === "service" ? "Service" : listing.condition === "new" ? "New item" : "Used item"}</p>
+            {listing.location && <p>{listing.location}</p>}
+          </div>
         </div>
-        <p class="listing-price">
-          {formatPrice(listing.price)}
-          {!!listing.negotiable && <small>Negotiable</small>}
-        </p>
-        <h1>{listing.title}</h1>
-        <p class="muted">
-          {listing.kind === "service" ? "Service" : listing.condition === "new" ? "New item" : "Used item"}
-          {listing.location && ` · ${listing.location}`}
-        </p>
-        <p class="listing-description">{listing.description}</p>
-        <p>
-          Offered by{" "}
-          <a class="text-link" href={`/${listing.username}`}>
-            @{listing.username}
-          </a>
-        </p>
+        <section class="listing-description-section" aria-labelledby="listing-description-title">
+          <h2 id="listing-description-title">About this listing</h2>
+          <p class="listing-description">{listing.description}</p>
+        </section>
+        <div class="listing-seller">
+          <p>
+            Offered by{" "}
+            <a class="text-link" href={`/${listing.username}`}>
+              @{listing.username}
+            </a>
+          </p>
+        </div>
         <div class="listing-actions" data-listing-id={listing.id}>
           {listing.status === "closed" ? (
             <strong>This listing is closed.</strong>
