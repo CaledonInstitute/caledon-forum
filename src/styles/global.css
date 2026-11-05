@@ -1822,6 +1822,10 @@ small,
   color: var(--muted);
   font-size: 12px;
 }
+.repost-context a:hover,
+.repost-context a:focus-visible {
+  text-decoration: underline;
+}
 .thread-ancestor {
   position: relative;
 }

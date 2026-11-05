@@ -34,7 +34,9 @@ const time = postTime(p.createdAt);
   {p.repostedBy && (
     <p class="repost-context">
       <Icon name="repeat-2" size={14} strokeWidth={1.7} />
-      <a href={`/${p.repostedBy}`}>{p.repostedName} reposted</a>
+      <span>
+        <a href={`/${p.repostedBy}`}>{p.repostedName || p.repostedBy}</a> reposted
+      </span>
     </p>
   )}
   <div class="post-grid">
