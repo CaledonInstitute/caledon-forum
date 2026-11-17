@@ -24,7 +24,6 @@ declare namespace Cloudflare {
     PUSH_ENABLED?: string;
     RATE_LIMIT_DO_ENABLED?: string;
     FORUM_CONTROL?: DurableObjectNamespace;
-    PUBLIC_METADATA?: KVNamespace;
     PUSH_QUEUE?: Queue;
     VAPID_PUBLIC_KEY?: string;
     VAPID_PRIVATE_KEY?: string;

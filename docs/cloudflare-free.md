@@ -1,6 +1,6 @@
 # Cloudflare Free operations
 
-The forum uses Workers, D1, SQLite Durable Objects, KV, Queues, Cron, Workers Logs, Turnstile, and Web Analytics. It does not provision R2 or enable paid subscriptions. Free allocations are shared with other applications in the account; application budgets do not guarantee account-wide availability.
+The forum uses Workers, D1, SQLite Durable Objects, Queues, Cron, Workers Logs, Turnstile, and Web Analytics. It does not provision R2 or enable paid subscriptions. Free allocations are shared with other applications in the account; application budgets do not guarantee account-wide availability.
 
 ## Hybrid rendering and 1102
 
@@ -48,9 +48,9 @@ Only supported HTTPS push-service hosts and bounded keys/payloads are accepted. 
 
 ## Cache, monitoring, and rollout
 
-KV optionally shares public link metadata for 24 hours, with 500 writes/day. D1 stays authoritative. Never use KV for sessions, revoked API keys, permissions, or presence. Cache failures fall back to D1/validated fetches. Analytics uses the public `WEB_ANALYTICS_TOKEN`; Workers Logs are enabled. Never log credentials, email links, push endpoints/keys, or private notification bodies.
+Public link metadata is cached in D1 for 24 hours, then refreshed through validated fetches. Analytics uses the public `WEB_ANALYTICS_TOKEN`; Workers Logs are enabled. Never log credentials, email links, push endpoints/keys, or private notification bodies.
 
-Apply D1 migrations before deployment. `0009_mentions.sql` must precede push migrations because it rebuilds notifications. Queue: `caledon-forum-push`. Durable Objects use SQLite migrations. Forks must replace account-specific D1/KV IDs. Worker rollback does not undo D1 or namespace migrations.
+Apply D1 migrations before deployment. `0009_mentions.sql` must precede push migrations because it rebuilds notifications. Queue: `caledon-forum-push`. Durable Objects use SQLite migrations. Forks must replace account-specific D1 IDs. Worker rollback does not undo D1 or namespace migrations.
 
 Checks: `npm run check`, `npm test`, `npm run test:worker`, `npm run build`. `node scripts/test-live-local.mjs tests/browser/live.spec.ts tests/browser/push.spec.ts tests/browser/hybrid.spec.ts` temporarily enables local live flags/test keys, runs browser tests, restores `.dev.vars`, and restarts the background server without printing secrets. UI tests simulate permission/subscription; Worker tests check real encryption and VAPID signing without external delivery. Verify OS delivery separately on an opted-in device.
 

@@ -29,7 +29,6 @@
     { "tag": "v1", "new_sqlite_classes": ["ForumControl"] },
     { "tag": "v2", "new_sqlite_classes": ["ForumPages"] },
   ],
-  "kv_namespaces": [{ "binding": "PUBLIC_METADATA", "id": "4c028d9516a042bcb37755675bffe7bf" }],
   "queues": {
     "producers": [{ "binding": "PUSH_QUEUE", "queue": "caledon-forum-push" }],
     "consumers": [{ "queue": "caledon-forum-push", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 2 }],

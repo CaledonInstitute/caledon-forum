@@ -7,7 +7,6 @@ import type { LinkPreview } from "./types";
 import { localPostId } from "./quotes";
 import { localListingId } from "./listing-link";
 import { env } from "cloudflare:workers";
-import { reserveBudget } from "./control";
 const query = "SELECT id,url,kind,title,description,site,image,video_id AS videoId,checked_at AS checkedAt FROM link_previews WHERE url=?";
 import { mediaPathKind } from "./preview-normalization";
 export { normalizePreview, normalizePreviews } from "./preview-normalization";
@@ -68,54 +67,43 @@ export async function inspectLink(value: string): Promise<LinkPreview | null> {
       videoId: null,
       checkedAt: Date.now(),
     };
-    const key = `link:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(url))), (n) => n.toString(16).padStart(2, "0")).join("")}`;
-    let shared: LinkPreview | null = null;
-    try {
-      shared = (await env.PUBLIC_METADATA?.get<LinkPreview>(key, "json")) || null;
-    } catch {
-      /* D1/fetch remain available. */
-    }
-    if (shared?.url === url && shared.checkedAt > Date.now() - 86400000 && previewUsable(shared, url)) {
-      p = { ...shared, id: cached?.id || shared.id };
+    const vid = youtubeId(url);
+    if (vid) {
+      const response = await safeFetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${vid}`)}`);
+      const data = JSON.parse(new TextDecoder().decode(await readLimited(response, 100000)));
+      p = {
+        ...p,
+        kind: "youtube",
+        title: clean(data.title || ""),
+        site: clean(data.author_name || "YouTube"),
+        image: `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`,
+        videoId: vid,
+      };
     } else {
-      const vid = youtubeId(url);
-      if (vid) {
-        const response = await safeFetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${vid}`)}`);
-        const data = JSON.parse(new TextDecoder().decode(await readLimited(response, 100000)));
-        p = {
-          ...p,
-          kind: "youtube",
-          title: clean(data.title || ""),
-          site: clean(data.author_name || "YouTube"),
-          image: `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`,
-          videoId: vid,
-        };
+      const pathKind = mediaPathKind(url);
+      // Linked video/audio must stay plain links — never SEO cards.
+      if (pathKind === "video_audio") return null;
+      if (pathKind === "image") {
+        const image = await inspectImage(url, p);
+        if (!image) return null;
+        p = image;
       } else {
-        const pathKind = mediaPathKind(url);
-        // Linked video/audio must stay plain links — never SEO cards.
-        if (pathKind === "video_audio") return null;
-        if (pathKind === "image") {
-          const image = await inspectImage(url, p);
-          if (!image) return null;
-          p = image;
+        const response = await safeFetch(url);
+        const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+        if (type.startsWith("image/")) {
+          const bytes = await readLimited(response, 10 * 1024 * 1024);
+          if (!rasterType(bytes, type)) return null;
+          p.kind = "image";
+          p.image = url;
+        } else if (type.startsWith("video/") || type.startsWith("audio/")) {
+          await response.body?.cancel();
+          return null;
         } else {
-          const response = await safeFetch(url);
-          const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
-          if (type.startsWith("image/")) {
-            const bytes = await readLimited(response, 10 * 1024 * 1024);
-            if (!rasterType(bytes, type)) return null;
-            p.kind = "image";
-            p.image = url;
-          } else if (type.startsWith("video/") || type.startsWith("audio/")) {
+          if (!["text/html", "application/xhtml+xml"].includes(type)) {
             await response.body?.cancel();
             return null;
-          } else {
-            if (!["text/html", "application/xhtml+xml"].includes(type)) {
-              await response.body?.cancel();
-              return null;
-            }
-            p = await scrapeLink(url, response, p);
           }
+          p = await scrapeLink(url, response, p);
         }
       }
     }
@@ -131,11 +119,6 @@ export async function inspectLink(value: string): Promise<LinkPreview | null> {
       p.videoId,
       p.checkedAt
     );
-    try {
-      if (env.PUBLIC_METADATA && (await reserveBudget("kv-writes", 500))) await env.PUBLIC_METADATA.put(key, JSON.stringify(p), { expirationTtl: 86400 });
-    } catch {
-      /* Optional cache. */
-    }
     return await one<LinkPreview>(query, url);
   } catch {
     return null;

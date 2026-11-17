@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
-import { resetDatabase, seedUser, execute, row, env } from "./runtime";
+import { resetDatabase, seedUser, execute, row } from "./runtime";
 import { markdown } from "../src/lib/markdown";
 import { ancestors, timeline, publicProfile, profilePosts } from "../src/lib/db";
 import { forumAction } from "../src/lib/forum-service";
@@ -11,7 +11,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete env.PUBLIC_METADATA;
 });
 it("truncates rendered content without destroying Markdown, HTML, code or math", async () => {
   const html = await markdown("**Bold** <em>HTML</em>\n\n```js\n" + "a".repeat(900) + "\n```", [], undefined, 600);
@@ -73,9 +72,8 @@ it("uses the original signed image rather than stale SEO thumbnail in the proxy"
   expect((await media({ params: { id: "stale" }, locals: { user: null } } as any)).status).toBe(200);
   expect(String(fetcher.mock.calls[0][0])).toBe(url);
 });
-it("ignores stale KV classifications and falls back safely on invalid images", async () => {
+it("validates image bytes and falls back safely on invalid images", async () => {
   const url = "https://cdn.images.net/photo.jpg?signature=keep";
-  env.PUBLIC_METADATA = { get: async () => ({ id: "stale", url, kind: "link", title: "SEO", checkedAt: Date.now() }), put: vi.fn() };
   const fetcher = vi.fn(
     async (_url: any, init: any) =>
       new Response(new Headers(init.headers).get("Accept") === "image/webp,image/png,image/jpeg,image/gif" ? new Uint8Array([255, 216, 255, 225]) : "<title>SEO</title>", {
