@@ -5,10 +5,10 @@ import { drizzle } from "drizzle-orm/d1";
 import { username, captcha } from "better-auth/plugins";
 import * as schema from "../db/schema";
 import { stagePasswordVault, reconcileVault } from "./dm-vault";
-import { createAuthMiddleware, getOAuthState } from "better-auth/api";
+import { APIError, createAuthMiddleware, getOAuthState } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
-import { run } from "./db";
-import { isValidUsername } from "./usernames";
+import { one, run } from "./db";
+import { isValidUsername, usernameTakenMessage } from "./usernames";
 import { emailReady, sendAuthEmail } from "./email";
 export function authReady() {
   return (
@@ -143,6 +143,14 @@ function buildAuth(onEmailError?: () => void) {
     advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
     session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
     databaseHooks: {
+      user: {
+        create: {
+          before: async (user) => {
+            if (typeof user.username === "string" && (await one("SELECT 1 FROM previous_usernames WHERE username=?", user.username)))
+              throw new APIError("CONFLICT", { message: usernameTakenMessage });
+          },
+        },
+      },
       account: {
         update: {
           before: async (account, ctx) => {

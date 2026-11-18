@@ -10,17 +10,19 @@ import { validateBody } from "./content";
 import { markdown } from "./markdown";
 import { inspectBody, attachPreviews } from "./previews";
 import { refreshMembership } from "./membership";
-import { isValidUsername } from "./usernames";
+import { isUsernameConflict, isValidUsername, usernameTakenMessage } from "./usernames";
 import { avatarUrl, fetchAvatar } from "./avatar";
 import type { Viewer } from "./types";
 import { signalChange } from "./control";
 const id = z.string().min(1).max(100);
+const usernameInput = z.string().refine(isValidUsername, "Choose 1–30 letters, numbers, or underscores. Do not start with a number. System names are reserved.");
+const mentionedUsers = "SELECT user_id FROM username_owners WHERE username IN (SELECT value FROM json_each(?))";
 function mentionNotifications(body: string, postId: string, actorId: string, now: number, exclude = "") {
   return db()
     .prepare(
       `INSERT OR IGNORE INTO notifications(id,recipient_id,actor_id,post_id,kind,created_at)
     SELECT lower(hex(randomblob(16))),id,?,?,'mention',? FROM user
-    WHERE username IN (SELECT value FROM json_each(?)) AND id!=? AND id!=? AND suspended=0
+    WHERE id IN (${mentionedUsers}) AND id!=? AND id!=? AND suspended=0 AND deleting_at IS NULL
     AND NOT EXISTS(SELECT 1 FROM notifications n WHERE n.recipient_id=user.id AND n.post_id=? AND n.actor_id=? AND n.kind='reply')
     AND EXISTS(SELECT 1 FROM posts WHERE id=? AND deleted=0)`
     )
@@ -45,12 +47,24 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
   if (action === "profile") {
     const imageInput = z.string().trim().max(2048).nullable().optional();
     const input = z
-      .object({ name: z.string().trim().min(1).max(80), bio: z.string().max(300), location: z.string().trim().max(100).optional(), image: imageInput, coverImage: imageInput })
+      .object({
+        name: z.string().trim().min(1).max(80),
+        bio: z.string().max(300),
+        location: z.string().trim().max(100).optional(),
+        image: imageInput,
+        coverImage: imageInput,
+        username: usernameInput.optional(),
+      })
       .parse(data);
     const previousImages = await one<{ image: string | null; cover_image: string | null }>("SELECT image,cover_image FROM user WHERE id=?", user.id);
     const managedIds: string[] = [];
     const fields = ["name=?", "bio=?", "updated_at=?"];
     const values: (string | number | null)[] = [input.name, input.bio, Date.now()];
+    if (input.username !== undefined) {
+      if (!user.username) return Response.json({ error: "Choose your username in onboarding first." }, { status: 403 });
+      fields.push("username=?", "display_username=?");
+      values.push(input.username.toLowerCase(), input.username);
+    }
     if (input.location !== undefined) {
       fields.push("location=?");
       values.push(input.location);
@@ -77,13 +91,18 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
       fields.push(`${column}=?`);
       values.push(image);
     }
-    const saved = await run(
-      `UPDATE user SET ${fields.join(",")} WHERE id=? AND deleting_at IS NULL AND NOT EXISTS(SELECT 1 FROM json_each(?) j WHERE NOT EXISTS(SELECT 1 FROM uploads a WHERE a.id=j.value AND a.state='ready'))`,
-      ...values,
-      user.id,
-      JSON.stringify(managedIds)
-    );
-    if (!saved.meta.changes) throw new Error("Your profile or uploaded image is no longer available. Refresh this page.");
+    try {
+      const saved = await run(
+        `UPDATE user SET ${fields.join(",")} WHERE id=? AND suspended=0 AND deleting_at IS NULL AND NOT EXISTS(SELECT 1 FROM json_each(?) j WHERE NOT EXISTS(SELECT 1 FROM uploads a WHERE a.id=j.value AND a.state='ready'))`,
+        ...values,
+        user.id,
+        JSON.stringify(managedIds)
+      );
+      if (!saved.meta.changes) throw new Error("Your profile or uploaded image is no longer available. Refresh this page.");
+    } catch (error) {
+      if (isUsernameConflict(error)) return Response.json({ error: usernameTakenMessage }, { status: 409 });
+      throw error;
+    }
     const replaced = [previousImages?.image, previousImages?.cover_image].flatMap((url) =>
       url && url.startsWith(new URL("/api/files/", env.SITE_URL).href) ? [url.split("/").pop()!] : []
     );
@@ -91,9 +110,7 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
     return Response.json({ ok: true });
   }
   if (action === "onboarding") {
-    const input = z
-      .object({ username: z.string().refine(isValidUsername, "Choose 1–30 letters, numbers, or underscores. Do not start with a number. System names are reserved.") })
-      .parse(data);
+    const input = z.object({ username: usernameInput }).parse(data);
     if (user.username) throw new Error("Your username is already set.");
     try {
       await run(
@@ -103,8 +120,9 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
         Date.now(),
         user.id
       );
-    } catch {
-      throw new Error("That username is already taken. Choose another.");
+    } catch (error) {
+      if (isUsernameConflict(error)) throw new Error(usernameTakenMessage);
+      throw error;
     }
     return Response.json({ ok: true });
   }
@@ -216,7 +234,7 @@ async function forumActionImpl(user: Viewer, action: string, data: any): Promise
         db().prepare("DELETE FROM post_attachments WHERE post_id=?").bind(postId),
         ...postAttachmentStatements(postId, attachmentIds),
         db()
-          .prepare("DELETE FROM notifications WHERE post_id=? AND kind='mention' AND recipient_id NOT IN (SELECT id FROM user WHERE username IN (SELECT value FROM json_each(?)))")
+          .prepare(`DELETE FROM notifications WHERE post_id=? AND kind='mention' AND recipient_id NOT IN (${mentionedUsers})`)
           .bind(postId, JSON.stringify(extractMentions(body))),
         mentionNotifications(body, postId, user.id, now),
       ]);

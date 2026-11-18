@@ -34,6 +34,8 @@ const title = systemPage ? titles[page] : "Profile unavailable";
 const user = Astro.locals.user;
 const n = pageNumber(Astro.url);
 const person = !systemPage ? await publicProfile(page) : null;
+if (person && person.username.toLowerCase() !== page)
+  return new Response(null, { status: 302, headers: { Location: `/${encodeURIComponent(person.username.toLowerCase())}${Astro.url.search}`, "Cache-Control": "no-store" } });
 if (!systemPage && !person) Astro.response.status = 404;
 
 if (["settings", "notifications", "onboarding", "admin"].includes(page) && !user) return Astro.redirect("/login");

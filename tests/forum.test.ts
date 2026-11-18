@@ -4,7 +4,7 @@ import { POST } from "../src/pages/api/forum/[action]";
 import { refreshMembership } from "../src/lib/membership";
 import { symmetricEncrypt } from "better-auth/crypto";
 import { inspectLink, inspectBody, normalizePreview } from "../src/lib/previews";
-import { posts, replyLocation, post } from "../src/lib/db";
+import { posts, replyLocation, post, publicProfile } from "../src/lib/db";
 let alice: any, bob: any;
 async function act(action: string, data: any, user: any = alice, origin = "http://localhost:4321") {
   const response = await POST({
@@ -93,11 +93,35 @@ describe("forum data and authorization", () => {
     expect((await act("publish", { body: "Reply", parentId: id }, bob)).status).toBe(400);
     expect(row("SELECT COUNT(*) n FROM moderation_actions").n).toBe(1);
   });
-  it("keeps usernames permanent and protects bluecheck fields", async () => {
+  it("restricts onboarding to accounts without a username and protects bluecheck fields", async () => {
     expect((await act("onboarding", { username: "other" })).status).toBe(400);
     await act("profile", { name: "Alice", bio: "Hello", role: "admin", isCaledonMember: true });
     expect(row("SELECT role FROM user WHERE id=?", alice.id).role).toBe("user");
     expect(row("SELECT COUNT(*) n FROM memberships").n).toBe(0);
+  });
+  it("changes usernames without moving posts or losing links and mentions", async () => {
+    const { data: original } = await act("publish", { body: "My post" });
+    const { data: mention } = await act("publish", { body: "Hello @alice" }, bob);
+    const save = (username: string, user = alice) => act("profile", { username, name: "Alice", bio: "" }, user);
+    expect((await save(" settings")).status).toBe(400);
+    expect((await save("Settings")).status).toBe(400);
+    expect((await save("BOB")).status).toBe(409);
+    expect(row("SELECT username,name FROM user WHERE id=?", alice.id)).toMatchObject({ username: "alice", name: "alice" });
+    expect((await save("Alice_New")).status).toBe(200);
+    expect(row("SELECT username,display_username FROM user WHERE id=?", alice.id)).toMatchObject({ username: "alice_new", display_username: "Alice_New" });
+    expect(await post(original.id)).toMatchObject({ authorId: alice.id, username: "alice_new" });
+    expect(await publicProfile("alice")).toMatchObject({ id: alice.id, username: "alice_new" });
+    expect((await save("ALICE", bob)).status).toBe(409);
+    const carol = seedUser("carol");
+    execute("UPDATE user SET username=NULL WHERE id=?", carol.id);
+    expect((await act("onboarding", { username: "alice" }, { ...carol, username: null })).status).toBe(400);
+    const notification = row("SELECT id FROM notifications WHERE post_id=? AND recipient_id=?", mention.id, alice.id);
+    expect(notification).toBeDefined();
+    expect((await act("edit", { id: mention.id, body: "Hello again @alice and @alice_new" }, bob)).status).toBe(200);
+    expect(row("SELECT id FROM notifications WHERE post_id=? AND recipient_id=?", mention.id, alice.id)).toEqual(notification);
+    expect(row("SELECT COUNT(*) AS count FROM notifications WHERE post_id=?", mention.id).count).toBe(1);
+    expect((await save("alice", { ...alice, username: "alice_new" })).status).toBe(200);
+    expect(await publicProfile("alice_new")).toMatchObject({ id: alice.id, username: "alice" });
   });
   it("builds a permalink to the reply detail page", async () => {
     await act("publish", { body: "root" });

@@ -12,6 +12,7 @@ import uploadsSql from "../migrations/0015_uploads_account_deletion.sql";
 import messagingSql from "../migrations/0013_messages_reposts_activity.sql";
 import communitySql from "../migrations/0017_forum_update.sql";
 import marketplaceGuardsSql from "../migrations/0018_marketplace_photo_guards.sql";
+import usernameChangesSql from "../migrations/0021_username_changes.sql";
 import { createIdentity, wrapPrivate, unlockPrivate } from "../src/lib/dm-crypto";
 import { dmAction } from "../src/lib/dm-service";
 import { markdown } from "../src/lib/markdown";
@@ -113,6 +114,7 @@ export default {
           .replace(/\s+/g, " ")
           .trim()
       );
+      await env.DB.exec(usernameChangesSql.replace(/\s+/g, " ").trim());
       await env.DB.batch(
         [
           "announcement",
@@ -252,6 +254,18 @@ export default {
       );
       response = await mutate("profile", { name: "Researcher", bio: "", location: "Jakarta" });
       check(response.ok, "Worker saves profile location");
+      response = await mutate("profile", { name: "Researcher", bio: "", username: "Renamed_Researcher" });
+      check(response.ok && (await readPost(post.id))?.username === "renamed_researcher", "Worker changes username on existing posts");
+      const renamedSession = await auth.api.getSession({ headers: new Headers({ cookie }) });
+      check(renamedSession?.user.username === "renamed_researcher", "Existing session picks up the changed username");
+      check(!(await call("sign-in/username", { username: "researcher", password: "A-real-test-password-123" })).ok, "Old username cannot sign in");
+      check((await call("sign-in/username", { username: "Renamed_Researcher", password: "A-real-test-password-123" })).ok, "New username can sign in");
+      check(
+        (await call("sign-up/email", { username: "researcher", name: "Someone else", email: "other@caledon.test", password: "A-real-test-password-123" })).status === 409,
+        "Registration reserves previous usernames"
+      );
+      response = await mutate("profile", { name: "Researcher", bio: "", username: "researcher" });
+      check(response.ok, "Worker can restore a previous username");
       response = await mutate("share", { id: post.id });
       check(response.ok && ((await response.json()) as any).shares === 1, "Worker increments share count");
       const viewed = (await readPost(post.id))!;

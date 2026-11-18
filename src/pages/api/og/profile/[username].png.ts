@@ -17,7 +17,11 @@ export const GET: APIRoute = async (ctx) => {
   if (!isValidUsername(username)) return missing();
   const person = await publicProfile(username);
   if (!person) return missing();
-  if (username !== person.username) return ctx.redirect(`/api/og/profile/${encodeURIComponent(person.username)}.png${ctx.url.search}`, 301);
+  if (username !== person.username) {
+    const location = `/api/og/profile/${encodeURIComponent(person.username)}.png${ctx.url.search}`;
+    if (username.toLowerCase() === person.username.toLowerCase()) return ctx.redirect(location, 301);
+    return new Response(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });
+  }
   const inPageObject = (ctx.locals.cfContext?.props as { forumPages?: boolean } | undefined)?.forumPages === true;
   if (env.PROFILE_OG_ENABLED !== "true" || env.SERVER_DO_ENABLED !== "true" || !inPageObject) return fallback();
   try {

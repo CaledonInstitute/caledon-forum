@@ -34,3 +34,5 @@ export const RESERVED_USERNAMES = new Set([
 ]);
 export const isReservedUsername = (value: string) => RESERVED_USERNAMES.has(value.toLowerCase());
 export const isValidUsername = (value: string) => /^[a-zA-Z_][a-zA-Z0-9_]{0,29}$/.test(value) && !isReservedUsername(value);
+export const usernameTakenMessage = "That username is already taken. Choose another.";
+export const isUsernameConflict = (error: unknown) => error instanceof Error && /UNIQUE constraint failed: user\.username\b|username already taken/i.test(error.message);

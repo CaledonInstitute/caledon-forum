@@ -5,7 +5,10 @@ import { fetchAvatar } from "../../../lib/avatar";
 
 export const GET: APIRoute = async (ctx) => {
   const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
-  const user = await one<{ image: string | null }>("SELECT image FROM user WHERE username=? AND deleting_at IS NULL", ctx.params.username);
+  const user = await one<{ image: string | null }>(
+    "SELECT u.image FROM username_owners h JOIN user u ON u.id=h.user_id WHERE h.username=? COLLATE NOCASE AND u.deleting_at IS NULL",
+    ctx.params.username
+  );
   if (!user?.image) return new Response("Image not found", { status: 404, headers });
   const parsed = new URL(user.image);
   if (parsed.origin === new URL(env.SITE_URL).origin && /^\/api\/files\/[0-9a-f-]{36}$/.test(parsed.pathname))

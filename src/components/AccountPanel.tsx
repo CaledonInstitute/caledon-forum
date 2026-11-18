@@ -193,7 +193,15 @@ export default function AccountPanel({
                 const f = new FormData(e.currentTarget);
                 if (avatarUploading || coverUploading) return;
                 perform(async () => {
-                  await send("/api/forum/profile", { name: f.get("name"), bio: f.get("bio"), location: f.get("location"), image: f.get("image"), coverImage: f.get("coverImage") });
+                  const username = f.get("username");
+                  await send("/api/forum/profile", {
+                    username: username !== null && username !== user?.username ? username : undefined,
+                    name: f.get("name"),
+                    bio: f.get("bio"),
+                    location: f.get("location"),
+                    image: f.get("image"),
+                    coverImage: f.get("coverImage"),
+                  });
                   location.reload();
                 }, true);
               }}
@@ -202,8 +210,19 @@ export default function AccountPanel({
               <ProfileImageField name="coverImage" initial={user?.coverImage} username={user?.username} onBusy={setCoverUploading} disabled={busy} />
               <label>
                 Username
-                <input value={user?.username || ""} readOnly />
-                <span className="help">Your username is permanent.</span>
+                <input
+                  name="username"
+                  defaultValue={user?.username || ""}
+                  disabled={!user?.username || user.suspended || busy}
+                  required={!!user?.username}
+                  maxLength={30}
+                  pattern="[A-Za-z_][A-Za-z0-9_]{0,29}"
+                  autoComplete="username"
+                  aria-describedby="profile-username-help"
+                />
+                <span id="profile-username-help" className="help">
+                  {user?.username ? "Use your new username to sign in. Previous profile links still work." : "Choose a username during onboarding."}
+                </span>
               </label>
               <label>
                 Display name
