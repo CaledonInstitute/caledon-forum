@@ -20,7 +20,7 @@
     "preview": "npm run build && astro preview",
     "astro": "astro",
     "generate-types": "wrangler types --strict-vars=false",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "npm run build && node scripts/deploy.mjs",
     "cf-typegen": "wrangler types --strict-vars=false"
   },
   "dependencies": {

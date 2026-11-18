@@ -64,12 +64,10 @@ Both values must be set to show Google sign-in. Missing Google configuration doe
 
 ### Account API
 
-Apply all pending migrations before deploying this version. `0004_api_keys.sql` adds the `api_keys` table; `0005_random_post_addresses.sql` preserves existing post IDs and enables random 19-digit IDs for new posts/replies. `0006_direct_replies_index.sql` adds the index for direct-reply lists and counts without changing existing posts or relations. Existing accounts and sessions remain intact. Local migrations have no effect on production:
+`0004_api_keys.sql` adds the `api_keys` table. `0005_random_post_addresses.sql` preserves existing post IDs and enables random 19-digit IDs for new posts and replies. `0006_direct_replies_index.sql` adds the index for direct-reply lists and counts. For development, apply migrations to the local database. For production, use the [deploy command](#deploy).
 
 ```powershell
 npx wrangler d1 migrations apply caledon-forum-db --local
-# Before production deployment:
-npx wrangler d1 migrations apply caledon-forum-db --remote
 ```
 
 An active account with a username and verified email can generate one key in **Settings > API**. Copy it when generated: the server stores only a SHA-256 hash. Regenerating immediately invalidates the old key; revoking removes access. Keys do not expire automatically. Account suspension or removal of verified status also blocks API access.
@@ -111,9 +109,14 @@ The browser tests require the background dev server and local fixtures. Screensh
 Set `SITE_URL` to `https://forum.hengker.tech` before deploying. For local development override it in `.dev.vars`. The bound D1 database is `caledon-forum-db`, separate from other existing databases.
 
 ```powershell
-npx wrangler d1 migrations apply caledon-forum-db --remote
 npm run deploy
 ```
+
+This command builds the Worker, applies pending migrations to the built configuration's `DB` binding without prompting, and publishes the Worker after both steps succeed.
+
+Use `npm run deploy -- --dry-run` to check the build and package locally. Use Wrangler directly for custom deployments.
+
+For Cloudflare Workers Builds, set the production **Deploy command** to `npm run deploy` and leave the separate **Build command** empty. Give the build API token account-level D1 write access in addition to its deployment permissions. [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
 
 Smoke checks: home/thread/profile return server HTML; unknown threads return 404; `/robots.txt`, `/sitemap.xml`, `/api/og/site.png` work; external image URLs and YouTube cards render. When authentication is enabled, also test GitHub login, username signup, verification email, password reset, membership refresh, posting, replies, likes, and reports. Test a revoked GitHub permission and ensure forum login still works.
 
